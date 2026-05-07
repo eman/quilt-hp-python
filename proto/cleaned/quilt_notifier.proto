@@ -1,0 +1,98 @@
+// quilt_notifier.proto
+// NotifierService — bidirectional streaming subscription service.
+// Confirmed gRPC path: /core.protos.notifier.NotifierService/Subscribe
+//
+// Android APK DEX class reference (authoritative):
+//   HR0   = SubscribeRequest  (oneof: append=2 | remove=3, each a TopicsMessage)
+//   SR0   = TopicsMessage     (subscriptions=1, repeated Subscription)
+//   LR0   = Subscription      (topic=1, string)
+//   CR0   = SubscribeResponse (notifier_events=1, control_events=2, system_events=3)
+//   ER0   = NotifierEvent     (topic=1 string, payload=2 google.protobuf.Any)
+//   C7104yR0 = ControlEvent   (topics=1 repeated string, type=2 ControlEventType)
+//   C6328uR0 = HdsNotification (notification_type=1, payload=2 HomeDatastoreObjectDiff)
+//   MJ    = HomeDatastoreObjectDiff (space=3, indoor_unit=9, ..., see quilt_hds.proto)
+//
+// NOTE: The current Android APK only exposes Subscribe. The previous cleaned proto
+// included a Publish RPC, but no matching descriptor was found in the APK.
+
+syntax = "proto3";
+
+package core.protos.notifier;
+
+option java_package = "com.quilt.proto.notifier";
+option swift_prefix = "Quilt";
+
+// ---------------------------------------------------------------------------
+// Topics
+// ---------------------------------------------------------------------------
+// Topics follow the pattern: hds/<object_type>/<object_id>
+// e.g. "hds/space/98f9121d-...", "hds/indoor_unit/abc123"
+// Object types (from EnumC5979se0.java):
+//   space, outdoor_unit_hardware, outdoor_unit, indoor_unit_hardware,
+//   indoor_unit, controller_hardware, controller, controller_remote_sensor,
+//   remote_sensor, quilt_smart_module, schedule_week, schedule_day,
+//   comfort_setting, location, software_update_info
+
+enum ControlEventType {
+  CONTROL_EVENT_TYPE_UNSPECIFIED = 0;
+  CONTROL_EVENT_TYPE_TOPIC_APPENDED = 1;
+  CONTROL_EVENT_TYPE_TOPIC_REMOVED = 2;
+  CONTROL_EVENT_TYPE_INVALID_APPEND_TOPIC = 3;
+  CONTROL_EVENT_TYPE_INVALID_REMOVE_TOPIC = 4;
+  CONTROL_EVENT_TYPE_RECONNECT_REQUEST = 5;
+  CONTROL_EVENT_TYPE_PERMISSION_DENIED = 6;
+}
+
+enum SystemEventType {
+  SYSTEM_EVENT_TYPE_UNKNOWN = 0;
+  SYSTEM_EVENT_TYPE_SOFTWARE_UPDATE = 1;
+}
+
+message Subscription {
+  string topic = 1;
+}
+
+message TopicsMessage {
+  repeated Subscription subscriptions = 1;
+}
+
+message SubscribeRequest {
+  oneof message {
+    TopicsMessage append = 2;
+    TopicsMessage remove = 3;
+  }
+}
+
+// Wire format observed from live captures:
+//   DATA events:  topic (f1) = raw bytes of C1517Ta{type_url="hds/space/<uuid>", value=outer_any}
+//                 outer_any = google.protobuf.Any{type_url="type.googleapis.com/core.protos.hds.HdsNotification",
+//                                                 value=HdsNotification bytes}
+//                 HdsNotification (C6328uR0): {notification_type=1(varint), payload=2(HomeDatastoreObjectDiff)}
+//                 HomeDatastoreObjectDiff (MJ.java): space=3, outdoor_unit=6, indoor_unit=9, etc.
+//   HEARTBEATS:   topic (f1) absent (b""); payload (f2) = C1517Ta{type_url="hds/space/<uuid>",
+//                                                                   value=b"" or varint control byte}
+// NOTE: topic field is 'bytes' (not string) because data events embed a binary C1517Ta message
+// at f1. Using bytes avoids UTF-8 decode failures in the gRPC Python deserializer.
+message NotifierEvent {
+  bytes topic = 1;   // raw C1517Ta bytes for data events; empty for heartbeats
+  bytes payload = 2; // raw C1517Ta bytes for subscription confirmations; empty for data events
+}
+
+message ControlEvent {
+  repeated string topics = 1;
+  ControlEventType type = 2;
+}
+
+message SystemEvent {
+  SystemEventType type = 1;
+}
+
+message SubscribeResponse {
+  repeated NotifierEvent notifier_events = 1;
+  repeated ControlEvent control_events = 2;
+  repeated SystemEvent system_events = 3;
+}
+
+service NotifierService {
+  rpc Subscribe(stream SubscribeRequest) returns (stream SubscribeResponse);
+}

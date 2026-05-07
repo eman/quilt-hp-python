@@ -1,0 +1,347 @@
+// quilt_services.proto
+// Reconstructed gRPC app-service definitions from Quilt app v1.0.25.
+//
+// Authoritative sources used here:
+//   - Android APK smali for service/method names, package paths, and many field numbers
+//   - iOS KMP source for semantic model names and iOS-only methods absent from the APK
+//   - Live captures for user/partner/system-information traffic
+//
+// NOTE: SystemService lives in package core.protos.system and has been moved to
+// quilt_system.proto to match the Android wire path.
+
+syntax = "proto3";
+
+package core.protos.app;
+
+import "google/protobuf/field_mask.proto";
+import "google/protobuf/timestamp.proto";
+
+option java_package = "com.quilt.proto.api";
+option swift_prefix = "Quilt";
+
+// ---------------------------------------------------------------------------
+// Common enums / models
+// ---------------------------------------------------------------------------
+
+// Android enum LuH1.
+enum AccessRoleToSystem {
+  ACCESS_ROLE_TO_SYSTEM_UNKNOWN = 0;
+  ACCESS_ROLE_TO_SYSTEM_ADMIN = 1;
+  ACCESS_ROLE_TO_SYSTEM_MEMBER = 2;
+}
+
+// KMP-only/UserAttributes model. Not found in the current Android APK, but used
+// by iOS source and confirmed via live captures.
+enum DeclaredUserType {
+  DECLARED_USER_TYPE_UNSPECIFIED = 0;
+  DECLARED_USER_TYPE_HOMEOWNER = 1;
+  DECLARED_USER_TYPE_PARTNER = 2;
+}
+
+message User {
+  string quilt_user_id = 1;
+  string first_name = 2;
+  string last_name = 3;
+  string email = 4;
+  string phone_number = 5;
+}
+
+message UserAttributes {
+  DeclaredUserType declared_user_type = 1;
+}
+
+// ---------------------------------------------------------------------------
+// User Service  (GRPCUserClientService)
+// ---------------------------------------------------------------------------
+
+message GetLoggedInUserRequest {}
+message GetLoggedInUserResponse {
+  User user = 1;
+}
+
+message UpdateLoggedInUserRequest {
+  string first_name = 1;
+  string last_name = 2;
+  string phone_number = 3;
+}
+message UpdateLoggedInUserResponse {
+  User user = 1;
+}
+
+message GetUserAttributesRequest {}
+
+message PatchUserAttributesRequest {
+  UserAttributes user_attributes = 1;
+}
+
+service UserService {
+  rpc GetLoggedInUser(GetLoggedInUserRequest) returns (GetLoggedInUserResponse);
+  rpc UpdateLoggedInUser(UpdateLoggedInUserRequest) returns (UpdateLoggedInUserResponse);
+  rpc GetUserAttributes(GetUserAttributesRequest) returns (UserAttributes);
+  rpc PatchUserAttributes(PatchUserAttributesRequest) returns (UserAttributes);
+}
+
+// ---------------------------------------------------------------------------
+// System Information Service  (GRPCSystemInformationClientService)
+// ---------------------------------------------------------------------------
+
+// Address is only referenced by iOS KMP methods/models (ListSystems/SetAddress).
+// The current Android APK only confirms SystemInformation fields 1-3.
+enum GeocodeSource {
+  GEOCODE_SOURCE_UNSPECIFIED = 0;
+  GEOCODE_SOURCE_GOOGLE_PLACES = 1;
+}
+
+message Address {
+  string address_line_1 = 1;
+  string address_line_2 = 2;
+  string city = 3;
+  string region_code = 4;
+  string postal_code = 5;
+  string country_code = 6;
+  string formatted_address = 7;
+  double latitude = 8;
+  double longitude = 9;
+  GeocodeSource geocode_source = 10;
+  bool geocode_override = 11;
+}
+
+message SystemInformation {
+  string id = 1;
+  string name = 2;
+  string tz_identifier = 3;
+  Address address = 4; // KMP-only field; not confirmed in current Android APK.
+}
+
+message ListSystemInformationRequest {}
+message ListSystemInformationResponse {
+  repeated SystemInformation systems = 1;
+}
+
+message SetAddressRequest {
+  string system_id = 1;
+  Address address = 2;
+}
+message SetAddressResponse {
+  bool success = 1;
+}
+
+enum TimeResolution {
+  TIME_RESOLUTION_UNSPECIFIED = 0;
+  TIME_RESOLUTION_HOURLY = 1;
+}
+
+enum MetricBucketStatus {
+  METRIC_BUCKET_STATUS_UNSPECIFIED = 0;
+  METRIC_BUCKET_STATUS_COMPLETE = 1;
+  METRIC_BUCKET_STATUS_INCOMPLETE = 2;
+}
+
+message EnergyMetricBucket {
+  google.protobuf.Timestamp start_time = 1;
+  MetricBucketStatus status = 2;
+  float energy_kwh = 3;
+}
+
+message SpaceEnergyMetrics {
+  string space_id = 1;
+  TimeResolution bucket_resolution = 2;
+  repeated EnergyMetricBucket energy_buckets = 3;
+}
+
+message GetEnergyMetricsRequest {
+  string system_id = 1;
+  google.protobuf.Timestamp start_time = 2;
+  google.protobuf.Timestamp end_time = 3;
+  TimeResolution preferred_resolution = 4;
+}
+
+message GetEnergyMetricsResponse {
+  repeated SpaceEnergyMetrics space_energy_metrics = 1;
+}
+
+service SystemInformationService {
+  rpc ListSystems(ListSystemInformationRequest) returns (ListSystemInformationResponse);
+  rpc SetAddress(SetAddressRequest) returns (SetAddressResponse);
+  rpc GetEnergyMetrics(GetEnergyMetricsRequest) returns (GetEnergyMetricsResponse);
+}
+
+// ---------------------------------------------------------------------------
+// Invitation Service  (GRPCInvitationClientService)
+// ---------------------------------------------------------------------------
+
+message InviterInformation {
+  string first_name = 1;
+  string last_name = 2;
+  // The KMP model also includes inviter email, but the current Android APK only
+  // exposes first_name/last_name on the nested inviter message.
+}
+
+message Invitation {
+  string id = 1;
+  string invitee_email = 2;
+  InviterInformation invited_by = 3;
+  string system_name = 4;
+  AccessRoleToSystem access_role = 5;
+}
+
+message ListPendingInvitationsRequest {}
+message ListPendingInvitationsResponse {
+  repeated Invitation invitations = 1;
+}
+
+message CreateInvitationRequest {
+  string invitee_email = 1;
+  string system_id = 2;
+  AccessRoleToSystem access_role = 3;
+}
+message CreateInvitationResponse {
+  Invitation invitation = 1;
+}
+
+message AcceptInvitationRequest {
+  string invitation_id = 1;
+}
+message AcceptInvitationResponse {}
+
+message RejectInvitationRequest {
+  string invitation_id = 1;
+}
+message RejectInvitationResponse {}
+
+message CancelInvitationRequest {
+  string invitation_id = 1;
+}
+message CancelInvitationResponse {}
+
+message SendNotificationForInvitationRequest {
+  string invitation_id = 1;
+}
+message SendNotificationForInvitationResponse {}
+
+service InvitationService {
+  rpc ListPendingInvitationsForLoggedInUser(ListPendingInvitationsRequest) returns (ListPendingInvitationsResponse);
+  rpc CreateInvitation(CreateInvitationRequest) returns (CreateInvitationResponse);
+  rpc AcceptInvitation(AcceptInvitationRequest) returns (AcceptInvitationResponse);
+  rpc RejectInvitation(RejectInvitationRequest) returns (RejectInvitationResponse);
+  rpc CancelInvitation(CancelInvitationRequest) returns (CancelInvitationResponse);
+  rpc SendNotificationForInvitation(SendNotificationForInvitationRequest) returns (SendNotificationForInvitationResponse);
+}
+
+// ---------------------------------------------------------------------------
+// Partner Service  (GRPCPartnerClientService)
+// iOS/KMP + live-capture only; absent from the current Android APK.
+// ---------------------------------------------------------------------------
+
+enum AfterInviteBehavior {
+  AFTER_INVITE_BEHAVIOR_UNSPECIFIED = 0;
+  AFTER_INVITE_BEHAVIOR_NONE = 1;
+  AFTER_INVITE_BEHAVIOR_REMOVE_INSTALLER = 2;
+}
+
+message PartnerDetails {
+  string organization_id = 1;
+  string organization_name = 2;
+}
+
+message InviteSystemOwnerRequest {
+  string owner_email = 1;
+  string system_id = 2;
+  AfterInviteBehavior after_invite_behavior = 3;
+}
+message InviteSystemOwnerResponse {
+  Invitation invitation = 1;
+}
+
+message GetLoggedInUserPartnerDetailsRequest {}
+message GetLoggedInUserPartnerDetailsResponse {
+  PartnerDetails partner_details = 1;
+}
+
+message JoinPartnerOrganizationRequest {
+  string partner_code = 1;
+}
+message JoinPartnerOrganizationResponse {
+  PartnerDetails partner_details = 1;
+}
+
+message LeavePartnerOrganizationRequest {
+  string partner_organization_id = 1;
+}
+message LeavePartnerOrganizationResponse {}
+
+service PartnerService {
+  rpc InviteSystemOwner(InviteSystemOwnerRequest) returns (InviteSystemOwnerResponse);
+  rpc GetLoggedInUserPartnerDetails(GetLoggedInUserPartnerDetailsRequest) returns (GetLoggedInUserPartnerDetailsResponse);
+  rpc JoinPartnerOrganization(JoinPartnerOrganizationRequest) returns (JoinPartnerOrganizationResponse);
+  rpc LeavePartnerOrganization(LeavePartnerOrganizationRequest) returns (LeavePartnerOrganizationResponse);
+}
+
+// ---------------------------------------------------------------------------
+// System User Service  (GRPCSystemUserClientService)
+// ---------------------------------------------------------------------------
+
+message UserList {
+  repeated User users = 1;
+}
+
+message InvitationList {
+  repeated Invitation invitations = 1;
+}
+
+message ListSystemUsersRequest {
+  string system_id = 1;
+  google.protobuf.FieldMask field_mask = 2;
+}
+message ListSystemUsersResponse {
+  UserList administrators = 1;
+  UserList members = 2;
+  InvitationList pending_invitations = 3;
+}
+
+message GetRoleOfLoggedInSystemUserRequest {
+  string system_id = 1;
+}
+message GetRoleOfLoggedInSystemUserResponse {
+  AccessRoleToSystem access_role = 1;
+}
+
+message RemoveSystemUserRequest {
+  string system_id = 1;
+  string user_id = 2;
+}
+message RemoveSystemUserResponse {}
+
+message RemoveLoggedInSystemUserRequest {
+  string system_id = 1;
+}
+message RemoveLoggedInSystemUserResponse {}
+
+message ChangeRoleOfSystemUserRequest {
+  string system_id = 1;
+  string user_id = 2;
+  AccessRoleToSystem new_access_role = 3;
+}
+message ChangeRoleOfSystemUserResponse {}
+
+service SystemUserService {
+  rpc ListSystemUsers(ListSystemUsersRequest) returns (ListSystemUsersResponse);
+  rpc GetRoleOfLoggedInSystemUser(GetRoleOfLoggedInSystemUserRequest) returns (GetRoleOfLoggedInSystemUserResponse);
+  rpc RemoveSystemUser(RemoveSystemUserRequest) returns (RemoveSystemUserResponse);
+  rpc RemoveLoggedInSystemUser(RemoveLoggedInSystemUserRequest) returns (RemoveLoggedInSystemUserResponse);
+  rpc ChangeRoleOfSystemUser(ChangeRoleOfSystemUserRequest) returns (ChangeRoleOfSystemUserResponse);
+}
+
+// ---------------------------------------------------------------------------
+// Mobile App Service  (GRPCMobileAppClientService)
+// ---------------------------------------------------------------------------
+
+message AuthorizeNewDeviceRequest {
+  string device_serial_number = 1;
+  string space_id = 2;
+}
+message AuthorizeNewDeviceResponse {}
+
+service MobileAppService {
+  rpc AuthorizeNewDevice(AuthorizeNewDeviceRequest) returns (AuthorizeNewDeviceResponse);
+}

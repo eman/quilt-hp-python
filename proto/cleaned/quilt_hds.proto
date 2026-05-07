@@ -1,0 +1,1028 @@
+// quilt_hds.proto
+// Reconstructed from Quilt app v1.0.25 (com.quilt.app) Kotlin Multiplatform source.
+// Home Datastore (HDS) messages — objects managed by the gRPC API.
+// Field numbers and types verified against:
+//   - Live mitmproxy binary capture (decoded_log.txt)
+//   - quilt_office.proto.json (bundled in IPA — exact proto3 JSON field names)
+//   - KMP Kotlin source in extracted/Payload/Quilt.app/commonMain/kotlin/
+//   - Android APK decompiled proto enums (com.quilt.android v1.x, jadx)
+//     These are authoritative generated proto Java classes (InterfaceC6012sp0)
+
+syntax = "proto3";
+
+package core.protos.home_datastore;
+
+import "google/protobuf/timestamp.proto";
+import "google/protobuf/empty.proto";
+import "google/protobuf/field_mask.proto";
+
+option java_package = "com.quilt.proto.hds";
+option java_outer_classname = "QuiltHdsProto";
+
+// ---------------------------------------------------------------------------
+// Enums
+// ---------------------------------------------------------------------------
+
+// Confirmed by Android proto Java enum QJ (implements ProtocolMessageEnum).
+// COOL=2, HEAT=3 confirmed. No DRY mode in the proto (was iOS KMP-only artifact).
+enum HVACMode {
+  HVAC_MODE_UNSPECIFIED = 0;
+  HVAC_MODE_STANDBY = 1;
+  HVAC_MODE_COOL = 2;
+  HVAC_MODE_HEAT = 3;
+  HVAC_MODE_AUTO = 4;
+  HVAC_MODE_FAN = 5;
+  HVAC_MODE_FALLBACK_AUTO = 6;
+  HVAC_MODE_FALLBACK_OFF = 7;
+}
+
+// Confirmed by Android proto Java enum SJ (implements ProtocolMessageEnum).
+// DRY states were iOS KMP-layer only and do not exist in the wire proto.
+enum HVACState {
+  HVAC_STATE_UNSPECIFIED = 0;
+  HVAC_STATE_STANDBY = 1;
+  HVAC_STATE_COOL = 2;
+  HVAC_STATE_HEAT = 3;
+  HVAC_STATE_DRIFT = 4;
+  HVAC_STATE_FAN = 5;
+  HVAC_STATE_COOL_DEFERRED = 6;
+  HVAC_STATE_HEAT_DEFERRED = 7;
+  HVAC_STATE_FAN_DEFERRED = 8;
+  HVAC_STATE_COOL_PREPARING = 9;
+  HVAC_STATE_HEAT_PREPARING = 10;
+}
+
+enum OccupancyMode {
+  OCCUPANCY_MODE_UNSPECIFIED = 0;
+  OCCUPANCY_MODE_DISABLED = 1;
+  OCCUPANCY_MODE_ENABLED = 2;
+}
+
+// Freeze-protection setting on SpaceSettings (field 9).
+// UNSPECIFIED is treated as ENABLED by the app (freeze protection on by default).
+// KMP: SafetyHeatingMode — field number unconfirmed (not present in APK build; added post-release).
+enum SafetyHeatingMode {
+  SAFETY_HEATING_MODE_UNSPECIFIED = 0;
+  SAFETY_HEATING_MODE_DISABLED = 1;
+  SAFETY_HEATING_MODE_ENABLED = 2;
+}
+
+enum HvacControllerType {
+  HVAC_CONTROLLER_TYPE_UNSPECIFIED = 0;
+  HVAC_CONTROLLER_TYPE_PASS_THROUGH_TEMPERATURE = 1;
+  HVAC_CONTROLLER_TYPE_INTEGRAL_TEMPERATURE_V1 = 2;
+  HVAC_CONTROLLER_TYPE_INTEGRAL_TEMPERATURE_V2 = 3;
+}
+
+enum ComfortSettingOverride {
+  COMFORT_SETTING_OVERRIDE_UNSPECIFIED = 0;
+  COMFORT_SETTING_OVERRIDE_NONE = 1;
+  COMFORT_SETTING_OVERRIDE_UNTIL_NEXT_SCHEDULE = 2;
+  COMFORT_SETTING_OVERRIDE_INDEFINITE = 3;
+  COMFORT_SETTING_OVERRIDE_SCHEDULE = 4;
+  COMFORT_SETTING_OVERRIDE_UNOCCUPIED = 5;
+  COMFORT_SETTING_OVERRIDE_OCCUPIED = 6;
+}
+
+enum ComfortSettingType {
+  COMFORT_SETTING_TYPE_UNSPECIFIED = 0;
+  COMFORT_SETTING_TYPE_ACTIVE = 1;
+  COMFORT_SETTING_TYPE_SLEEP = 2;
+  COMFORT_SETTING_TYPE_AWAY = 3;
+  COMFORT_SETTING_TYPE_STANDBY = 4;
+  COMFORT_SETTING_TYPE_CUSTOM = 5;
+}
+
+// JSON name: LOUVER_MODE_AUTO (not LOUVER_MODE_AUTOMATIC).
+// Wire-confirmed: LOUVER_MODE_FIXED=3, LOUVER_MODE_AUTO=4 (from quilt_office.proto.json).
+enum IndoorUnitLouverMode {
+  LOUVER_MODE_UNSPECIFIED = 0;
+  LOUVER_MODE_CLOSED = 1;
+  LOUVER_MODE_SWEEP = 2;
+  LOUVER_MODE_FIXED = 3;   // wire-confirmed via JSON
+  LOUVER_MODE_AUTO = 4;    // JSON name "LOUVER_MODE_AUTO"
+}
+
+// JSON name: FAN_SPEED_MODE_AUTO (not FAN_SPEED_MODE_AUTOMATIC).
+enum FanSpeedMode {
+  FAN_SPEED_MODE_UNSPECIFIED = 0;
+  FAN_SPEED_MODE_AUTO = 1;     // JSON name "FAN_SPEED_MODE_AUTO"
+  FAN_SPEED_MODE_SETPOINT = 2;
+}
+
+// Boost mode for spaces. Values inferred from JSON presence.
+enum BoostMode {
+  BOOST_MODE_UNSPECIFIED = 0;  // wire-confirmed (f7=0 in UpdateSpace)
+  BOOST_MODE_OFF = 1;
+  BOOST_MODE_ON = 2;
+}
+
+enum LightAnimation {
+  LIGHT_ANIMATION_UNSPECIFIED = 0;
+  LIGHT_ANIMATION_NONE = 1;
+  LIGHT_ANIMATION_SPARKLE_FADE = 2;
+  LIGHT_ANIMATION_TWINKLE_FADE = 3;
+  LIGHT_ANIMATION_DANCE = 4;
+  LIGHT_ANIMATION_CHASE = 5;
+}
+
+enum LightState {
+  LIGHT_STATE_UNSPECIFIED = 0;
+  LIGHT_STATE_ON = 1;
+  LIGHT_STATE_OFF = 2;
+}
+
+enum ConditionState {
+  CONDITION_STATE_UNSPECIFIED = 0;
+  CONDITION_STATE_INACTIVE = 1;
+  CONDITION_STATE_ACTIVE = 2;
+}
+
+enum Presence {
+  PRESENCE_UNSPECIFIED = 0;
+  PRESENCE_UNDETECTED = 1;
+  PRESENCE_DETECTED = 2;
+}
+
+enum RemoteSensorControlMode {
+  REMOTE_SENSOR_CONTROL_MODE_UNSPECIFIED = 0;
+  REMOTE_SENSOR_CONTROL_MODE_DISABLED = 1;
+  REMOTE_SENSOR_CONTROL_MODE_ENABLED = 2;
+}
+
+enum Weekday {
+  WEEKDAY_UNSPECIFIED = 0;
+  WEEKDAY_MONDAY = 1;
+  WEEKDAY_TUESDAY = 2;
+  WEEKDAY_WEDNESDAY = 3;
+  WEEKDAY_THURSDAY = 4;
+  WEEKDAY_FRIDAY = 5;
+  WEEKDAY_SATURDAY = 6;
+  WEEKDAY_SUNDAY = 7;
+}
+
+enum ScheduleExecution {
+  SCHEDULE_EXECUTION_UNSPECIFIED = 0;
+  SCHEDULE_EXECUTION_RUNNING = 1;
+  SCHEDULE_EXECUTION_PAUSED = 2;
+}
+
+enum FallbackControlCommand {
+  FALLBACK_CONTROL_COMMAND_UNSPECIFIED = 0;
+  FALLBACK_CONTROL_COMMAND_COMPLETE = 1;
+  FALLBACK_CONTROL_COMMAND_EXIT = 2;
+}
+
+// ---------------------------------------------------------------------------
+// Common sub-messages — EntityMetadata (the "header" field on all HDS objects)
+// ---------------------------------------------------------------------------
+
+// All HDS objects share EntityMetadata at field 1 (JSON name: "header").
+// Wire-confirmed field layout from binary decode: object_id=1, created_ts=2, updated_ts=3, system_id=4.
+message EntityMetadata {
+  string object_id = 1;                          // JSON: "objectId"
+  google.protobuf.Timestamp created_ts = 2;
+  google.protobuf.Timestamp updated_ts = 3;      // may be absent on some objects
+  string system_id = 4;                          // JSON: "systemId" — organization/system UUID
+}
+
+// ---------------------------------------------------------------------------
+// Location
+// ---------------------------------------------------------------------------
+
+message LocationAttributes {
+  google.protobuf.Timestamp updated_ts = 1;
+  string name = 2;
+  string tz_identifier = 3;  // JSON: "tzIdentifier" e.g. "America/Los_Angeles"
+}
+
+message LocationControls {
+  google.protobuf.Timestamp updated_ts = 1;
+  ScheduleExecution schedule_execution = 2;
+}
+
+// Wire field layout confirmed: header=1, attributes=2, controls=3.
+message Location {
+  EntityMetadata header = 1;
+  LocationAttributes attributes = 2;
+  LocationControls controls = 3;
+}
+
+// ---------------------------------------------------------------------------
+// Space
+// ---------------------------------------------------------------------------
+
+// Space relationships. From quilt_office.proto.json: customerAccountId at f1, updatedTs.
+// parentSpaceId (root space has none) maps to some field; using f2 for updatedTs, f3 for parentSpaceId.
+// Wire-confirmed: f3 = Timestamp (updated_ts). customer_account_id and parent_space_id
+// are at f1 and f2 respectively (absent/empty in root spaces).
+message SpaceRelationships {
+  string customer_account_id = 1;   // JSON: "customerAccountId"
+  string parent_space_id = 2;       // empty for root space; JSON: "parentSpaceId"
+  google.protobuf.Timestamp updated_ts = 3;
+}
+
+// Wire-confirmed SpaceSettings fields (from field_3.f3):
+// f1=name, f2=description, f3=updated_ts, f4=timezone, f5=OccupancyMode,
+// f6=HvacControllerType, f7=occupied_timeout_s(180.0), f8=unoccupied_timeout_s(1200.0)
+// APK-confirmed (C5149oM.java): fields 1–8 exactly.
+// f9=SafetyHeatingMode (freeze protection): KMP-confirmed in SpaceSettings.safetyHeating,
+//   field number unconfirmed (not in APK build; added post-release, assumed f9).
+message SpaceSettings {
+  string name = 1;                          // wire-confirmed: f1
+  string description = 2;                   // wire-confirmed: f2
+  google.protobuf.Timestamp updated_ts = 3; // wire-confirmed: f3
+  string timezone = 4;                      // wire-confirmed: f4 e.g. "America/Los_Angeles"
+  OccupancyMode occupancy = 5;              // wire-confirmed: f5 — ENABLED turns on auto-away/return
+  HvacControllerType hvac_controller_type = 6; // wire-confirmed: f6
+  float occupied_timeout_s = 7;             // seconds of presence before "returned"; default 180s (3 min)
+  float unoccupied_timeout_s = 8;           // seconds of no-presence before "away"; default 1200s (20 min)
+  SafetyHeatingMode safety_heating = 9;     // freeze protection; UNSPECIFIED treated as ENABLED; field# unconfirmed
+}
+
+// Wire-confirmed from UpdateSpace binary (hex decode):
+//   f1=hvac_mode(varint; COOL=2, HEAT=3 per HVACEnums.kt ordinals),
+//   f2=temperature_setpoint_c(float),
+//   f3=updated_ts(Timestamp), f4=cooling_setpoint_c(float/22.777°C),
+//   f5=heating_setpoint_c(float/20.555°C), f6=absent,
+//   f7=boost_mode(varint/0=UNSPECIFIED), f8=comfort_setting_override(varint/2=UNTIL_NEXT_SCHEDULE),
+//   f9=comfort_setting_id_string(string/UUID)
+// cooling is at f4, heating is at f5. f2 mirrors whichever setpoint is active (heating in HEAT mode).
+message SpaceControls {
+  HVACMode hvac_mode = 1;                          // wire-confirmed: f1 (varint), COOL=3
+  float temperature_setpoint_c = 2;               // wire-confirmed: f2 (float, direct °C)
+  google.protobuf.Timestamp updated_ts = 3;        // wire-confirmed: f3
+  float cooling_temperature_setpoint_c = 4;       // wire-confirmed: f4 (cooling at 4, not heating!)
+  float heating_temperature_setpoint_c = 5;       // wire-confirmed: f5 (heating at 5, not cooling!)
+  string comfort_setting_id = 6;                  // Android proto: COMFORT_SETTING_ID_FIELD_NUMBER=6
+  BoostMode boost_mode = 7;                        // wire-confirmed: f7 (varint, 0=UNSPECIFIED)
+  ComfortSettingOverride comfort_setting_override = 8;  // wire-confirmed: f8 (varint, 2=UNTIL_NEXT_SCHEDULE)
+  string comfort_setting_id_string = 9;            // wire-confirmed: f9 (UUID string)
+}
+
+// SpaceState wire-confirmed from UpdateSpace response (field_5):
+// f1=updated_ts, f2=setpoint_c(float), f3=ambient_temperature_c(21.7°C), f4=HVACState, f5=comfort_setting_id
+message SpaceState {
+  google.protobuf.Timestamp updated_ts = 1;   // wire-confirmed: f1
+  float setpoint_temperature_c = 2;          // wire-confirmed: f2
+  float ambient_temperature_c = 3;           // wire-confirmed: f3 (observed 21.7°C)
+  HVACState hvac_state = 4;                   // wire-confirmed: f4
+  string comfort_setting_id = 5;              // wire-confirmed: f5
+}
+
+// Wire-confirmed Space field positions (from HomeDatastoreSystem field_3 items):
+// f1=EntityMetadata(header), f2=relationships, f3=settings, f4=controls, f5=state
+message Space {
+  EntityMetadata header = 1;             // wire-confirmed: f1
+  SpaceRelationships relationships = 2;  // wire-confirmed: f2
+  SpaceSettings settings = 3;            // wire-confirmed: f3 (name, timezone, timeouts)
+  SpaceControls controls = 4;            // wire-confirmed: f4 (hvac_mode, setpoints)
+  SpaceState state = 5;                  // wire-confirmed: f5
+}
+
+// ---------------------------------------------------------------------------
+// Indoor Unit
+// ---------------------------------------------------------------------------
+
+// Wire-confirmed from quilt_office.proto.json and binary decode:
+// customerAccountId=1, spaceId=2, outdoorUnitId=3, hardwareId=4, quiltSmartModuleId=5, updatedTs=6.
+// NOTE: updated_ts is at f6 (not f1 as previously assumed).
+message IndoorUnitRelationships {
+  string customer_account_id = 1;  // JSON: "customerAccountId"
+  string space_id = 2;
+  string outdoor_unit_id = 3;
+  string hardware_id = 4;
+  string quilt_smart_module_id = 5;
+  google.protobuf.Timestamp updated_ts = 6;
+  string firmware_update_info_id = 7;
+}
+
+// Wire-confirmed from binary decode of IndoorUnit.f3:
+// name=1, description=2, lightBrightnessDefaultPercent=3(float), updatedTs=4,
+// presenceFenceLeftM=5, presenceFenceRightM=6, presenceFenceForwardM=7,
+// radarSensorDistanceFromFloorM=8.
+// NOTE: updated_ts at f4 (not f1 as previously assumed).
+message IndoorUnitSettings {
+  string name = 1;
+  string description = 2;
+  float light_brightness_default_percent = 3;   // JSON: "lightBrightnessDefaultPercent"
+  google.protobuf.Timestamp updated_ts = 4;
+  float presence_fence_left_m = 5;
+  float presence_fence_right_m = 6;
+  float presence_fence_forward_m = 7;
+  float radar_sensor_distance_from_floor_m = 8;
+}
+
+// Wire-confirmed flat field layout from binary decode of IndoorUnit.f4 (40 bytes):
+// f1,f2=absent; f3=ledColorCode(varint/uint32), f4=ledColorBrightnessPercent(float),
+// f5=fanSpeedMode(varint), f6=fanSpeedPercent(float), f7=updatedTs(Timestamp),
+// f8,f9=absent; f10=louverMode(varint), f11=louverFixedPosition(float),
+// f12=lightState(varint), f13=lightAnimation(varint).
+// NOTE: These are FLAT fields, NOT nested sub-messages.
+message IndoorUnitControls {
+  // f1, f2 absent in Android DEX (C2523cK.java)
+  uint32 led_color_code = 3;                // RGBW packed uint32
+  float led_color_brightness_percent = 4;  // stored brightness 0.0–1.0; preserved when led_state=OFF
+  FanSpeedMode fan_speed_mode = 5;
+  float fan_speed_percent = 6;             // 0.0–1.0
+  google.protobuf.Timestamp updated_ts = 7;
+  // f8, f9: uuid-string field confirmed at f9 in captures; purpose TBD
+  IndoorUnitLouverMode louver_mode = 10;
+  float louver_fixed_position = 11;        // degrees, used when louver_mode=FIXED
+  LightAnimation led_animation = 12;       // confirmed Android C2523cK: LED_ANIMATION_FIELD_NUMBER=12
+  LightState led_state = 13;               // wire-confirmed f13: UNSPECIFIED=0,ON=1,OFF=2
+                                           // sent when mobile_led_scheduling_enabled Statsig gate is on;
+                                           // brightness is PRESERVED (not zeroed) when state=OFF
+}
+
+// Android-confirmed field layout (CK.java):
+// 1=updated_ts, 2=temperature_setpoint_c, 3=ambient_temperature_c, 4=hvac_state,
+// 5=fan_speed_setpoint_rpm, 6=fan_speed_rpm, 7=light_brightness_percent,
+// 8=presence_detection_level, 9=inlet_temperature_c, 10=outlet_temperature_c,
+// 11=ambient_humidity_percent, 12=hvac_mode, 13=calculated_ambient_temperature_c,
+// 14=louver_angle_up_down_degrees
+// Note: KMP IndoorUnit.kt adds `ledState: LightState` to IndoorUnitState, but this
+// field is NOT in the APK (CK.java) or on the wire. The led_state field (f13) lives
+// in IndoorUnitControls (confirmed), not IndoorUnitState.
+message IndoorUnitState {
+  google.protobuf.Timestamp updated_ts = 1;
+  float temperature_setpoint_c = 2;
+  float ambient_temperature_c = 3;
+  HVACState hvac_state = 4;
+  float fan_speed_setpoint_rpm = 5;
+  float fan_speed_rpm = 6;
+  float light_brightness_percent = 7;  // device-observed actual brightness (0.0–1.0)
+  float presence_detection_level = 8;
+  float inlet_temperature_c = 9;
+  float outlet_temperature_c = 10;
+  float ambient_humidity_percent = 11;
+  HVACMode hvac_mode = 12;
+  float calculated_ambient_temperature_c = 13;
+  float louver_angle_up_down_degrees = 14;
+  // fields 15+ reserved for future ledState enum (KMP-only, not yet deployed)
+}
+
+message IndoorUnitConditions {
+  google.protobuf.Timestamp updated_ts = 1;
+  ConditionState mode_conflict = 2;
+  ConditionState anti_cold_wind = 3;
+  ConditionState abnormal_outdoor_air_temperature = 4;
+  ConditionState hvac_mode_switching_delay = 5;
+  ConditionState defrost_cycle = 6;
+  ConditionState safety_heating = 7;
+  ConditionState oil_return = 8;
+  ConditionState modbus_communication_error = 9;
+  ConditionState coil_preheat = 10;
+  ConditionState mode_conflict_avoidance = 11;
+  ConditionState outdoor_unit_communication_error = 12;
+}
+
+message IndoorUnitPresenceState {
+  google.protobuf.Timestamp updated_ts = 1;
+  Presence sensor0_presence = 2;
+  Presence sensor1_presence = 3;
+}
+
+message IndoorUnitCommands {
+  google.protobuf.Timestamp updated_ts = 1;
+  FallbackControlCommand fallback_control_command = 2;
+}
+
+// Wire-confirmed: header=1, attributes(specs)=2. All fields flat in attributes sub-message.
+// From quilt_office.proto.json attributes: modelSku, serialNumber, productionTs,
+// firmwareVersion, fanSpeedMaxRpm, updatedTs.
+message IndoorUnitHardwareAttributes {
+  string model_sku = 1;
+  string serial_number = 2;
+  google.protobuf.Timestamp production_ts = 3;
+  string firmware_version = 4;
+  float fan_speed_max_rpm = 5;
+  google.protobuf.Timestamp updated_ts = 6;
+  string indoor_unit_serial_number = 7;           // APK: INDOOR_UNIT_SERIAL_NUMBER_FIELD_NUMBER
+  string quilt_smart_module_serial_number = 8;    // APK: QUILT_SMART_MODULE_SERIAL_NUMBER_FIELD_NUMBER
+}
+
+message IndoorUnitHardware {
+  EntityMetadata header = 1;
+  IndoorUnitHardwareAttributes attributes = 2;
+}
+
+// APK-confirmed (C4363kK.java): HVAC controller inputs — what the controller sends to the IDU.
+message IndoorUnitHvacInputs {
+  google.protobuf.Timestamp updated_ts = 1;
+  float external_ambient_temperature_c = 2;  // ambient temp used by controller
+  int32 ambient_temperature_source = 3;      // enum: which sensor source
+  float temperature_setpoint_c = 4;          // setpoint sent to IDU
+  HVACMode hvac_mode = 5;
+  HvacControllerType hvac_controller_type = 6;
+  HVACState hvac_state = 7;
+}
+
+// APK-confirmed (C5918sK.java): raw IDU performance measurements.
+message IndoorUnitPerformanceData {
+  google.protobuf.Timestamp updated_ts = 1;
+  float measurement_interval_s = 2;
+  float energy_measurement_j = 3;
+  HVACMode hvac_mode = 4;
+  float actual_fan_speed_rpm = 5;
+  float outlet_temperature_c = 6;
+  float inlet_humidity_pct = 7;
+  float inlet_temperature_c = 8;
+  float coil_temperature_c = 9;
+  float gas_pipe_temperature_c = 10;
+  float liquid_pipe_temperature_c = 11;
+  HVACState hvac_state = 12;
+}
+
+// APK-confirmed (C6306uK.java): computed energy/power metrics over a measurement window.
+message IndoorUnitPerformanceMetrics {
+  google.protobuf.Timestamp updated_ts = 1;   // field 1 inferred
+  float measurement_duration_s = 11;          // window length in seconds
+  float energy_total_j = 4;                   // total energy this window
+  float capacity_w = 5;                       // HVAC capacity (watts)
+  float coefficient_of_performance = 6;       // COP
+  HVACMode hvac_mode = 7;
+  float hvac_power_w = 8;
+  float led_power_w = 9;
+  HVACState hvac_state = 10;
+  float hvac_energy_j = 12;
+  float led_energy_j = 13;
+}
+
+// APK-confirmed (C5337pK.java): occupancy detection result for this IDU/space.
+// OccupancyState (MK.java): UNSPECIFIED=0, UNDETECTED=1, DETECTED=2.
+enum OccupancyState {
+  OCCUPANCY_STATE_UNSPECIFIED = 0;
+  OCCUPANCY_STATE_UNDETECTED = 1;
+  OCCUPANCY_STATE_DETECTED = 2;
+}
+
+message IndoorUnitOccupancy {
+  google.protobuf.Timestamp updated_ts = 1;
+  OccupancyState occupancy_state = 2;
+}
+
+
+// Wire-confirmed top-level layout from binary capture: header=1(LEN/102), relationships=2(LEN/203),
+// settings=3(LEN/67), controls=4(LEN/40), state=5(LEN/79), then f6–f12 per APK.
+message IndoorUnit {
+  EntityMetadata header = 1;                   // wire-confirmed: f1
+  IndoorUnitRelationships relationships = 2;   // wire-confirmed: f2
+  IndoorUnitSettings settings = 3;             // wire-confirmed: f3
+  IndoorUnitControls controls = 4;             // wire-confirmed: f4
+  IndoorUnitState state = 5;                   // wire-confirmed: f5
+  IndoorUnitHvacInputs hvac_inputs = 6;        // APK: HVAC_INPUTS_FIELD_NUMBER=6 (C4363kK)
+  IndoorUnitPresenceState presence = 7;        // APK: PRESENCE_FIELD_NUMBER=7 (C6694wK)
+  IndoorUnitConditions conditions = 8;         // APK: CONDITIONS_FIELD_NUMBER=8 (C2132aK)
+  IndoorUnitCommands commands = 9;             // APK: COMMANDS_FIELD_NUMBER=9 (YJ)
+  IndoorUnitPerformanceData performance_data = 10;      // APK: PERFORMANCE_DATA_FIELD_NUMBER=10 (C5918sK)
+  IndoorUnitPerformanceMetrics performance_metrics = 11; // APK: PERFORMANCE_METRICS_FIELD_NUMBER=11 (C6306uK)
+  IndoorUnitOccupancy occupancy = 12;          // APK: OCCUPANCY_FIELD_NUMBER=12 (C5337pK)
+}
+
+// ---------------------------------------------------------------------------
+// Outdoor Unit
+// ---------------------------------------------------------------------------
+
+// From quilt_office.proto.json: customerAccountId, spaceId, hardwareId, updatedTs.
+message OutdoorUnitRelationships {
+  string customer_account_id = 1;
+  string space_id = 2;
+  string hardware_id = 3;
+  google.protobuf.Timestamp updated_ts = 4;
+  string firmware_update_info_id = 5;
+}
+
+// name=1, description=2, updatedTs=3 (same pattern as other settings).
+message OutdoorUnitSettings {
+  string name = 1;
+  string description = 2;
+  google.protobuf.Timestamp updated_ts = 3;
+}
+
+message OutdoorUnitState {
+  google.protobuf.Timestamp updated_ts = 1;
+  HVACState hvac_state = 2;
+}
+
+// APK-confirmed: YK.java — compressor telemetry from the outdoor unit.
+// Populated during active operation; empty/zero in standby.
+message OutdoorUnitPerformanceData {
+  google.protobuf.Timestamp updated_ts = 1;
+  float measurement_interval_s = 2;
+  float energy_measurement_j = 3;
+  float compressor_frequency_hz = 4;  // inverter drive frequency
+  float ambient_temperature_c = 5;    // outdoor ambient air temperature
+  float coil_temperature_c = 6;       // outdoor coil temperature
+  float exhaust_temperature_c = 7;    // compressor discharge/exhaust temperature
+  float high_pressure_kpa = 8;        // refrigerant high-side pressure
+  float low_pressure_kpa = 9;         // refrigerant low-side pressure
+}
+
+// Wire-confirmed: header=1, attributes=2. Same hardware pattern as IndoorUnitHardware.
+message OutdoorUnitHardwareAttributes {
+  string model_sku = 1;
+  string serial_number = 2;
+  google.protobuf.Timestamp production_ts = 3;
+  string firmware_version = 4;
+  google.protobuf.Timestamp updated_ts = 5;
+}
+
+message OutdoorUnitHardware {
+  EntityMetadata header = 1;
+  OutdoorUnitHardwareAttributes attributes = 2;
+}
+
+// Wire-confirmed field layout: header=1, relationships=2, settings=3, state=4.
+// APK-confirmed (QK.java): performance_data=5.
+message OutdoorUnit {
+  EntityMetadata header = 1;
+  OutdoorUnitRelationships relationships = 2;
+  OutdoorUnitSettings settings = 3;
+  OutdoorUnitState state = 4;
+  OutdoorUnitPerformanceData performance_data = 5;
+}
+
+// ---------------------------------------------------------------------------
+// Controller (Quilt thermostat / hub)
+// ---------------------------------------------------------------------------
+
+// From quilt_office.proto.json: customerAccountId=1, spaceId=2, hardwareId=3, updatedTs=4.
+message ControllerRelationships {
+  string customer_account_id = 1;
+  string space_id = 2;
+  string hardware_id = 3;
+  google.protobuf.Timestamp updated_ts = 4;
+  string software_update_info_id = 5;
+  string firmware_update_info_id = 6;
+}
+
+// name=1, description=2, updatedTs=3.
+message ControllerSettings {
+  string name = 1;
+  string description = 2;
+  google.protobuf.Timestamp updated_ts = 3;
+}
+
+message ControllerState {
+  // Wire-confirmed from field_11.f4 of HomeDatastoreSystem.
+  // f1 = updated_ts  (KMP: ControllerState.updatedTimestamp, used by Controller.isOnline())
+  // f2 = raw Dial surface thermistor (inflated by self-heating; used for display).
+  // f5 = calibrated/corrected ambient temperature sent to IDU as external_ambient_temperature_c.
+  //      Cross-confirmed: f5 value matches IndoorUnitHvacInputs.external_ambient_temperature_c
+  //      for all 5 rooms during live operation.
+  // f3, f4 = internal PCB temperatures (~30–52°C during active operation).
+  google.protobuf.Timestamp updated_ts = 1;
+  float ambient_temperature_c = 2;  // raw Dial thermistor (~24–29°C; self-heating bias)
+  float temperature_f3 = 3;         // PCB temp A (~30–50°C)
+  float temperature_f4 = 4;         // PCB temp B (~45–52°C, hotter component)
+  float temperature_f5 = 5;         // calibrated ext_amb sent to IDU (~16–20°C, matches Ctrl→IDU)
+}
+
+message ControllerControls {
+  google.protobuf.Timestamp updated_ts = 1;
+  RemoteSensorControlMode remote_sensor_control_mode = 2;
+}
+
+enum WifiConnectionState {
+  WIFI_STATE_UNSPECIFIED        = 0;
+  WIFI_STATE_DISCONNECTED       = 1;
+  WIFI_STATE_INTERFACE_DISABLED = 2;
+  WIFI_STATE_INACTIVE           = 3;
+  WIFI_STATE_SCANNING           = 4;
+  WIFI_STATE_AUTHENTICATING     = 5;
+  WIFI_STATE_ASSOCIATING        = 6;
+  WIFI_STATE_ASSOCIATED         = 7;
+  WIFI_STATE_4WAY_HANDSHAKE     = 8;
+  WIFI_STATE_GROUP_HANDSHAKE    = 9;
+  WIFI_STATE_WPA_COMPLETED      = 10;
+}
+
+// APK-confirmed field layout (NM.java). Used in QSM (f4/f5/f6) and Controller (f5/f6/f7).
+message WifiState {
+  WifiConnectionState wifi_state = 1;    // connection phase (DISCONNECTED→WPA_COMPLETED)
+  string ssid = 2;                       // "Tigger" — shared Quilt AP
+  string bssid = 3;                      // AP MAC address
+  int32  frequency_mhz = 4;             // 5745 = 5 GHz
+  string passphrase = 5;                 // WiFi password (usually empty in responses)
+  int32  signal_level_dbm = 6;          // RSSI dBm (signed int32, not sint32)
+  int32  noise_level_dbm = 7;           // noise floor dBm
+  int32  rx_invalid_frag = 8;
+  int32  tx_excessive_retries = 9;
+  string ipv4_address = 10;
+  string ipv6_address = 11;
+  google.protobuf.Timestamp updated_ts = 12;
+}
+
+// Wire-confirmed from hardware capture: modelSku=1, serialNumber=2, productionTs=3, firmwareVersion=4, updatedTs=5.
+message ControllerHardwareAttributes {
+  string model_sku = 1;
+  string serial_number = 2;
+  google.protobuf.Timestamp production_ts = 3;
+  string firmware_version = 4;
+  google.protobuf.Timestamp updated_ts = 5;
+}
+
+message ControllerHardware {
+  EntityMetadata header = 1;              // wire-confirmed: f1
+  ControllerHardwareAttributes attributes = 2;  // wire-confirmed: f2 (replaces ControllerHardwareSpecs)
+}
+
+// APK-confirmed field layout (C5331pI.java):
+// header=1, relationships=2, settings=3, state=4,
+// hosted_wifi_state=5, ap_wifi_state=6, p2p_wifi_state=7, controls=8.
+message Controller {
+  EntityMetadata header = 1;
+  ControllerRelationships relationships = 2;
+  ControllerSettings settings = 3;
+  ControllerState state = 4;
+  WifiState hosted_wifi_state = 5;  // the AP the controller itself creates for devices
+  WifiState ap_wifi_state = 6;      // the upstream AP the controller connects to
+  WifiState p2p_wifi_state = 7;     // peer-to-peer WiFi (usually empty)
+  ControllerControls controls = 8;
+}
+
+// ---------------------------------------------------------------------------
+// Remote Sensor (BLE temperature/humidity sensor)
+// ---------------------------------------------------------------------------
+
+// APK-confirmed (C5921sL.java): MAC_FIELD_NUMBER=1, UPDATED_TS_FIELD_NUMBER=2.
+// APK-confirmed (C5921sL.java): MAC_FIELD_NUMBER=1, UPDATED_TS_FIELD_NUMBER=2.
+// Shared by both RemoteSensor and ControllerRemoteSensor.
+message RemoteSensorAttributes {
+  string mac = 1;                            // APK: MAC_FIELD_NUMBER=1
+  google.protobuf.Timestamp updated_ts = 2;  // APK: UPDATED_TS_FIELD_NUMBER=2
+}
+
+// APK-confirmed (AL.java): ambient_temp=1, humidity=2, updated_ts=3, battery=4, signal=5.
+// Shared by both RemoteSensor and ControllerRemoteSensor.
+message RemoteSensorState {
+  float ambient_temperature_c = 1;           // APK: AMBIENT_TEMPERATURE_C_FIELD_NUMBER=1
+  float humidity_percent = 2;                // APK: HUMIDITY_PERCENT_FIELD_NUMBER=2
+  google.protobuf.Timestamp updated_ts = 3;  // APK: UPDATED_TS_FIELD_NUMBER=3
+  float battery_level_percent = 4;           // APK: BATTERY_LEVEL_PERCENT_FIELD_NUMBER=4
+  int32 signal_level_dbm = 5;               // APK: SIGNAL_LEVEL_DBM_FIELD_NUMBER=5
+}
+
+// APK-confirmed (C7085yL.java): indoor_unit_id=1, updated_ts=2.
+// Used by standalone RemoteSensor (field 12 in HomeDatastoreSystem).
+message RemoteSensorRelationships {
+  string indoor_unit_id = 1;                 // APK: INDOOR_UNIT_ID_FIELD_NUMBER=1
+  google.protobuf.Timestamp updated_ts = 2;
+}
+
+// APK-confirmed (FI.java): controller_id=1, updated_ts=2.
+// Used by ControllerRemoteSensor (field 16 in HomeDatastoreSystem).
+message ControllerRemoteSensorRelationships {
+  string controller_id = 1;                  // APK: CONTROLLER_ID_FIELD_NUMBER=1
+  google.protobuf.Timestamp updated_ts = 2;
+}
+
+// APK-confirmed (C6503vL.java): updated_ts=1, control_mode=2.
+// Shared by both RemoteSensor and ControllerRemoteSensor.
+message RemoteSensorControls {
+  google.protobuf.Timestamp updated_ts = 1;          // APK: UPDATED_TS_FIELD_NUMBER=1
+  RemoteSensorControlMode control_mode = 2;  // APK: CONTROL_MODE_FIELD_NUMBER=2
+}
+
+// APK-confirmed (C5534qL.java): header=1, attributes=2, state=3, relationships=4, controls=5.
+// Standalone remote sensor linked to an IndoorUnit (field 12 in HomeDatastoreSystem).
+// Not present in installations without paired remote sensors.
+message RemoteSensor {
+  EntityMetadata header = 1;
+  RemoteSensorAttributes attributes = 2;
+  RemoteSensorState state = 3;
+  RemoteSensorRelationships relationships = 4;   // links to indoor_unit_id
+  RemoteSensorControls controls = 5;
+}
+
+// APK-confirmed (CI.java): header=1, attributes=2, state=3, relationships=4, controls=5.
+// Sensor capability of a Controller (Dial) used for zone temperature control.
+// Linked to a Controller via controller_id. Field 16 in HomeDatastoreSystem.
+// Not present unless remote sensor control mode is configured on a Dial.
+message ControllerRemoteSensor {
+  EntityMetadata header = 1;
+  RemoteSensorAttributes attributes = 2;
+  RemoteSensorState state = 3;
+  ControllerRemoteSensorRelationships relationships = 4;  // links to controller_id
+  RemoteSensorControls controls = 5;
+}
+
+// ---------------------------------------------------------------------------
+// Comfort Setting
+// ---------------------------------------------------------------------------
+
+// Wire-confirmed from quilt_office.proto.json: fan_speed is FLAT (fanSpeedMode + fanSpeedPercent),
+// NOT nested FanSpeed sub-message. Field layout from JSON:
+// updatedTs=1, name=2, fanSpeedMode=3(varint), fanSpeedPercent=4(float),
+// heatingTemperatureSetpointC=5(float), coolingTemperatureSetpointC=6(float),
+// type=7(varint), hvacMode=8(varint), louverMode=9(varint), louverFixedPosition=10(float).
+// NOTE: Nested FanSpeed was WRONG — causes TYPE MISMATCH at f3.
+message ComfortSettingAttributes {
+  google.protobuf.Timestamp updated_ts = 1;
+  string name = 2;
+  FanSpeedMode fan_speed_mode = 3;         // flat varint, NOT nested sub-message
+  float fan_speed_percent = 4;             // flat float
+  float heating_temperature_setpoint_c = 5;
+  float cooling_temperature_setpoint_c = 6;
+  ComfortSettingType type = 7;
+  HVACMode hvac_mode = 8;
+  IndoorUnitLouverMode louver_mode = 9;
+  float louver_fixed_position = 10;
+}
+
+message ComfortSettingRelationships {
+  google.protobuf.Timestamp updated_ts = 1;
+  string space_id = 2;
+}
+
+// Wire-confirmed: header=1, attributes=2, relationships=3.
+message ComfortSetting {
+  EntityMetadata header = 1;
+  ComfortSettingAttributes attributes = 2;
+  ComfortSettingRelationships relationships = 3;
+}
+
+// ---------------------------------------------------------------------------
+// Schedule
+// ---------------------------------------------------------------------------
+
+// ScheduleEvent: fan_speed is also FLAT here (fanSpeedMode + fanSpeedPercent), not nested.
+message LedScheduleEvent {
+  google.protobuf.Timestamp updated_ts = 1;
+  int32 start_s = 2;
+  uint32 led_color_code = 3;          // flat LED color code (matches IndoorUnitControls pattern)
+  float led_color_brightness_percent = 4;
+  LightAnimation animation = 5;
+}
+
+message ScheduleEvent {
+  google.protobuf.Timestamp updated_ts = 1;
+  string comfort_setting_id = 2;
+  int32 start_s = 3;                  // seconds from midnight
+  bool precondition = 4;
+  ScheduleExecution schedule_execution = 5;
+  FanSpeedMode fan_speed_mode = 6;    // flat varint
+  float fan_speed_percent = 7;        // flat float
+  float heating_temperature_setpoint_c = 8;
+  float cooling_temperature_setpoint_c = 9;
+  HVACMode hvac_mode = 10;
+  IndoorUnitLouverMode louver_mode = 11;
+  float louver_fixed_position = 12;
+}
+
+message ScheduleDayAttributes {
+  google.protobuf.Timestamp updated_ts = 1;
+  string name = 2;
+}
+
+message ScheduleDayRelationships {
+  google.protobuf.Timestamp updated_ts = 1;
+  string space_id = 2;
+}
+
+// APK-confirmed (DL.java): EVENTS_FIELD_NUMBER=3, RELATIONSHIPS_FIELD_NUMBER=4.
+// (Earlier proto.json source had these swapped — APK takes precedence.)
+message ScheduleDay {
+  EntityMetadata header = 1;
+  ScheduleDayAttributes attributes = 2;
+  repeated ScheduleEvent events = 3;
+  ScheduleDayRelationships relationships = 4;
+  repeated LedScheduleEvent led_events = 5;
+}
+
+message ScheduleWeekDay {
+  google.protobuf.Timestamp updated_ts = 1;
+  string day_id = 2;
+  Weekday weekday = 3;
+}
+
+message ScheduleWeekRelationships {
+  google.protobuf.Timestamp updated_ts = 1;
+  string space_id = 2;
+}
+
+// APK-confirmed (OL.java): DAYS_FIELD_NUMBER=2, RELATIONSHIPS_FIELD_NUMBER=3.
+// (Earlier proto.json source had relationships=2, days=3 — APK takes precedence.)
+message ScheduleWeek {
+  EntityMetadata header = 1;
+  repeated ScheduleWeekDay days = 2;
+  ScheduleWeekRelationships relationships = 3;
+}
+
+// ---------------------------------------------------------------------------
+// QuiltSmartModule (QSM — embedded compute module in the IDU)
+// ---------------------------------------------------------------------------
+
+// ---------------------------------------------------------------------------
+// QuiltSmartModule (QSM — WiFi compute module embedded in every IDU)
+// Wire-confirmed: field 7 in HomeDatastoreSystem (5 items for 5 IDUs)
+// ---------------------------------------------------------------------------
+
+message QuiltSmartModuleRelationships {
+  google.protobuf.Timestamp updated_ts = 1;
+  string software_update_info_id = 2;
+  string firmware_update_info_id = 3;
+}
+
+// APK-confirmed (C4171jL.java): LED_COLOR_CODE_FIELD_NUMBER=1, UPDATED_TS_FIELD_NUMBER=2.
+message QuiltSmartModuleControls {
+  int32 led_color_code = 1;
+  google.protobuf.Timestamp updated_ts = 2;
+}
+
+// APK-confirmed (C5146oL.java): 9 fields, presence/ALS/accelerometer sensor data.
+message QuiltSmartModuleState {
+  float phase_detected_raw = 1;     // presence sensor: phase (float, fixed32)
+  float target_detected_raw = 2;    // presence sensor: target (float, fixed32)
+  int32 als_illuminance_raw = 3;    // ambient light: illuminance
+  int32 als_ir_raw = 4;             // ambient light: IR channel
+  int32 als_both_raw = 5;           // ambient light: combined
+  int32 accel_x_raw = 6;            // accelerometer X
+  int32 accel_y_raw = 7;            // accelerometer Y
+  int32 accel_z_raw = 8;            // accelerometer Z
+  google.protobuf.Timestamp updated_ts = 9;
+}
+
+// APK-confirmed (C3678hL.java):
+// header=1, controls=2, state=3, hosted_wifi_state=4, ap_wifi_state=5, p2p_wifi_state=6, relationships=7.
+message QuiltSmartModule {
+  EntityMetadata header = 1;
+  QuiltSmartModuleControls controls = 2;       // APK: CONTROLS_FIELD_NUMBER=2
+  QuiltSmartModuleState state = 3;             // APK: STATE_FIELD_NUMBER=3 (was incorrectly at f2)
+  WifiState hosted_wifi_state = 4;             // APK: HOSTED_WIFI_STATE_FIELD_NUMBER=4
+  WifiState ap_wifi_state = 5;                 // APK: AP_WIFI_STATE_FIELD_NUMBER=5
+  WifiState p2p_wifi_state = 6;               // APK: P2P_WIFI_STATE_FIELD_NUMBER=6 (usually empty)
+  QuiltSmartModuleRelationships relationships = 7;
+}
+
+// ---------------------------------------------------------------------------
+// Software / Firmware Update
+// ---------------------------------------------------------------------------
+
+// APK-confirmed (WL.java): SoftwareUpdateInfoAttributes fields.
+message SoftwareUpdateInfoAttributes {
+  google.protobuf.Timestamp updated_ts = 1;
+  int32  state = 2;                    // update state (enum TBD)
+  int32  status = 3;                   // update status (enum TBD)
+  string current_version = 4;
+  string target_version = 5;
+  float  current_progress = 6;
+  float  total_progress = 7;
+  int32  progress_unit = 8;            // unit for progress values
+}
+
+// APK-confirmed (YL.java): HEADER_FIELD_NUMBER=1, ATTRIBUTES_FIELD_NUMBER=2.
+message SoftwareUpdateInfo {
+  EntityMetadata header = 1;           // APK: was named "metadata" — fix to "header"
+  SoftwareUpdateInfoAttributes attributes = 2;
+}
+
+// ---------------------------------------------------------------------------
+// HomeDatastoreSystem (full system snapshot)
+// ALL field numbers APK-confirmed from OJ.java (HomeDatastoreSystem proto class).
+// Fields 1, 2, 4 are unknown. Fields 12 and 16 are empty for installations
+// without standalone remote sensors or configured ControllerRemoteSensors.
+// ---------------------------------------------------------------------------
+
+message HomeDatastoreSystem {
+  // field 1, 2 — unknown/empty in captured system
+  repeated Space spaces = 3;                              // APK: SPACES_FIELD_NUMBER=3; confirmed: 6 items
+  // field 4 — unknown/empty
+  repeated OutdoorUnitHardware outdoor_unit_hardware = 5; // APK: OUTDOOR_UNIT_HARDWARE_FIELD_NUMBER=5; confirmed: 3 items
+  repeated OutdoorUnit outdoor_units = 6;                 // APK: OUTDOOR_UNITS_FIELD_NUMBER=6; confirmed: 3 items
+  repeated QuiltSmartModule quilt_smart_modules = 7;      // APK: QUILT_SMART_MODULES_FIELD_NUMBER=7; confirmed: 5 items
+  repeated IndoorUnitHardware indoor_unit_hardware = 8;   // APK: INDOOR_UNIT_HARDWARE_FIELD_NUMBER=8; confirmed: 5 items
+  repeated IndoorUnit indoor_units = 9;                   // APK: INDOOR_UNITS_FIELD_NUMBER=9; confirmed: 5 items
+  repeated ControllerHardware controller_hardware = 10;   // APK: CONTROLLER_HARDWARE_FIELD_NUMBER=10; confirmed: 5 items
+  repeated Controller controllers = 11;                   // APK: CONTROLLERS_FIELD_NUMBER=11; confirmed: 5 items
+  repeated RemoteSensor remote_sensors = 12;              // APK: REMOTE_SENSORS_FIELD_NUMBER=12; empty without paired sensors
+  repeated ComfortSetting comfort_settings = 13;          // APK: COMFORT_SETTINGS_FIELD_NUMBER=13; confirmed: 20+ items
+  repeated ScheduleDay schedule_days = 14;                // APK: SCHEDULE_DAYS_FIELD_NUMBER=14; confirmed: 5 items
+  repeated ScheduleWeek schedule_weeks = 15;              // APK: SCHEDULE_WEEKS_FIELD_NUMBER=15; confirmed: 5 items
+  repeated ControllerRemoteSensor controller_remote_sensors = 16; // APK: CONTROLLER_REMOTE_SENSORS_FIELD_NUMBER=16; empty without sensor mode configured
+  repeated Location locations = 17;                       // APK: LOCATIONS_FIELD_NUMBER=17; confirmed: 1 item
+  repeated SoftwareUpdateInfo software_update_infos = 18; // APK: SOFTWARE_UPDATE_INFOS_FIELD_NUMBER=18; confirmed: 28 items (SUI+FUI for all devices)
+}
+
+// ---------------------------------------------------------------------------
+// HomeDatastoreService — package core.protos.home_datastore
+// Wire path: /core.protos.home_datastore.HomeDatastoreService/<Method>
+// ---------------------------------------------------------------------------
+
+message GetHomeDatastoreSystemRequest {
+  string system_id = 1;
+  google.protobuf.FieldMask field_mask = 2;
+}
+
+message GetSpaceRequest    { string id = 1; }
+message CreateSpaceRequest { Space space = 1; }
+message UpdateSpaceRequest { Space diff = 1; }
+message DeleteSpaceRequest { string id = 1; }
+
+message UpdateIndoorUnitRequest      { IndoorUnit diff = 1; }
+message DeleteIndoorUnitRequest      { string id = 1; }
+message GetIndoorUnitHardwareRequest {
+  string id = 1;
+  google.protobuf.FieldMask field_mask = 2;
+}
+
+message UpdateControllerRequest      { Controller controller = 1; }
+message DeleteControllerRequest      { string id = 1; }
+message GetControllerHardwareRequest {
+  string id = 1;
+  google.protobuf.FieldMask field_mask = 2;
+}
+
+message DeleteOutdoorUnitRequest     { string id = 1; }
+message GetQuiltSmartModuleRequest   {
+  string id = 1;
+  google.protobuf.FieldMask field_mask = 2;
+}
+
+message CreateRemoteSensorRequest            { RemoteSensor remote_sensor = 1; }
+message UpdateRemoteSensorRequest            { RemoteSensor remote_sensor = 1; }
+message DeleteRemoteSensorRequest            { string remote_sensor_id = 1; }
+message CreateControllerRemoteSensorRequest  { ControllerRemoteSensor remote_sensor = 1; }
+message UpdateControllerRemoteSensorRequest  { ControllerRemoteSensor remote_sensor = 1; }
+message DeleteControllerRemoteSensorRequest  { string remote_sensor_id = 1; }
+
+message CreateScheduleDayRequest  { ScheduleDay schedule_day = 1; }
+message GetScheduleDayRequest     { string schedule_day_id = 1; }
+message UpdateScheduleDayRequest  { ScheduleDay schedule_day = 1; }
+message DeleteScheduleDayRequest  { string schedule_day_id = 1; }
+message ListScheduleDaysRequest   { string filter = 1; }
+message ListScheduleDaysResponse  { repeated ScheduleDay schedule_days = 1; }
+
+message CreateScheduleWeekRequest { ScheduleWeek schedule_week = 1; }
+message GetScheduleWeekRequest    { string schedule_week_id = 1; }
+message UpdateScheduleWeekRequest { ScheduleWeek schedule_week = 1; }
+message DeleteScheduleWeekRequest { string schedule_week_id = 1; }
+message ListScheduleWeeksRequest  { string filter = 1; }
+message ListScheduleWeeksResponse { repeated ScheduleWeek schedule_weeks = 1; }
+
+message CreateComfortSettingRequest { ComfortSetting comfort_setting = 1; }
+message GetComfortSettingRequest    { string comfort_setting_id = 1; }
+message UpdateComfortSettingRequest { ComfortSetting comfort_setting = 1; }
+message DeleteComfortSettingRequest { string comfort_setting_id = 1; }
+message ListComfortSettingsRequest  { string filter = 1; }
+message ListComfortSettingsResponse { repeated ComfortSetting comfort_settings = 1; }
+
+message CreateLocationRequest { Location location = 1; }
+message GetLocationRequest    { string location_id = 1; }
+message UpdateLocationRequest { Location location = 1; }
+message DeleteLocationRequest { string location_id = 1; }
+message ListLocationsRequest  { string system_id = 1; }
+message ListLocationsResponse { repeated Location locations = 1; }
+
+service HomeDatastoreService {
+  rpc GetHomeDatastoreSystem(GetHomeDatastoreSystemRequest) returns (HomeDatastoreSystem);
+
+  rpc GetSpace(GetSpaceRequest)       returns (Space);
+  rpc CreateSpace(CreateSpaceRequest) returns (Space);
+  rpc UpdateSpace(UpdateSpaceRequest) returns (Space);
+  rpc DeleteSpace(DeleteSpaceRequest) returns (google.protobuf.Empty);
+
+  rpc UpdateIndoorUnit(UpdateIndoorUnitRequest)           returns (IndoorUnit);
+  rpc DeleteIndoorUnit(DeleteIndoorUnitRequest)           returns (google.protobuf.Empty);
+  rpc GetIndoorUnitHardware(GetIndoorUnitHardwareRequest) returns (IndoorUnitHardware);
+  rpc GetQuiltSmartModule(GetQuiltSmartModuleRequest)     returns (QuiltSmartModule);
+
+  rpc UpdateController(UpdateControllerRequest)           returns (Controller);
+  rpc DeleteController(DeleteControllerRequest)           returns (google.protobuf.Empty);
+  rpc GetControllerHardware(GetControllerHardwareRequest) returns (ControllerHardware);
+
+  rpc DeleteOutdoorUnit(DeleteOutdoorUnitRequest)         returns (google.protobuf.Empty);
+
+  rpc CreateRemoteSensor(CreateRemoteSensorRequest)                       returns (RemoteSensor);
+  rpc UpdateRemoteSensor(UpdateRemoteSensorRequest)                       returns (RemoteSensor);
+  rpc DeleteRemoteSensor(DeleteRemoteSensorRequest)                       returns (google.protobuf.Empty);
+  rpc CreateControllerRemoteSensor(CreateControllerRemoteSensorRequest)   returns (ControllerRemoteSensor);
+  rpc UpdateControllerRemoteSensor(UpdateControllerRemoteSensorRequest)   returns (ControllerRemoteSensor);
+  rpc DeleteControllerRemoteSensor(DeleteControllerRemoteSensorRequest)   returns (google.protobuf.Empty);
+
+  rpc CreateScheduleDay(CreateScheduleDayRequest)   returns (ScheduleDay);
+  rpc GetScheduleDay(GetScheduleDayRequest)         returns (ScheduleDay);
+  rpc UpdateScheduleDay(UpdateScheduleDayRequest)   returns (ScheduleDay);
+  rpc DeleteScheduleDay(DeleteScheduleDayRequest)   returns (google.protobuf.Empty);
+  rpc ListScheduleDays(ListScheduleDaysRequest)     returns (ListScheduleDaysResponse);
+
+  rpc CreateScheduleWeek(CreateScheduleWeekRequest) returns (ScheduleWeek);
+  rpc GetScheduleWeek(GetScheduleWeekRequest)       returns (ScheduleWeek);
+  rpc UpdateScheduleWeek(UpdateScheduleWeekRequest) returns (ScheduleWeek);
+  rpc DeleteScheduleWeek(DeleteScheduleWeekRequest) returns (google.protobuf.Empty);
+  rpc ListScheduleWeeks(ListScheduleWeeksRequest)   returns (ListScheduleWeeksResponse);
+
+  rpc CreateComfortSetting(CreateComfortSettingRequest) returns (ComfortSetting);
+  rpc GetComfortSetting(GetComfortSettingRequest)       returns (ComfortSetting);
+  rpc UpdateComfortSetting(UpdateComfortSettingRequest) returns (ComfortSetting);
+  rpc DeleteComfortSetting(DeleteComfortSettingRequest) returns (google.protobuf.Empty);
+  rpc ListComfortSettings(ListComfortSettingsRequest)   returns (ListComfortSettingsResponse);
+
+  rpc CreateLocation(CreateLocationRequest) returns (Location);
+  rpc GetLocation(GetLocationRequest)       returns (Location);
+  rpc UpdateLocation(UpdateLocationRequest) returns (Location);
+  rpc DeleteLocation(DeleteLocationRequest) returns (google.protobuf.Empty);
+  rpc ListLocations(ListLocationsRequest)   returns (ListLocationsResponse);
+}
+

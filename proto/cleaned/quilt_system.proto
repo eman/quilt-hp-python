@@ -1,0 +1,55 @@
+// quilt_system.proto
+// SystemService lives in package core.protos.system on the Android wire path.
+//
+// Confirmed in current Android APK:
+//   - CreateSystem
+//   - DeleteSystem
+//
+// Present in KMP interfaces but not confirmed in the current Android APK:
+//   - GetSystem
+//   - UpdateSystem
+//   - ListSystems
+
+syntax = "proto3";
+
+package core.protos.system;
+
+import "google/protobuf/empty.proto";
+import "google/protobuf/timestamp.proto";
+
+option java_package = "com.quilt.proto.system";
+option swift_prefix = "Quilt";
+
+message CreateSystemRequest {}
+
+message GetSystemRequest {
+  string id = 1;
+}
+
+message UpdateSystemRequest {
+  System system = 1;
+}
+
+message DeleteSystemRequest {
+  string id = 1;
+}
+
+message ListSystemsRequest {}
+
+message ListSystemsResponse {
+  repeated System systems = 1;
+}
+
+// KMP exposes a simplified System model (id + created timestamp).
+message System {
+  string id = 1;
+  google.protobuf.Timestamp created_ts = 2;
+}
+
+service SystemService {
+  rpc GetSystem(GetSystemRequest) returns (System);
+  rpc CreateSystem(CreateSystemRequest) returns (System);
+  rpc UpdateSystem(UpdateSystemRequest) returns (System);
+  rpc DeleteSystem(DeleteSystemRequest) returns (google.protobuf.Empty);
+  rpc ListSystems(ListSystemsRequest) returns (ListSystemsResponse);
+}
