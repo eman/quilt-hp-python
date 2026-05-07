@@ -8,7 +8,14 @@ from unittest.mock import MagicMock, patch
 import grpc
 import pytest
 
-from quilt_hp.services.streaming import NotifierStream, _dispatch, _get_len_field, _parse_varint
+from quilt_hp.services.streaming import (
+    NotifierStream,
+    _dispatch,
+    _get_len_field,
+    _invoke_refresh_callback,
+    _parse_varint,
+)
+from quilt_hp.tokens import TokenRefreshContext, TokenRefreshReason
 
 
 class _FakeRpcError(grpc.aio.AioRpcError):
@@ -279,3 +286,19 @@ async def test_context_manager_starts_and_stops() -> None:
     async with stream:
         assert stream._running is True
     assert stream._running is False
+
+
+@pytest.mark.asyncio
+async def test_stream_refresh_callback_receives_context() -> None:
+    captured: list[TokenRefreshContext] = []
+
+    async def _with_context(context: TokenRefreshContext) -> None:
+        captured.append(context)
+
+    context = TokenRefreshContext(
+        reason=TokenRefreshReason.STREAM_UNAUTHENTICATED,
+        source="test",
+        attempt=2,
+    )
+    await _invoke_refresh_callback(_with_context, context)
+    assert captured == [context]

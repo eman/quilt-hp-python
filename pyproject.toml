@@ -7,8 +7,8 @@ name = "quilt-hp-python"
 version = "0.1.0"
 description = "Async Python client for Quilt mini-split HVAC systems"
 readme = "README.md"
-license = "MIT"
-requires-python = ">=3.12"
+license = { file = "LICENSE" }
+requires-python = ">=3.14"
 authors = [{ name = "Emmanuel" }]
 keywords = ["quilt", "hvac", "mini-split", "grpc", "home-automation"]
 classifiers = [
@@ -16,8 +16,7 @@ classifiers = [
     "Intended Audience :: Developers",
     "License :: OSI Approved :: MIT License",
     "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.12",
-    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
     "Topic :: Home Automation",
     "Typing :: Typed",
     "Framework :: AsyncIO",
@@ -41,16 +40,24 @@ dev = [
     "pytest>=8.0",
     "pytest-asyncio>=1.0",
     "pytest-cov>=6.0",
+    "build>=1.2",
+    "twine>=6.0",
     "grpcio-tools>=1.70",
     "mypy-protobuf>=3.6",
     "boto3-stubs[cognito-idp]",
+]
+docs = [
+    "mkdocs>=1.6",
+    "mkdocs-material>=9.5",
 ]
 
 [project.scripts]
 quilt = "quilt_hp.cli.main:app"
 
 [project.urls]
-Repository = "https://github.com/example/quilt-hp-python"
+Repository = "https://github.com/eman/quilt-hp-python"
+Issues = "https://github.com/eman/quilt-hp-python/issues"
+Changelog = "https://github.com/eman/quilt-hp-python/blob/main/CHANGELOG.md"
 
 # ---------------------------------------------------------------------------
 # Tool configuration
@@ -60,7 +67,7 @@ Repository = "https://github.com/example/quilt-hp-python"
 packages = ["src/quilt_hp"]
 
 [tool.ruff]
-target-version = "py312"
+target-version = "py314"
 line-length = 99
 src = ["src", "tests"]
 exclude = ["src/quilt_hp/_proto"]
@@ -95,7 +102,7 @@ ignore = [
 known-first-party = ["quilt_hp"]
 
 [tool.mypy]
-python_version = "3.12"
+python_version = "3.14"
 strict = true
 warn_return_any = true
 warn_unused_configs = true
@@ -107,19 +114,7 @@ module = "quilt_hp._proto.*"
 ignore_errors = true
 
 [[tool.mypy.overrides]]
-module = [
-    "quilt_hp.auth",
-    "quilt_hp.transport",
-    "quilt_hp.client",
-    "quilt_hp.cli.*",
-    "quilt_hp.models.controller",
-    "quilt_hp.models.space",
-    "quilt_hp.models.system",
-    "quilt_hp.services.hds",
-    "quilt_hp.services.streaming",
-    "quilt_hp.services.system",
-    "quilt_hp.services.user",
-]
+module = "quilt_hp.cli.tui"
 ignore_errors = true
 
 [[tool.mypy.overrides]]
@@ -140,5 +135,16 @@ ignore_missing_imports = true
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-addopts = "-ra -q"
+addopts = "-ra -q --cov=quilt_hp --cov-report=term-missing --cov-fail-under=80"
 asyncio_mode = "auto"
+
+
+[tool.coverage.run]
+# Exclude generated protobuf stubs and the interactive TUI shell from unit-test gating.
+omit = [
+    "src/quilt_hp/_proto/*",
+    "src/quilt_hp/cli/tui.py",
+]
+
+[tool.coverage.report]
+fail_under = 80

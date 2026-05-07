@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- GitHub Actions release automation for SemVer tags (`vX.Y.Z`) that enforces quality gates, creates a GitHub Release, and publishes distribution artifacts to PyPI via trusted publishing
 - Initial async client for Quilt cloud gRPC API
 - Cognito OTP authentication with token caching
 - HomeDatastoreService: spaces, indoor units, comfort settings, schedules

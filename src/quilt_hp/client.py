@@ -3,7 +3,9 @@
 Usage::
 
     async with QuiltClient("user@example.com") as client:
-        await client.login(otp_callback=lambda email: input(f"OTP for {email}: "))
+        await client.login(
+            otp_callback=lambda email: input(f"OTP for {email}: ")
+        )
         spaces = await client.list_spaces()
         for space in spaces:
             print(f"{space.name}: {space.state.ambient_temperature_c}°C")
@@ -12,7 +14,7 @@ Usage::
 from __future__ import annotations
 
 import time
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Self
 
 from quilt_hp.auth import OtpCallback, authenticate
 from quilt_hp.const import Environment
@@ -20,8 +22,14 @@ from quilt_hp.exceptions import QuiltAuthError, QuiltError
 from quilt_hp.services.hds import HomeDatastoreService
 from quilt_hp.services.streaming import NotifierStream
 from quilt_hp.services.system import SystemInformationService
-from quilt_hp.services.user import User, UserService
-from quilt_hp.tokens import TokenStore
+from quilt_hp.services.user import DeclaredUserType, User, UserAttributes, UserService
+from quilt_hp.tokens import (
+    TokenRefreshContext,
+    TokenRefreshHooks,
+    TokenRefreshPolicy,
+    TokenRefreshReason,
+    TokenStoreLike,
+)
 from quilt_hp.transport import auth_metadata, create_channel
 
 if TYPE_CHECKING:
@@ -33,7 +41,7 @@ if TYPE_CHECKING:
     from quilt_hp.models.energy import SpaceEnergyMetrics
     from quilt_hp.models.enums import FanSpeed, HVACMode, LouverMode
     from quilt_hp.models.indoor_unit import IndoorUnit
-    from quilt_hp.models.schedule import ScheduleDay, ScheduleWeek
+    from quilt_hp.models.schedule import ScheduleDay, ScheduleEvent, ScheduleWeek, ScheduleWeekDay
     from quilt_hp.models.space import Space
     from quilt_hp.models.system import SystemInfo, SystemSnapshot
 
@@ -46,10 +54,12 @@ class QuiltClient:
 
     Args:
         email: Quilt account email address.
-        home: Optional home name filter (substring match) for multi-home accounts.
+        home: Optional home name filter (substring match) for multi-home
+            accounts.
         environment: API environment (default: PROD).
-        snapshot_ttl_s: If > 0, cache the system snapshot for this many seconds.
-                        Useful for read-heavy integrations. Default: 0 (no cache).
+        snapshot_ttl_s: If > 0, cache the system snapshot for this many
+            seconds. Useful for read-heavy integrations. Default: 0
+            (no cache).
     """
 
     def __init__(
@@ -59,13 +69,17 @@ class QuiltClient:
         home: str | None = None,
         environment: Environment = Environment.PROD,
         snapshot_ttl_s: float = 0,
-        token_store: TokenStore | None = None,
+        token_store: TokenStoreLike | None = None,
+        token_refresh_hooks: TokenRefreshHooks | None = None,
+        token_refresh_policy: TokenRefreshPolicy | None = None,
     ) -> None:
         self._email = email
         self._home = home
         self._environment = environment
         self._snapshot_ttl_s = snapshot_ttl_s
         self._token_store = token_store
+        self._token_refresh_hooks = token_refresh_hooks
+        self._token_refresh_policy = token_refresh_policy
         self._token: str | None = None
         self._channel: grpc.aio.Channel | None = None
         self._system_id: str | None = None
@@ -80,7 +94,7 @@ class QuiltClient:
         self._snapshot_cache: SystemSnapshot | None = None
         self._snapshot_cached_at: float = 0.0
 
-    def _get_token(self) -> str:
+    def get_current_token(self) -> str:
         """Token provider callable for the transport interceptor."""
         if self._token is None:
             raise QuiltAuthError("Not authenticated. Call login() first.")
@@ -89,7 +103,7 @@ class QuiltClient:
     def _ensure_channel(self) -> grpc.aio.Channel:
         if self._channel is None:
             self._channel = create_channel(
-                self._get_token,
+                self,
                 self._environment,
                 refresh_callback=self.refresh_token,
             )
@@ -110,18 +124,34 @@ class QuiltClient:
             otp_callback: Callable that receives the email and returns the OTP.
                           Can be sync or async.
         """
-        self._token = await authenticate(self._email, otp_callback, self._token_store)
+        self._token = await authenticate(
+            self._email,
+            otp_callback,
+            self._token_store,
+            refresh_hooks=self._token_refresh_hooks,
+            refresh_policy=self._token_refresh_policy,
+        )
         self._ensure_channel()
 
-    async def refresh_token(self) -> None:
-        """Refresh the auth token (silent, no OTP needed if refresh token is valid)."""
-        self._token = await authenticate(self._email, token_store=self._token_store)
+    async def refresh_token(self, context: TokenRefreshContext | None = None) -> None:
+        """Refresh the auth token without OTP when refresh token is valid."""
+        resolved_context = context or TokenRefreshContext(
+            reason=TokenRefreshReason.EXPIRED_CACHED_TOKEN,
+            source="client",
+        )
+        self._token = await authenticate(
+            self._email,
+            token_store=self._token_store,
+            refresh_context=resolved_context,
+            refresh_hooks=self._token_refresh_hooks,
+            refresh_policy=self._token_refresh_policy,
+        )
 
     # --- System discovery ---
 
     @property
     def system_name(self) -> str | None:
-        """Name of the resolved system (available after get_system_id() is called)."""
+        """Name of the resolved system after get_system_id() is called."""
         return self._system_name
 
     async def list_systems(self) -> list[SystemInfo]:
@@ -131,10 +161,10 @@ class QuiltClient:
         return await self._sysinfo.list_systems()
 
     async def get_system_id(self, home: str | None = None) -> str:
-        """Get the primary system ID (caches after first call unless home changes)."""
+        """Get primary system ID, cached after first call unless home changes."""
         target_home = home or self._home
         if self._system_id is not None:
-            # Only bypass the cache when a different home is explicitly requested.
+            # Bypass the cache only when a different home is requested.
             if not home or home == self._home:
                 return self._system_id
 
@@ -217,7 +247,10 @@ class QuiltClient:
                 raise QuiltError(f"Space {space!r} not found")
             space = resolved
         return await self._hds.update_space(
-            space, mode=mode, heat_setpoint_c=heat_setpoint_c, cool_setpoint_c=cool_setpoint_c
+            space,
+            mode=mode,
+            heat_setpoint_c=heat_setpoint_c,
+            cool_setpoint_c=cool_setpoint_c,
         )
 
     async def set_space_settings(
@@ -300,13 +333,13 @@ class QuiltClient:
         radar_height_m: float | None = None,
         light_brightness_default: float | None = None,
     ) -> IndoorUnit:
-        """Update indoor unit settings (presence fence geometry, default brightness).
+        """Update indoor unit settings.
 
         Args:
             idu: An ``IndoorUnit`` object **or** an IDU ID string.
             fence_left_m: Left boundary of presence detection zone in metres.
             fence_right_m: Right boundary of presence detection zone in metres.
-            fence_forward_m: Forward (depth) boundary of detection zone in metres.
+            fence_forward_m: Forward boundary of detection zone in metres.
             radar_height_m: Radar sensor mounting height from floor in metres.
             light_brightness_default: Default LED brightness (0.0–1.0).
 
@@ -348,8 +381,8 @@ class QuiltClient:
         """Update a comfort setting preset.
 
         Args:
-            setting: A ``ComfortSetting`` object (no snapshot lookup needed) **or**
-                     a setting ID string (snapshot is fetched to resolve the object).
+            setting: A ``ComfortSetting`` object (no snapshot lookup needed)
+                **or** a setting ID string (snapshot resolves the object).
         """
         self._ensure_channel()
         assert self._hds is not None
@@ -374,9 +407,9 @@ class QuiltClient:
         self,
         space_id: str,
         name: str,
-        events: list[object],  # list[hds.ScheduleEvent]
+        events: list[ScheduleEvent],
     ) -> ScheduleDay:
-        """Create a new schedule day program."""
+        """Create a new schedule day program from domain schedule events."""
         self._ensure_channel()
         assert self._hds is not None
         system_id = await self.get_system_id()
@@ -390,9 +423,9 @@ class QuiltClient:
     async def create_schedule_week(
         self,
         space_id: str,
-        days: list[object] | None = None,  # list[hds.ScheduleWeekDay]
+        days: list[ScheduleWeekDay] | None = None,
     ) -> ScheduleWeek:
-        """Create a new schedule week."""
+        """Create a new schedule week from domain weekday mappings."""
         self._ensure_channel()
         assert self._hds is not None
         system_id = await self.get_system_id()
@@ -406,9 +439,9 @@ class QuiltClient:
         self,
         schedule_week_id: str,
         space_id: str,
-        days: list[object],  # list[hds.ScheduleWeekDay]
+        days: list[ScheduleWeekDay],
     ) -> ScheduleWeek:
-        """Update an existing schedule week."""
+        """Update an existing schedule week with domain weekday mappings."""
         self._ensure_channel()
         assert self._hds is not None
         system_id = await self.get_system_id()
@@ -430,9 +463,9 @@ class QuiltClient:
         schedule_day_id: str,
         space_id: str,
         name: str | None = None,
-        events: list[object] | None = None,  # list[hds.ScheduleEvent]
+        events: list[ScheduleEvent] | None = None,
     ) -> ScheduleDay:
-        """Update an existing schedule day (rename and/or replace events)."""
+        """Update an existing schedule day using domain schedule events."""
         self._ensure_channel()
         assert self._hds is not None
         system_id = await self.get_system_id()
@@ -520,7 +553,7 @@ class QuiltClient:
         return NotifierStream.create(
             channel,
             topics,
-            metadata_provider=lambda: auth_metadata(self._get_token),
+            metadata_provider=lambda: auth_metadata(self),
             authenticate=self.refresh_token,
             max_reconnects=max_reconnects,
             reconnect_delay_s=reconnect_delay_s,
@@ -534,6 +567,40 @@ class QuiltClient:
         assert self._user_svc is not None
         return await self._user_svc.get_current_user()
 
+    async def update_current_user(
+        self,
+        *,
+        first_name: str,
+        last_name: str,
+        phone_number: str | None = None,
+    ) -> User:
+        """Update current user's first/last name and optional phone number."""
+        self._ensure_channel()
+        assert self._user_svc is not None
+        return await self._user_svc.update_current_user(
+            first_name=first_name,
+            last_name=last_name,
+            phone_number=phone_number,
+        )
+
+    async def get_user_attributes(self) -> UserAttributes:
+        """Get current user's additional attributes."""
+        self._ensure_channel()
+        assert self._user_svc is not None
+        return await self._user_svc.get_user_attributes()
+
+    async def patch_user_attributes(
+        self,
+        *,
+        declared_user_type: DeclaredUserType,
+    ) -> UserAttributes:
+        """Patch current user's additional attributes."""
+        self._ensure_channel()
+        assert self._user_svc is not None
+        return await self._user_svc.patch_user_attributes(
+            declared_user_type=declared_user_type,
+        )
+
     # --- Lifecycle ---
 
     async def close(self) -> None:
@@ -542,7 +609,7 @@ class QuiltClient:
             await self._channel.close()
             self._channel = None
 
-    async def __aenter__(self) -> QuiltClient:
+    async def __aenter__(self) -> Self:
         return self
 
     async def __aexit__(self, *args: object) -> None:

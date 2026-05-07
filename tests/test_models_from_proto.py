@@ -157,7 +157,7 @@ def test_space_is_away_fallback_when_controls_active_but_state_standby() -> None
 
 
 def test_space_not_away_when_actively_heating() -> None:
-    """is_away is False when state matches controls (room is actually heating)."""
+    """is_away is False when state matches controls (room heating)."""
     from quilt_hp.models.enums import HVACMode, HVACState
 
     proto = _make_space_proto(hvac_mode=HVACMode.HEAT, hvac_state=HVACState.HEAT)
@@ -188,7 +188,7 @@ def test_space_ambient_temperature_f() -> None:
 
 
 def test_space_ambient_none() -> None:
-    # When state.updated_ts is falsy (no state data from server), temps are None.
+    # When state.updated_ts is falsy (no server state data), temps are None.
     proto = _make_space_proto(ambient_c=22.0)
     proto.state.updated_ts = None  # simulate empty state sub-message
     space = Space.from_proto(proto)
@@ -197,7 +197,7 @@ def test_space_ambient_none() -> None:
 
 
 def test_space_ambient_zero_celsius() -> None:
-    # 0.0°C is a valid temperature when updated_ts is truthy; must not be coerced to None.
+    # 0.0°C is valid when updated_ts is truthy; must not be coerced to None.
     proto = _make_space_proto(ambient_c=0.0)
     space = Space.from_proto(proto)
     assert space.state.ambient_temperature_c == 0.0
@@ -433,8 +433,9 @@ def test_idu_led_black_color_code_always_off() -> None:
 def test_idu_led_state_off_preserves_brightness() -> None:
     """led_state=OFF with non-zero brightness (scheduling path) must report OFF.
 
-    When mobile_led_scheduling_enabled is on, the app calls withBrightnessAndState
-    which preserves brightness at e.g. 0.29 and sets led_state=OFF.  Brightness-
+    When mobile_led_scheduling_enabled is on, the app calls
+    withBrightnessAndState, preserving brightness (e.g. 0.29) and setting
+    led_state=OFF. Brightness-
     based detection would wrongly report ON — led_state must take priority.
     """
     proto = _make_idu_proto()
@@ -545,7 +546,9 @@ def test_controller_from_proto() -> None:
     proto = _ns(
         header=_make_header("ctrl-1"),
         relationships=_ns(
-            space_id="space-1", software_update_info_id="", firmware_update_info_id=""
+            space_id="space-1",
+            software_update_info_id="",
+            firmware_update_info_id="",
         ),
         settings=_ns(name="Living Room Dial"),
         state=_ns(
@@ -598,7 +601,9 @@ def test_controller_no_wifi() -> None:
     proto = _ns(
         header=_make_header("ctrl-2"),
         relationships=_ns(
-            space_id="space-1", software_update_info_id="", firmware_update_info_id=""
+            space_id="space-1",
+            software_update_info_id="",
+            firmware_update_info_id="",
         ),
         settings=_ns(name=""),
         state=_ns(

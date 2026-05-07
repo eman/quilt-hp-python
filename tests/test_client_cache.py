@@ -23,7 +23,13 @@ from quilt_hp.models.indoor_unit import (
     IndoorUnitSettings,
     IndoorUnitState,
 )
-from quilt_hp.models.space import Space, SpaceControls, SpaceSettings, SpaceState
+from quilt_hp.models.schedule import ScheduleDay, ScheduleEvent, ScheduleWeek, ScheduleWeekDay
+from quilt_hp.models.space import (
+    Space,
+    SpaceControls,
+    SpaceSettings,
+    SpaceState,
+)
 from quilt_hp.models.system import Location, SystemSnapshot
 
 # ─── helpers ────────────────────────────────────────────────────────────────
@@ -337,6 +343,51 @@ async def test_set_schedule_execution_no_location_raises() -> None:
 
     with pytest.raises(QuiltError, match="No location"):
         await client.set_schedule_execution(paused=True)
+
+
+@pytest.mark.asyncio
+async def test_create_schedule_day_uses_domain_events() -> None:
+    client, mock_hds = _make_client()
+    mock_hds.create_schedule_day = AsyncMock(
+        return_value=ScheduleDay(id="day-1", name="Weekday", space_id="space-1", events=[])
+    )
+    events = [
+        ScheduleEvent(
+            start_s=28800,
+            comfort_setting_id="cs-1",
+            hvac_mode=HVACMode.HEAT.value,
+            heating_setpoint_c=21.0,
+            cooling_setpoint_c=26.0,
+            precondition=False,
+        )
+    ]
+
+    await client.create_schedule_day("space-1", "Weekday", events)
+
+    mock_hds.create_schedule_day.assert_called_once_with(
+        system_id="sys-1",
+        space_id="space-1",
+        name="Weekday",
+        events=events,
+    )
+
+
+@pytest.mark.asyncio
+async def test_update_schedule_week_uses_domain_weekdays() -> None:
+    client, mock_hds = _make_client()
+    mock_hds.update_schedule_week = AsyncMock(
+        return_value=ScheduleWeek(id="week-1", space_id="space-1", days=[])
+    )
+    days = [ScheduleWeekDay(weekday=1, day_id="day-1")]
+
+    await client.update_schedule_week("week-1", "space-1", days)
+
+    mock_hds.update_schedule_week.assert_called_once_with(
+        schedule_week_id="week-1",
+        system_id="sys-1",
+        space_id="space-1",
+        days=days,
+    )
 
 
 # ─── get_system_id caching ───────────────────────────────────────────────────

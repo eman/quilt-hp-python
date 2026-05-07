@@ -96,6 +96,10 @@ class QuiltSmartModule:
             hosted_wifi=_wifi(proto.hosted_wifi_state),  # type: ignore[attr-defined]
             ap_wifi=_wifi(proto.ap_wifi_state),  # type: ignore[attr-defined]
             p2p_wifi=_wifi(proto.p2p_wifi_state),  # type: ignore[attr-defined]
-            software_update_info_id=proto.relationships.software_update_info_id or None,  # type: ignore[attr-defined]
-            firmware_update_info_id=proto.relationships.firmware_update_info_id or None,  # type: ignore[attr-defined]
+            software_update_info_id=(
+                proto.relationships.software_update_info_id or None  # type: ignore[attr-defined]
+            ),
+            firmware_update_info_id=(
+                proto.relationships.firmware_update_info_id or None  # type: ignore[attr-defined]
+            ),
         )

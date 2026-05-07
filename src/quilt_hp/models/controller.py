@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import UTC, datetime
+from typing import Any, cast
 
 from quilt_hp.models.enums import RemoteSensorControlMode
 from quilt_hp.models.qsm import WifiInfo
@@ -19,12 +20,10 @@ class Controller:
     system_id: str
     space_id: str
     name: str
-    raw_thermistor_c: float  # ambient_temperature_c — raw Dial thermistor; biased ~4–8°C high due to self-heating
+    raw_thermistor_c: float  # ambient_temperature_c from raw Dial thermistor
     pcb_temperature_a_c: float  # temperature_f3 — PCB temp A (~30–50°C)
     pcb_temperature_b_c: float  # temperature_f4 — PCB temp B (hotter component, ~45–52°C)
-    calibrated_ambient_c: (
-        float  # temperature_f5 — calibrated ext amb sent to IDU (~16–20°C); use this for display
-    )
+    calibrated_ambient_c: float  # temperature_f5 — calibrated ext ambient sent to IDU
     wifi_ssid: str | None
     wifi_ip: str | None
     wifi_signal_dbm: int | None
@@ -37,16 +36,14 @@ class Controller:
     remote_sensor_mode: RemoteSensorControlMode = RemoteSensorControlMode.UNSPECIFIED
     software_update_info_id: str | None = None
     firmware_update_info_id: str | None = None
-    serial_number: str | None = (
-        None  # ControllerHardware.attributes.serial_number (e.g. "QD1-1B001451S")
-    )
+    serial_number: str | None = None  # ControllerHardware.attributes.serial_number
     model_sku: str | None = None  # ControllerHardware.attributes.model_sku
     firmware_version: str | None = None  # ControllerHardware.attributes.firmware_version
     state_updated_at: datetime | None = None  # ControllerState.updated_ts (field 1)
 
     @property
     def ambient_temperature_c(self) -> float:
-        """The calibrated ambient temperature — what the system actually uses for control.
+        """Calibrated ambient temperature used for system control.
 
         Use this for display and logic.  See also ``raw_thermistor_c`` for the
         uncorrected on-chip reading (biased high by self-heating).
@@ -85,15 +82,16 @@ class Controller:
         ``HomeDatastoreSystem.controller_hardware`` and passed in at snapshot
         load time.  Stream diffs won't have it; fields default to None.
         """
-        w = proto.hosted_wifi_state  # type: ignore[attr-defined]
-        ts = proto.state.updated_ts  # type: ignore[attr-defined]
+        p = cast("Any", proto)
+        w = p.hosted_wifi_state
+        ts = p.state.updated_ts
         updated_at: datetime | None = None
         if ts.seconds != 0:
             updated_at = datetime.fromtimestamp(ts.seconds, tz=UTC)
 
         wifi_last_seen: datetime | None = None
-        if w.updated_ts.seconds != 0:  # type: ignore[attr-defined]
-            wifi_last_seen = datetime.fromtimestamp(w.updated_ts.seconds, tz=UTC)  # type: ignore[attr-defined]
+        if w.updated_ts.seconds != 0:
+            wifi_last_seen = datetime.fromtimestamp(w.updated_ts.seconds, tz=UTC)
 
         def _wifi(wstate: object) -> WifiInfo | None:
             info = WifiInfo.from_proto(wstate)
@@ -103,33 +101,33 @@ class Controller:
         model_sku: str | None = None
         fw_ver: str | None = None
         if hw_map:
-            hw_id = proto.relationships.hardware_id  # type: ignore[attr-defined]
+            hw_id = p.relationships.hardware_id
             hw = hw_map.get(hw_id)
             if hw is not None:
-                a = hw.attributes  # type: ignore[attr-defined]
+                a = cast("Any", hw).attributes
                 serial = a.serial_number or None
                 model_sku = a.model_sku or None
                 fw_ver = a.firmware_version or None
 
         return cls(
-            id=proto.header.object_id,  # type: ignore[attr-defined]
-            system_id=proto.header.system_id,  # type: ignore[attr-defined]
-            space_id=proto.relationships.space_id,  # type: ignore[attr-defined]
-            name=proto.settings.name,  # type: ignore[attr-defined]
-            raw_thermistor_c=proto.state.ambient_temperature_c,  # type: ignore[attr-defined]
-            pcb_temperature_a_c=proto.state.temperature_f3,  # type: ignore[attr-defined]
-            pcb_temperature_b_c=proto.state.temperature_f4,  # type: ignore[attr-defined]
-            calibrated_ambient_c=proto.state.temperature_f5,  # type: ignore[attr-defined]
+            id=p.header.object_id,
+            system_id=p.header.system_id,
+            space_id=p.relationships.space_id,
+            name=p.settings.name,
+            raw_thermistor_c=p.state.ambient_temperature_c,
+            pcb_temperature_a_c=p.state.temperature_f3,
+            pcb_temperature_b_c=p.state.temperature_f4,
+            calibrated_ambient_c=p.state.temperature_f5,
             wifi_ssid=w.ssid or None,
             wifi_ip=w.ipv4_address or None,
             wifi_signal_dbm=w.signal_level_dbm or None,
             wifi_freq_mhz=w.frequency_mhz or None,
             wifi_last_seen=wifi_last_seen,
-            ap_wifi=_wifi(proto.ap_wifi_state),  # type: ignore[attr-defined]
-            p2p_wifi=_wifi(proto.p2p_wifi_state),  # type: ignore[attr-defined]
-            remote_sensor_mode=RemoteSensorControlMode(proto.controls.remote_sensor_control_mode),  # type: ignore[attr-defined]
-            software_update_info_id=proto.relationships.software_update_info_id or None,  # type: ignore[attr-defined]
-            firmware_update_info_id=proto.relationships.firmware_update_info_id or None,  # type: ignore[attr-defined]
+            ap_wifi=_wifi(p.ap_wifi_state),
+            p2p_wifi=_wifi(p.p2p_wifi_state),
+            remote_sensor_mode=RemoteSensorControlMode(p.controls.remote_sensor_control_mode),
+            software_update_info_id=p.relationships.software_update_info_id or None,
+            firmware_update_info_id=p.relationships.firmware_update_info_id or None,
             serial_number=serial,
             model_sku=model_sku,
             firmware_version=fw_ver,

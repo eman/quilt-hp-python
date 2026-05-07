@@ -1,9 +1,13 @@
-"""SystemService and SystemInformationService — system listing and energy metrics."""
+"""SystemService and SystemInformationService.
+
+Provides system listing and energy metrics.
+"""
 
 from __future__ import annotations
 
 import datetime
-from typing import TYPE_CHECKING
+from collections.abc import Callable
+from typing import TYPE_CHECKING, Protocol, cast
 
 import grpc.aio
 from google.protobuf.timestamp_pb2 import Timestamp
@@ -18,11 +22,25 @@ if TYPE_CHECKING:
     from datetime import datetime as _datetime
 
 
+class _SystemInformationServiceStub(Protocol):
+    async def ListSystems(
+        self, request: svc.ListSystemInformationRequest
+    ) -> svc.ListSystemInformationResponse: ...
+
+    async def GetEnergyMetrics(
+        self, request: svc.GetEnergyMetricsRequest
+    ) -> svc.GetEnergyMetricsResponse: ...
+
+
 class SystemInformationService:
     """Async wrapper for SystemInformationService gRPC methods."""
 
     def __init__(self, channel: grpc.aio.Channel) -> None:
-        self._stub = svc_grpc.SystemInformationServiceStub(channel)
+        factory = cast(
+            "Callable[[grpc.aio.Channel], _SystemInformationServiceStub]",
+            svc_grpc.SystemInformationServiceStub,
+        )
+        self._stub: _SystemInformationServiceStub = factory(channel)
 
     async def list_systems(self) -> list[SystemInfo]:
         """List all systems the authenticated user has access to."""

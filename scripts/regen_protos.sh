@@ -1,6 +1,5 @@
 #!/usr/bin/env bash
 # Recompile .proto files to Python stubs and vendor them into the package.
-# Run from the quilt-hp-python directory.
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
