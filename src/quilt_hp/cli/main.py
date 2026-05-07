@@ -79,10 +79,14 @@ def login(
             except Exception:
                 pass
 
-            # Cached tokens absent or expired — prompt for OTP.
-            console.print(f"[yellow]✉ OTP sent to {email} — check your email.[/yellow]")
-            otp = typer.prompt("Enter OTP code")
-            await client.login(otp_callback=lambda _email: otp.strip())
+            # Cached tokens absent or expired — trigger OTP flow and then prompt.
+            async def _prompt_for_otp(challenge_email: str) -> str:
+                console.print(
+                    f"[yellow]✉ OTP sent to {challenge_email} — check your email.[/yellow]"
+                )
+                return typer.prompt("Enter OTP code").strip()
+
+            await client.login(otp_callback=_prompt_for_otp)
             console.print("[green]✓ Successfully logged in![/green]")
 
     _run(_login())
