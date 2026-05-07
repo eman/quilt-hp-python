@@ -4,7 +4,12 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from quilt_hp.models.enums import ComfortSettingType, FanSpeed, HVACMode, LouverMode
+from quilt_hp.models.enums import (
+    ComfortSettingType,
+    FanSpeed,
+    HVACMode,
+    LouverMode,
+)
 
 
 @dataclass(slots=True)

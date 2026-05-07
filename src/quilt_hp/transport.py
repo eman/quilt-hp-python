@@ -2,22 +2,53 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+import inspect
+from collections.abc import Awaitable, Callable
+from typing import cast
 
 import grpc
 import grpc.aio
 
-from quilt_hp.const import APP_VERSION, GRPC_CHANNEL_OPTIONS, Environment, grpc_host
+from quilt_hp.const import (
+    APP_VERSION,
+    GRPC_CHANNEL_OPTIONS,
+    Environment,
+    grpc_host,
+)
+from quilt_hp.tokens import CurrentTokenProvider, TokenRefreshContext, TokenRefreshReason
 
-if TYPE_CHECKING:
-    from collections.abc import Awaitable, Callable
+type RefreshCallback = (
+    Callable[[], Awaitable[None]] | Callable[[TokenRefreshContext], Awaitable[None]]
+)
+type TokenProviderLike = Callable[[], str] | CurrentTokenProvider
 
 
-class _AuthInterceptor(  # type: ignore[misc]
-    grpc.aio.UnaryUnaryClientInterceptor,
-    grpc.aio.UnaryStreamClientInterceptor,
-    grpc.aio.StreamUnaryClientInterceptor,
-    grpc.aio.StreamStreamClientInterceptor,
+def _resolve_token_provider(token_provider: TokenProviderLike) -> Callable[[], str]:
+    if callable(token_provider):
+        return token_provider
+    return token_provider.get_current_token
+
+
+async def _invoke_refresh_callback(
+    refresh_callback: RefreshCallback, context: TokenRefreshContext
+) -> None:
+    try:
+        has_params = bool(inspect.signature(refresh_callback).parameters)
+    except TypeError:
+        has_params = False
+    except ValueError:
+        has_params = False
+    if has_params:
+        await cast("Callable[[TokenRefreshContext], Awaitable[None]]", refresh_callback)(context)
+        return
+    await cast("Callable[[], Awaitable[None]]", refresh_callback)()
+
+
+class _AuthInterceptor(
+    grpc.aio.UnaryUnaryClientInterceptor,  # type: ignore[misc]
+    grpc.aio.UnaryStreamClientInterceptor,  # type: ignore[misc]
+    grpc.aio.StreamUnaryClientInterceptor,  # type: ignore[misc]
+    grpc.aio.StreamStreamClientInterceptor,  # type: ignore[misc]
 ):
     """Injects authorization and app-version metadata into every gRPC call.
 
@@ -27,10 +58,10 @@ class _AuthInterceptor(  # type: ignore[misc]
 
     def __init__(
         self,
-        token_provider: Callable[[], str],
-        refresh_callback: Callable[[], Awaitable[None]] | None = None,
+        token_provider: TokenProviderLike,
+        refresh_callback: RefreshCallback | None = None,
     ) -> None:
-        self._token_provider = token_provider
+        self._token_provider = _resolve_token_provider(token_provider)
         self._refresh_callback = refresh_callback
 
     def _metadata(self) -> list[tuple[str, str]]:
@@ -50,15 +81,29 @@ class _AuthInterceptor(  # type: ignore[misc]
             wait_for_ready=client_call_details.wait_for_ready,
         )
 
-    async def _refresh_and_retry(self, continuation, client_call_details, *args):
+    async def _refresh_and_retry(
+        self,
+        continuation: Callable[..., Awaitable[object]],
+        client_call_details: grpc.aio.ClientCallDetails,
+        *args: object,
+    ) -> object:
         """Refresh the token and retry the call once."""
         if self._refresh_callback is not None:
-            await self._refresh_callback()
+            await _invoke_refresh_callback(
+                self._refresh_callback,
+                TokenRefreshContext(
+                    reason=TokenRefreshReason.TRANSPORT_UNAUTHENTICATED,
+                    source="transport",
+                ),
+            )
         return await continuation(self._patch(client_call_details), *args)
 
     async def intercept_unary_unary(
         self,
-        continuation: grpc.aio.UnaryUnaryClientInterceptor,
+        continuation: Callable[
+            [grpc.aio.ClientCallDetails, object],
+            Awaitable[object],
+        ],
         client_call_details: grpc.aio.ClientCallDetails,
         request: object,
     ) -> object:
@@ -71,7 +116,10 @@ class _AuthInterceptor(  # type: ignore[misc]
 
     async def intercept_unary_stream(
         self,
-        continuation: grpc.aio.UnaryStreamClientInterceptor,
+        continuation: Callable[
+            [grpc.aio.ClientCallDetails, object],
+            Awaitable[object],
+        ],
         client_call_details: grpc.aio.ClientCallDetails,
         request: object,
     ) -> object:
@@ -84,7 +132,10 @@ class _AuthInterceptor(  # type: ignore[misc]
 
     async def intercept_stream_unary(
         self,
-        continuation: grpc.aio.StreamUnaryClientInterceptor,
+        continuation: Callable[
+            [grpc.aio.ClientCallDetails, object],
+            Awaitable[object],
+        ],
         client_call_details: grpc.aio.ClientCallDetails,
         request_iterator: object,
     ) -> object:
@@ -92,7 +143,10 @@ class _AuthInterceptor(  # type: ignore[misc]
 
     async def intercept_stream_stream(
         self,
-        continuation: grpc.aio.StreamStreamClientInterceptor,
+        continuation: Callable[
+            [grpc.aio.ClientCallDetails, object],
+            Awaitable[object],
+        ],
         client_call_details: grpc.aio.ClientCallDetails,
         request_iterator: object,
     ) -> object:
@@ -100,9 +154,9 @@ class _AuthInterceptor(  # type: ignore[misc]
 
 
 def create_channel(
-    token_provider: Callable[[], str],
+    token_provider: TokenProviderLike,
     environment: Environment = Environment.PROD,
-    refresh_callback: Callable[[], Awaitable[None]] | None = None,
+    refresh_callback: RefreshCallback | None = None,
 ) -> grpc.aio.Channel:
     """Create an authenticated async gRPC channel.
 
@@ -126,12 +180,13 @@ def create_channel(
     )
 
 
-def auth_metadata(token_provider: Callable[[], str]) -> list[tuple[str, str]]:
+def auth_metadata(token_provider: TokenProviderLike) -> list[tuple[str, str]]:
     """Build gRPC metadata with auth headers.
 
     Useful for stream-stream RPCs where the channel interceptor may not fire.
     """
+    resolved_provider = _resolve_token_provider(token_provider)
     return [
-        ("authorization", token_provider()),
+        ("authorization", resolved_provider()),
         ("x-quilt-app-version", APP_VERSION),
     ]

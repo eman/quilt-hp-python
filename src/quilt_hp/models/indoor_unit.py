@@ -31,9 +31,9 @@ class IndoorUnitControls:
     led_brightness: float  # stored brightness 0.0-1.0; preserved when led_state=OFF
     led_animation: LedAnimation
     led_state: LightState = LightState.UNSPECIFIED  # explicit ON/OFF (proto field 13)
-    # Raw wire value for FAN_SPEED_MODE (0=absent/proto3-default, 1=AUTO, 2=SETPOINT).
-    # Needed because FanSpeed.from_wire(0, 0.0) and from_wire(1, 0.0) both return
-    # FanSpeed.AUTO, making the decoded enum ambiguous for controls-absent detection.
+    # Raw wire FAN_SPEED_MODE value (0=absent/proto3-default, 1=AUTO,
+    # 2=SETPOINT). Needed because FanSpeed.from_wire(0, 0.0) and
+    # from_wire(1, 0.0) both return FanSpeed.AUTO.
     fan_speed_mode_raw: int = 0
 
     @property
@@ -42,8 +42,9 @@ class IndoorUnitControls:
 
         When ``led_state`` is explicit (mobile_led_scheduling_enabled gate on):
         - ON  → True
-        - OFF → False  (brightness is preserved server-side, so > 0 does NOT mean on)
-        Fallback when UNSPECIFIED: matches KMP ``Light.isOn`` brightness-based logic:
+        - OFF → False (brightness is preserved server-side, so > 0 does not
+          mean on)
+        Fallback when UNSPECIFIED: matches KMP ``Light.isOn`` logic:
         isBlack = led_color_code == 0; isOn = !isBlack && brightness > 0.
         """
         if self.led_state == LightState.ON:
@@ -164,7 +165,7 @@ class IndoorUnitConditions:
 
     @property
     def any_active(self) -> bool:
-        """True if any condition is ACTIVE (value 2 = CONDITION_STATE_ACTIVE)."""
+        """True if any condition is ACTIVE (value 2)."""
         return any(
             getattr(self, f) == 2
             for f in (
@@ -229,7 +230,7 @@ class IndoorUnit:
     def is_online(self) -> bool:
         """True if the IDU has sent a state update within the last 5 minutes.
 
-        Matches KMP SpaceViewNode.isOnlineByUpdatedTimestamp (threshold = 5 min).
+        Matches KMP SpaceViewNode.isOnlineByUpdatedTimestamp.
         An offline IDU may have stale controls data — treat LED as off.
         """
         ts = self.state.updated_at
@@ -255,7 +256,7 @@ class IndoorUnit:
 
         KMP reads presence/occupancy only from online IDUs (``filterOnline()``).
         An offline IDU's last-known ``occupancy_state`` is stale and must not
-        be displayed as current.  Returns None when offline or no occupancy data.
+        be displayed as current. Returns None when offline or no occupancy data.
         """
         if not self.is_online or self.occupancy is None:
             return None
@@ -404,6 +405,8 @@ def _idu_from_proto(proto: object) -> IndoorUnit:
         performance_metrics=perf_metrics,
         presence=presence_state,
         occupancy=occupancy_state,
-        firmware_update_info_id=proto.relationships.firmware_update_info_id or None,  # type: ignore[attr-defined]
+        firmware_update_info_id=(
+            proto.relationships.firmware_update_info_id or None  # type: ignore[attr-defined]
+        ),
         commands=commands,
     )

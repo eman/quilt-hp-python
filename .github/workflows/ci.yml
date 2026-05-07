@@ -7,7 +7,22 @@ on:
     branches: [main]
 
 jobs:
+  proto-sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.14"
+          allow-prereleases: true
+      - run: pip install -e ".[dev]"
+      - name: Verify generated protobuf stubs are up to date
+        run: |
+          ./scripts/regen_protos.sh
+          git diff --exit-code -- src/quilt_hp/_proto
+
   lint:
+    needs: proto-sync
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -21,6 +36,7 @@ jobs:
       - run: mypy src/quilt_hp/
 
   test:
+    needs: proto-sync
     runs-on: ubuntu-latest
     strategy:
       matrix:
@@ -32,4 +48,30 @@ jobs:
           python-version: ${{ matrix.python-version }}
           allow-prereleases: true
       - run: pip install -e ".[dev,cli]"
-      - run: pytest --cov=quilt_hp --cov-report=term-missing
+      - run: pytest
+
+  package:
+    needs: proto-sync
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.14"
+          allow-prereleases: true
+      - run: pip install -e ".[dev]"
+      - run: python -m build
+      - run: twine check dist/*
+
+  docs:
+    needs: proto-sync
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.14"
+          allow-prereleases: true
+      - run: pip install -e ".[docs]"
+      - run: python scripts/check_docs_nav.py
+      - run: mkdocs build --strict

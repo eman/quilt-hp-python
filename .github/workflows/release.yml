@@ -1,0 +1,114 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  quality-gates:
+    name: Quality gates
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.14"
+          allow-prereleases: true
+      - name: Install dependencies
+        run: pip install -e ".[dev,cli,docs]"
+      - name: Verify generated protobuf stubs are up to date
+        run: |
+          ./scripts/regen_protos.sh
+          git diff --exit-code -- src/quilt_hp/_proto
+      - name: Validate tag, package version, and changelog
+        env:
+          TAG_VERSION: ${{ github.ref_name }}
+        run: |
+          python - <<'PY'
+          import os
+          import pathlib
+          import re
+          import tomllib
+
+          tag = os.environ["TAG_VERSION"]
+          if tag.startswith("v"):
+              tag = tag[1:]
+
+          if not re.fullmatch(r"\d+\.\d+\.\d+", tag):
+              raise SystemExit(f"Tag must be SemVer (vX.Y.Z). Got: {os.environ['TAG_VERSION']}")
+
+          pyproject = tomllib.loads(pathlib.Path("pyproject.toml").read_text(encoding="utf-8"))
+          version = pyproject["project"]["version"]
+          if version != tag:
+              raise SystemExit(
+                  f"Tag version ({tag}) must match pyproject.toml project.version ({version})"
+              )
+
+          changelog = pathlib.Path("CHANGELOG.md").read_text(encoding="utf-8")
+          if "## [Unreleased]" not in changelog:
+              raise SystemExit("CHANGELOG.md must keep an [Unreleased] section")
+          if f"## [{tag}]" not in changelog:
+              raise SystemExit(f"CHANGELOG.md must contain a section for version [{tag}]")
+
+          print("Tag, package version, and changelog validation passed")
+          PY
+      - run: ruff check src/ tests/
+      - run: ruff format --check src/ tests/
+      - run: mypy src/quilt_hp/
+      - run: pytest
+      - run: python -m build
+      - run: twine check dist/*
+      - run: python scripts/check_docs_nav.py
+      - run: mkdocs build --strict
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: dist/
+          if-no-files-found: error
+
+  github-release:
+    name: Create GitHub release
+    needs: quality-gates
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - id: semver
+        run: echo "version=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
+      - id: changelog
+        uses: mindsers/changelog-reader-action@v2
+        with:
+          version: ${{ steps.semver.outputs.version }}
+          path: ./CHANGELOG.md
+      - uses: softprops/action-gh-release@v2
+        with:
+          body: ${{ steps.changelog.outputs.changes }}
+
+  publish-pypi:
+    name: Publish to PyPI
+    needs:
+      - quality-gates
+      - github-release
+    runs-on: ubuntu-latest
+    permissions:
+      actions: read
+      id-token: write
+    environment:
+      name: pypi
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist/
+      - uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          packages-dir: dist/

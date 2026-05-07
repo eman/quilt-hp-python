@@ -2,7 +2,13 @@
 
 from __future__ import annotations
 
-from quilt_hp.models.enums import FanSpeed, HVACMode, HVACState, LouverAngle, LouverMode
+from quilt_hp.models.enums import (
+    FanSpeed,
+    HVACMode,
+    HVACState,
+    LouverAngle,
+    LouverMode,
+)
 
 
 def test_hvac_mode_values() -> None:

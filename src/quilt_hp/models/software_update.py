@@ -18,13 +18,13 @@ from enum import IntEnum
 
 
 class SoftwareUpdateState(IntEnum):
-    """Update state values (field 2 in SoftwareUpdateInfoAttributes). TBD — values not confirmed."""
+    """Update state values (field 2, values still unconfirmed)."""
 
     UNKNOWN = 0
 
 
 class SoftwareUpdateStatus(IntEnum):
-    """Update status values (field 3 in SoftwareUpdateInfoAttributes). TBD — values not confirmed."""
+    """Update status values (field 3, values still unconfirmed)."""
 
     UNKNOWN = 0
 
@@ -42,7 +42,7 @@ class SoftwareUpdateInfo:
     """
 
     id: str
-    """Object UUID (matches either software_update_info_id or firmware_update_info_id)."""
+    """Object UUID for software_update_info_id or firmware_update_info_id."""
     state: int
     """Raw update state integer (SoftwareUpdateState enum, TBD)."""
     status: int

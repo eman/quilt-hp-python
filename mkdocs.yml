@@ -1,0 +1,47 @@
+site_name: quilt-hp-python
+site_description: Async Python client, CLI, and TUI for Quilt HVAC systems
+repo_url: https://github.com/eman/quilt-hp-python
+repo_name: eman/quilt-hp-python
+theme:
+  name: material
+  features:
+    - navigation.sections
+    - navigation.expand
+    - content.code.copy
+markdown_extensions:
+  - admonition
+  - toc:
+      permalink: true
+nav:
+  - Home: index.md
+  - Architecture:
+      - Overview: architecture/index.md
+      - Layering and data flow: architecture/layering.md
+      - Source inventory: architecture/source-inventory.md
+  - Protocol:
+      - Overview: protocol/index.md
+      - Transport and auth behavior: protocol/transport-auth.md
+      - Streaming protocol behavior: protocol/streaming-protocol.md
+      - gRPC protocol concepts: protocol/grpc-concepts.md
+      - Protobuf artifacts and regeneration: protocol/protobuf-artifacts.md
+      - gRPC services and method matrix: protocol/grpc-services-matrix.md
+      - HDS entities and field semantics: protocol/hds-entities.md
+  - Python API:
+      - Overview: python-api/index.md
+      - Usage patterns: python-api/usage.md
+      - Advanced workflows: python-api/advanced-workflows.md
+      - Public API reference: python-api/public-api-reference.md
+      - QuiltClient API reference: python-api/client-reference.md
+      - Service and model reference: python-api/services-and-models.md
+      - Token management reference: python-api/token-management.md
+      - Examples: python-api/examples.md
+  - Integrations:
+      - Overview: integrations/index.md
+      - Home Assistant playbook: integrations/home-assistant-playbook.md
+      - Automation service/daemon playbook: integrations/automation-service-playbook.md
+      - CLI automation scripts playbook: integrations/cli-automation-playbook.md
+      - TUI and event-driven app playbook: integrations/tui-event-driven-playbook.md
+  - Contributing:
+      - Overview: contributing/index.md
+      - Documentation standards: contributing/documentation-standards.md
+      - Protocol/docs update process: contributing/protocol-update-process.md

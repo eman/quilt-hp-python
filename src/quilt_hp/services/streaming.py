@@ -9,9 +9,11 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
+import inspect
 import logging
 from collections.abc import AsyncIterator, Awaitable, Callable, Sequence
 from dataclasses import dataclass, field
+from typing import Any, Protocol, cast
 
 import grpc
 import grpc.aio
@@ -27,6 +29,7 @@ from quilt_hp.models.qsm import QuiltSmartModule
 from quilt_hp.models.sensor import ControllerRemoteSensor, RemoteSensor
 from quilt_hp.models.software_update import SoftwareUpdateInfo
 from quilt_hp.models.space import Space
+from quilt_hp.tokens import TokenRefreshContext, TokenRefreshReason
 
 logger = logging.getLogger(__name__)
 
@@ -40,6 +43,32 @@ RemoteSensorCallback = Callable[[RemoteSensor], Awaitable[None] | None]
 ControllerRemoteSensorCallback = Callable[[ControllerRemoteSensor], Awaitable[None] | None]
 SoftwareUpdateInfoCallback = Callable[[SoftwareUpdateInfo], Awaitable[None] | None]
 ErrorCallback = Callable[[Exception], Awaitable[None] | None]
+
+
+class _NotifierServiceStub(Protocol):
+    def Subscribe(
+        self,
+        request_iterator: AsyncIterator[notifier.SubscribeRequest],
+        metadata: Sequence[tuple[str, str]] | None = None,
+    ) -> AsyncIterator[notifier.SubscribeResponse]: ...
+
+
+RefreshCallback = Callable[[], Awaitable[None]] | Callable[[TokenRefreshContext], Awaitable[None]]
+
+
+async def _invoke_refresh_callback(
+    refresh_callback: RefreshCallback, context: TokenRefreshContext
+) -> None:
+    try:
+        has_params = bool(inspect.signature(refresh_callback).parameters)
+    except TypeError:
+        has_params = False
+    except ValueError:
+        has_params = False
+    if has_params:
+        await cast("Callable[[TokenRefreshContext], Awaitable[None]]", refresh_callback)(context)
+        return
+    await cast("Callable[[], Awaitable[None]]", refresh_callback)()
 
 
 def _parse_varint(data: bytes, pos: int) -> tuple[int, int]:
@@ -87,9 +116,9 @@ def _make_subscribe_request(topics: list[str]) -> notifier.SubscribeRequest:
     )
 
 
-async def _dispatch(cb: SpaceCallback | IndoorUnitCallback | ErrorCallback, arg: object) -> None:
+async def _dispatch[T](cb: Callable[[T], Awaitable[None] | None], arg: T) -> None:
     """Call a callback, awaiting it if it returns a coroutine."""
-    result = cb(arg)  # type: ignore[call-arg]
+    result = cb(arg)
     if asyncio.iscoroutine(result):
         await result
 
@@ -133,8 +162,8 @@ class NotifierStream:
         authenticate: Optional async callable (no args) that refreshes the auth
             token. When provided and the stream gets ``UNAUTHENTICATED``, the
             callable is awaited before reconnecting.
-        max_reconnects: Maximum automatic reconnect attempts per disconnect event.
-            ``-1`` means unlimited. Default: ``-1``.
+        max_reconnects: Maximum reconnect attempts per disconnect event.
+            ``-1`` means unlimited (default).
         reconnect_delay_s: Initial back-off delay in seconds before the first
             reconnect. Doubles on each subsequent attempt, capped at 60 s.
             Default: ``1.0``.
@@ -143,7 +172,7 @@ class NotifierStream:
     _channel: grpc.aio.Channel
     _topics: list[str]
     _metadata_provider: Callable[[], Sequence[tuple[str, str]]] | None = None
-    _authenticate: Callable[[], Awaitable[None]] | None = None
+    _authenticate: RefreshCallback | None = None
     _max_reconnects: int = -1
     _reconnect_delay_s: float = 1.0
 
@@ -162,7 +191,11 @@ class NotifierStream:
     _error: Exception | None = field(default=None, init=False)
 
     def __post_init__(self) -> None:
-        self._stub = notifier_grpc.NotifierServiceStub(self._channel)
+        factory = cast(
+            "Callable[[grpc.aio.Channel], _NotifierServiceStub]",
+            notifier_grpc.NotifierServiceStub,
+        )
+        self._stub: _NotifierServiceStub = factory(self._channel)
         self._request_queue = asyncio.Queue()
 
     # --- Public constructor (friendlier than dataclass __init__) ---
@@ -174,7 +207,7 @@ class NotifierStream:
         topics: list[str],
         *,
         metadata_provider: Callable[[], Sequence[tuple[str, str]]] | None = None,
-        authenticate: Callable[[], Awaitable[None]] | None = None,
+        authenticate: RefreshCallback | None = None,
         max_reconnects: int = -1,
         reconnect_delay_s: float = 1.0,
     ) -> NotifierStream:
@@ -199,27 +232,27 @@ class NotifierStream:
         self._idu_callbacks.append(callback)
 
     def on_outdoor_unit_update(self, callback: OutdoorUnitCallback) -> None:
-        """Register a callback for outdoor unit change events (sync or async)."""
+        """Register callback for outdoor unit change events."""
         self._odu_callbacks.append(callback)
 
     def on_controller_update(self, callback: ControllerCallback) -> None:
-        """Register a callback for controller (Dial) change events (sync or async)."""
+        """Register callback for controller (Dial) change events."""
         self._ctrl_callbacks.append(callback)
 
     def on_qsm_update(self, callback: QsmCallback) -> None:
-        """Register a callback for QuiltSmartModule change events (sync or async)."""
+        """Register callback for QuiltSmartModule change events."""
         self._qsm_callbacks.append(callback)
 
     def on_remote_sensor_update(self, callback: RemoteSensorCallback) -> None:
-        """Register a callback for RemoteSensor change events (sync or async)."""
+        """Register callback for RemoteSensor change events."""
         self._rs_callbacks.append(callback)
 
     def on_controller_remote_sensor_update(self, callback: ControllerRemoteSensorCallback) -> None:
-        """Register a callback for ControllerRemoteSensor change events (sync or async)."""
+        """Register callback for ControllerRemoteSensor change events."""
         self._crs_callbacks.append(callback)
 
     def on_software_update_info(self, callback: SoftwareUpdateInfoCallback) -> None:
-        """Register a callback for SoftwareUpdateInfo change events (sync or async)."""
+        """Register callback for SoftwareUpdateInfo change events."""
         self._sui_callbacks.append(callback)
 
     def on_error(self, callback: ErrorCallback) -> None:
@@ -252,8 +285,10 @@ class NotifierStream:
 
     # --- Internal stream machinery ---
 
-    async def _request_iterator(self) -> AsyncIterator[notifier.SubscribeRequest]:
-        """Yields SubscribeRequests — initial subscription first, then from queue.
+    async def _request_iterator(
+        self,
+    ) -> AsyncIterator[notifier.SubscribeRequest]:
+        """Yield SubscribeRequests from initial subscription, then queue.
 
         A 30-second timeout on the queue read keeps the async generator alive
         without re-sending the topic list; gRPC channel keepalives (configured
@@ -269,7 +304,7 @@ class NotifierStream:
 
     def _parse_event(self, evt: object) -> StreamEvent | None:
         """Parse the complex nested wire format of a NotifierEvent."""
-        topic_bytes: bytes = evt.topic  # type: ignore[attr-defined]
+        topic_bytes: bytes = getattr(cast("Any", evt), "topic", b"")
         if not topic_bytes:
             return None  # heartbeat
 
@@ -372,51 +407,51 @@ class NotifierStream:
                 if parsed is None:
                     continue
                 if parsed.space is not None:
-                    for cb in self._space_callbacks:
+                    for space_cb in self._space_callbacks:
                         try:
-                            await _dispatch(cb, parsed.space)
+                            await _dispatch(space_cb, parsed.space)
                         except Exception:
                             logger.exception("Error in space callback")
                 if parsed.indoor_unit is not None:
-                    for cb in self._idu_callbacks:
+                    for idu_cb in self._idu_callbacks:
                         try:
-                            await _dispatch(cb, parsed.indoor_unit)
+                            await _dispatch(idu_cb, parsed.indoor_unit)
                         except Exception:
                             logger.exception("Error in indoor unit callback")
                 if parsed.outdoor_unit is not None:
-                    for cb in self._odu_callbacks:
+                    for odu_cb in self._odu_callbacks:
                         try:
-                            await _dispatch(cb, parsed.outdoor_unit)
+                            await _dispatch(odu_cb, parsed.outdoor_unit)
                         except Exception:
                             logger.exception("Error in outdoor unit callback")
                 if parsed.controller is not None:
-                    for cb in self._ctrl_callbacks:
+                    for ctrl_cb in self._ctrl_callbacks:
                         try:
-                            await _dispatch(cb, parsed.controller)
+                            await _dispatch(ctrl_cb, parsed.controller)
                         except Exception:
                             logger.exception("Error in controller callback")
                 if parsed.qsm is not None:
-                    for cb in self._qsm_callbacks:
+                    for qsm_cb in self._qsm_callbacks:
                         try:
-                            await _dispatch(cb, parsed.qsm)
+                            await _dispatch(qsm_cb, parsed.qsm)
                         except Exception:
                             logger.exception("Error in QSM callback")
                 if parsed.remote_sensor is not None:
-                    for cb in self._rs_callbacks:
+                    for rs_cb in self._rs_callbacks:
                         try:
-                            await _dispatch(cb, parsed.remote_sensor)
+                            await _dispatch(rs_cb, parsed.remote_sensor)
                         except Exception:
                             logger.exception("Error in remote sensor callback")
                 if parsed.controller_remote_sensor is not None:
-                    for cb in self._crs_callbacks:
+                    for crs_cb in self._crs_callbacks:
                         try:
-                            await _dispatch(cb, parsed.controller_remote_sensor)
+                            await _dispatch(crs_cb, parsed.controller_remote_sensor)
                         except Exception:
                             logger.exception("Error in controller remote sensor callback")
                 if parsed.software_update_info is not None:
-                    for cb in self._sui_callbacks:
+                    for sui_cb in self._sui_callbacks:
                         try:
-                            await _dispatch(cb, parsed.software_update_info)
+                            await _dispatch(sui_cb, parsed.software_update_info)
                         except Exception:
                             logger.exception("Error in software update info callback")
 
@@ -439,10 +474,16 @@ class NotifierStream:
 
                 if is_unauth and self._authenticate is not None and can_retry:
                     logger.warning(
-                        "Stream got UNAUTHENTICATED; refreshing token (attempt %d)", attempt + 1
+                        "Stream got UNAUTHENTICATED; refreshing token (attempt %d)",
+                        attempt + 1,
                     )
                     try:
-                        await self._authenticate()
+                        context = TokenRefreshContext(
+                            reason=TokenRefreshReason.STREAM_UNAUTHENTICATED,
+                            source="streaming",
+                            attempt=attempt + 1,
+                        )
+                        await _invoke_refresh_callback(self._authenticate, context)
                     except Exception:
                         logger.exception("Token refresh failed; giving up stream")
                         self._error = exc
@@ -457,7 +498,9 @@ class NotifierStream:
                     )
                 else:
                     logger.error(
-                        "Stream error %s: %s; max reconnects reached", exc.code(), exc.details()
+                        "Stream error %s: %s; max reconnects reached",
+                        exc.code(),
+                        exc.details(),
                     )
                     self._error = QuiltStreamError(f"Stream error: {exc.code()} - {exc.details()}")
                     break
@@ -465,7 +508,7 @@ class NotifierStream:
                 await asyncio.sleep(delay)
                 delay = min(delay * 2, 60.0)
                 attempt += 1
-                # Reset request queue so the next connection re-subscribes cleanly
+                # Reset request queue so the next connection re-subscribes.
                 self._request_queue = asyncio.Queue()
 
         if self._error is not None:

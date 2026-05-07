@@ -1,12 +1,5 @@
 // quilt_hds.proto
-// Reconstructed from Quilt app v1.0.25 (com.quilt.app) Kotlin Multiplatform source.
 // Home Datastore (HDS) messages — objects managed by the gRPC API.
-// Field numbers and types verified against:
-//   - Live mitmproxy binary capture (decoded_log.txt)
-//   - quilt_office.proto.json (bundled in IPA — exact proto3 JSON field names)
-//   - KMP Kotlin source in extracted/Payload/Quilt.app/commonMain/kotlin/
-//   - Android APK decompiled proto enums (com.quilt.android v1.x, jadx)
-//     These are authoritative generated proto Java classes (InterfaceC6012sp0)
 
 syntax = "proto3";
 
@@ -23,8 +16,7 @@ option java_outer_classname = "QuiltHdsProto";
 // Enums
 // ---------------------------------------------------------------------------
 
-// Confirmed by Android proto Java enum QJ (implements ProtocolMessageEnum).
-// COOL=2, HEAT=3 confirmed. No DRY mode in the proto (was iOS KMP-only artifact).
+// COOL=2, HEAT=3
 enum HVACMode {
   HVAC_MODE_UNSPECIFIED = 0;
   HVAC_MODE_STANDBY = 1;

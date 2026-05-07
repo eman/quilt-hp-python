@@ -42,8 +42,8 @@ class OutdoorUnit:
         pd = None
         if hasattr(proto, "performance_data"):
             p = proto.performance_data
-            # Server does not reliably set updated_ts on OutdoorUnitPerformanceData;
-            # gate on any non-zero measurement value instead (matches reference client).
+            # Server does not reliably set updated_ts on
+            # OutdoorUnitPerformanceData. Gate on any non-zero value instead.
             if p.ambient_temperature_c or p.compressor_frequency_hz or p.energy_measurement_j:
                 pd = OutdoorUnitPerformanceData(
                     measurement_interval_s=p.measurement_interval_s,
@@ -64,6 +64,8 @@ class OutdoorUnit:
             model_sku=hw.attributes.model_sku if hw else None,  # type: ignore[attr-defined]
             serial_number=hw.attributes.serial_number if hw else None,  # type: ignore[attr-defined]
             firmware_version=hw.attributes.firmware_version if hw else None,  # type: ignore[attr-defined]
-            firmware_update_info_id=proto.relationships.firmware_update_info_id or None,  # type: ignore[attr-defined]
+            firmware_update_info_id=(
+                proto.relationships.firmware_update_info_id or None  # type: ignore[attr-defined]
+            ),
             performance_data=pd,
         )

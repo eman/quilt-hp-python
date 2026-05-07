@@ -1,8 +1,13 @@
-"""HomeDatastoreService — async CRUD for spaces, IDUs, comfort settings, schedules."""
+"""HomeDatastoreService.
+
+Async CRUD for spaces, IDUs, comfort settings, and schedules.
+"""
 
 from __future__ import annotations
 
 import time
+from collections.abc import Callable, Sequence
+from typing import Protocol, cast
 
 import grpc.aio
 from google.protobuf.timestamp_pb2 import Timestamp
@@ -13,9 +18,25 @@ from quilt_hp.exceptions import QuiltError, QuiltNotFoundError
 from quilt_hp.models.comfort import ComfortSetting
 from quilt_hp.models.enums import FanSpeed, HVACMode, LouverMode
 from quilt_hp.models.indoor_unit import IndoorUnit
-from quilt_hp.models.schedule import ScheduleDay, ScheduleWeek
+from quilt_hp.models.schedule import ScheduleDay, ScheduleEvent, ScheduleWeek, ScheduleWeekDay
 from quilt_hp.models.space import Space
 from quilt_hp.models.system import SystemSnapshot
+
+
+class _HomeDatastoreServiceStub(Protocol):
+    async def GetHomeDatastoreSystem(
+        self, request: hds.GetHomeDatastoreSystemRequest
+    ) -> object: ...
+    async def UpdateSpace(self, request: hds.UpdateSpaceRequest) -> object: ...
+    async def UpdateIndoorUnit(self, request: hds.UpdateIndoorUnitRequest) -> object: ...
+    async def UpdateComfortSetting(self, request: hds.UpdateComfortSettingRequest) -> object: ...
+    async def CreateScheduleDay(self, request: hds.CreateScheduleDayRequest) -> object: ...
+    async def CreateScheduleWeek(self, request: hds.CreateScheduleWeekRequest) -> object: ...
+    async def UpdateScheduleWeek(self, request: hds.UpdateScheduleWeekRequest) -> object: ...
+    async def DeleteScheduleDay(self, request: hds.DeleteScheduleDayRequest) -> object: ...
+    async def UpdateScheduleDay(self, request: hds.UpdateScheduleDayRequest) -> object: ...
+    async def DeleteScheduleWeek(self, request: hds.DeleteScheduleWeekRequest) -> object: ...
+    async def UpdateLocation(self, request: hds.UpdateLocationRequest) -> object: ...
 
 
 def _now_ts() -> Timestamp:
@@ -24,11 +45,39 @@ def _now_ts() -> Timestamp:
     return ts
 
 
+def _to_wire_schedule_event(event: ScheduleEvent | hds.ScheduleEvent) -> hds.ScheduleEvent:
+    if isinstance(event, hds.ScheduleEvent):
+        return event
+    return hds.ScheduleEvent(
+        start_s=event.start_s,
+        comfort_setting_id=event.comfort_setting_id,
+        hvac_mode=cast("hds.HVACMode.ValueType", event.hvac_mode),
+        heating_temperature_setpoint_c=event.heating_setpoint_c,
+        cooling_temperature_setpoint_c=event.cooling_setpoint_c,
+        precondition=event.precondition,
+    )
+
+
+def _to_wire_schedule_week_day(
+    day: ScheduleWeekDay | hds.ScheduleWeekDay,
+) -> hds.ScheduleWeekDay:
+    if isinstance(day, hds.ScheduleWeekDay):
+        return day
+    return hds.ScheduleWeekDay(
+        weekday=cast("hds.Weekday.ValueType", day.weekday),
+        day_id=day.day_id,
+    )
+
+
 class HomeDatastoreService:
     """Async wrapper for HomeDatastoreService gRPC methods."""
 
     def __init__(self, channel: grpc.aio.Channel) -> None:
-        self._stub = hds_grpc.HomeDatastoreServiceStub(channel)
+        factory = cast(
+            "Callable[[grpc.aio.Channel], _HomeDatastoreServiceStub]",
+            hds_grpc.HomeDatastoreServiceStub,
+        )
+        self._stub: _HomeDatastoreServiceStub = factory(channel)
 
     async def get_system(self, system_id: str) -> SystemSnapshot:
         """Fetch a full system snapshot."""
@@ -58,10 +107,10 @@ class HomeDatastoreService:
 
         STANDBY semantics:
         When mode=STANDBY is explicitly requested the comfort-setting association
-        is cleared (empty id, override=NONE).  This produces plain OFF — the room
-        stays off regardless of occupancy.  Sending the existing comfort_setting_id
-        when going to STANDBY would preserve an AWAY setting and the room would
-        still reactivate on occupancy.
+            is cleared (empty id, override=NONE). This produces plain OFF —
+            the room stays off regardless of occupancy. Sending the existing
+            comfort_setting_id when going to STANDBY would preserve an AWAY
+            setting and the room would still reactivate on occupancy.
         """
         c = snapshot_space.controls
         mode_enum = mode if mode is not None else c.hvac_mode
@@ -91,7 +140,7 @@ class HomeDatastoreService:
                 system_id=snapshot_space.system_id,
             ),
             controls=hds.SpaceControls(
-                hvac_mode=mode_val,
+                hvac_mode=cast("hds.HVACMode.ValueType", mode_val),
                 temperature_setpoint_c=temp_setpoint,
                 heating_temperature_setpoint_c=heat,
                 cooling_temperature_setpoint_c=cool,
@@ -128,7 +177,6 @@ class HomeDatastoreService:
             settings=hds.SpaceSettings(
                 name=s.name,
                 timezone=s.timezone,
-                occupancy=s.occupancy_mode.value,
                 occupied_timeout_s=(
                     occupied_timeout_s if occupied_timeout_s is not None else s.occupied_timeout_s
                 ),
@@ -137,7 +185,8 @@ class HomeDatastoreService:
                     if unoccupied_timeout_s is not None
                     else s.unoccupied_timeout_s
                 ),
-                safety_heating=s.safety_heating.value,
+                occupancy=cast("hds.OccupancyMode.ValueType", s.occupancy_mode.value),
+                safety_heating=cast("hds.SafetyHeatingMode.ValueType", s.safety_heating.value),
                 updated_ts=_now_ts(),
             ),
         )
@@ -170,10 +219,11 @@ class HomeDatastoreService:
             ),
             controls=hds.IndoorUnitControls(
                 updated_ts=_now_ts(),
-                fan_speed_mode=fan_mode_val,
+                fan_speed_mode=cast("hds.FanSpeedMode.ValueType", fan_mode_val),
                 fan_speed_percent=fan_pct,
-                louver_mode=(
-                    louver_mode.value if louver_mode is not None else c.louver_mode.value
+                louver_mode=cast(
+                    "hds.IndoorUnitLouverMode.ValueType",
+                    louver_mode.value if louver_mode is not None else c.louver_mode.value,
                 ),
                 louver_fixed_position=(
                     louver_position if louver_position is not None else c.louver_fixed_position
@@ -182,7 +232,10 @@ class HomeDatastoreService:
                 led_color_brightness_percent=(
                     led_brightness if led_brightness is not None else c.led_brightness
                 ),
-                led_animation=(led_animation if led_animation is not None else c.led_animation),
+                led_animation=cast(
+                    "hds.LightAnimation.ValueType",
+                    led_animation if led_animation is not None else c.led_animation,
+                ),
             ),
         )
         try:
@@ -201,7 +254,10 @@ class HomeDatastoreService:
         radar_height_m: float | None = None,
         light_brightness_default: float | None = None,
     ) -> IndoorUnit:
-        """Update indoor unit settings (presence fence geometry, default brightness)."""
+        """Update indoor unit settings.
+
+        Includes presence fence geometry and default brightness.
+        """
         st = idu.settings
         diff = hds.IndoorUnit(
             header=hds.EntityMetadata(
@@ -267,10 +323,13 @@ class HomeDatastoreService:
                 cooling_temperature_setpoint_c=(
                     cool_setpoint_c if cool_setpoint_c is not None else setting.cooling_setpoint_c
                 ),
-                hvac_mode=(hvac_mode.value if hvac_mode is not None else setting.hvac_mode.value),
-                fan_speed_mode=fan_mode_val,
+                hvac_mode=cast(
+                    "hds.HVACMode.ValueType",
+                    hvac_mode.value if hvac_mode is not None else setting.hvac_mode.value,
+                ),
+                fan_speed_mode=cast("hds.FanSpeedMode.ValueType", fan_mode_val),
                 fan_speed_percent=fan_pct,
-                type=setting.type.value,
+                type=cast("hds.ComfortSettingType.ValueType", setting.type.value),
             ),
         )
         try:
@@ -286,14 +345,15 @@ class HomeDatastoreService:
         system_id: str,
         space_id: str,
         name: str,
-        events: list[hds.ScheduleEvent],
+        events: Sequence[ScheduleEvent | hds.ScheduleEvent],
     ) -> ScheduleDay:
         """Create a new schedule day program for a space."""
+        wire_events = [_to_wire_schedule_event(event) for event in events]
         diff = hds.ScheduleDay(
             header=hds.EntityMetadata(system_id=system_id),
             attributes=hds.ScheduleDayAttributes(name=name),
             relationships=hds.ScheduleDayRelationships(space_id=space_id),
-            events=events,
+            events=wire_events,
         )
         try:
             result = await self._stub.CreateScheduleDay(
@@ -307,13 +367,14 @@ class HomeDatastoreService:
         self,
         system_id: str,
         space_id: str,
-        days: list[hds.ScheduleWeekDay] | None = None,
+        days: Sequence[ScheduleWeekDay | hds.ScheduleWeekDay] | None = None,
     ) -> ScheduleWeek:
         """Create a new schedule week for a space."""
+        wire_days = [_to_wire_schedule_week_day(day) for day in (days or [])]
         diff = hds.ScheduleWeek(
             header=hds.EntityMetadata(system_id=system_id),
             relationships=hds.ScheduleWeekRelationships(space_id=space_id),
-            days=days or [],
+            days=wire_days,
         )
         try:
             result = await self._stub.CreateScheduleWeek(
@@ -328,16 +389,17 @@ class HomeDatastoreService:
         schedule_week_id: str,
         system_id: str,
         space_id: str,
-        days: list[hds.ScheduleWeekDay],
+        days: Sequence[ScheduleWeekDay | hds.ScheduleWeekDay],
     ) -> ScheduleWeek:
         """Update an existing schedule week."""
+        wire_days = [_to_wire_schedule_week_day(day) for day in days]
         diff = hds.ScheduleWeek(
             header=hds.EntityMetadata(
                 object_id=schedule_week_id,
                 system_id=system_id,
             ),
             relationships=hds.ScheduleWeekRelationships(space_id=space_id),
-            days=days,
+            days=wire_days,
         )
         try:
             result = await self._stub.UpdateScheduleWeek(
@@ -362,7 +424,7 @@ class HomeDatastoreService:
         system_id: str,
         space_id: str,
         name: str | None = None,
-        events: list[hds.ScheduleEvent] | None = None,
+        events: Sequence[ScheduleEvent | hds.ScheduleEvent] | None = None,
     ) -> ScheduleDay:
         """Update an existing schedule day (name and/or events)."""
         diff = hds.ScheduleDay(
@@ -375,7 +437,7 @@ class HomeDatastoreService:
         if name is not None:
             diff.attributes.CopyFrom(hds.ScheduleDayAttributes(name=name))
         if events is not None:
-            diff.events.extend(events)  # type: ignore[attr-defined]
+            diff.events.extend(_to_wire_schedule_event(event) for event in events)
         try:
             result = await self._stub.UpdateScheduleDay(
                 hds.UpdateScheduleDayRequest(schedule_day=diff)

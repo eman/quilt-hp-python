@@ -1,7 +1,8 @@
 """Textual TUI for Quilt HVAC — feature-complete, keyboard-only.
 
 Screen flow:
-  LoadingScreen ──→ DashboardScreen ──→ RoomScreen (Status|Performance|Schedule tabs)
+  LoadingScreen ──→ DashboardScreen ──→
+    RoomScreen (Status|Performance|Schedule tabs)
                           └──────────→ SystemScreen
 """
 
@@ -15,7 +16,12 @@ from rich.text import Text
 from textual import on, work
 from textual.app import App, ComposeResult
 from textual.binding import Binding
-from textual.containers import Container, Horizontal, ScrollableContainer, Vertical
+from textual.containers import (
+    Container,
+    Horizontal,
+    ScrollableContainer,
+    Vertical,
+)
 from textual.css.query import NoMatches
 from textual.reactive import reactive
 from textual.screen import Screen
@@ -33,6 +39,7 @@ from textual.widgets import (
     TabPane,
 )
 
+from quilt_hp.cli.settings import SettingsStore
 from quilt_hp.cli.store import FileStore
 from quilt_hp.client import QuiltClient
 from quilt_hp.models.controller import Controller
@@ -59,10 +66,9 @@ if TYPE_CHECKING:
 # Persistent settings (delegates to quilt_hp.cli.settings)
 # ──────────────────────────────────────────────────────────────────
 
-# Persistent store for tokens + settings
-_store = FileStore()
-_load_settings = _store.load_settings
-_save_settings = _store.save_settings
+# Persistent stores (tokens separate from non-secret settings)
+_token_store = FileStore()
+_settings_store = SettingsStore()
 
 
 # ──────────────────────────────────────────────────────────────────
@@ -127,8 +133,19 @@ _FAN_CYCLE = [
     FanSpeed.HIGH,
     FanSpeed.BLAST,
 ]
-_MODE_CYCLE = [HVACMode.HEAT, HVACMode.COOL, HVACMode.AUTO, HVACMode.FAN, HVACMode.STANDBY]
-_LOUVER_CYCLE = [LouverMode.SWEEP, LouverMode.AUTO, LouverMode.FIXED, LouverMode.CLOSED]
+_MODE_CYCLE = [
+    HVACMode.HEAT,
+    HVACMode.COOL,
+    HVACMode.AUTO,
+    HVACMode.FAN,
+    HVACMode.STANDBY,
+]
+_LOUVER_CYCLE = [
+    LouverMode.SWEEP,
+    LouverMode.AUTO,
+    LouverMode.FIXED,
+    LouverMode.CLOSED,
+]
 _OCC_CYCLE = [OccupancyMode.DISABLED, OccupancyMode.ENABLED]
 
 
@@ -142,7 +159,7 @@ def _tc(val_c: float | None, use_f: bool) -> str:
 
 
 def _fmt_timeout(seconds: float) -> str:
-    """Format a timeout in seconds as a human-readable string (e.g. '20 min', '3 min 30 s')."""
+    """Format timeout as readable text (for example, '20 min')."""
     if seconds <= 0:
         return "0 s"
     total_m = int(seconds) // 60
@@ -473,7 +490,8 @@ class RoomListItem(ListItem):
 
     def compose(self) -> ComposeResult:
         yield Static(
-            self._build_row(self._space, self._idu, False), id=f"room-row-{self._space_id}"
+            self._build_row(self._space, self._idu, False),
+            id=f"room-row-{self._space_id}",
         )
 
 
@@ -506,7 +524,10 @@ class DashboardScreen(Screen):
         yield Footer()
 
     def _idu_for(self, space_id: str) -> IndoorUnit | None:
-        return next((u for u in self._snapshot.indoor_units if u.space_id == space_id), None)
+        return next(
+            (u for u in self._snapshot.indoor_units if u.space_id == space_id),
+            None,
+        )
 
     def on_mount(self) -> None:
         lv = self.query_one(ListView)
@@ -520,7 +541,7 @@ class DashboardScreen(Screen):
     async def _apply_snapshot(self, snap: SystemSnapshot) -> None:
         """Replace the current snapshot and rebuild the room list in-place."""
         self._snapshot = snap
-        # Keep app-level snapshot in sync so stream dispatchers use fresh cs map.
+        # Keep app-level snapshot in sync for stream dispatcher comfort maps.
         self.app._snapshot = snap  # type: ignore[attr-defined]
         self._items.clear()
         lv = self.query_one(ListView)
@@ -562,7 +583,7 @@ class DashboardScreen(Screen):
             )
 
     def update_space(self, space: Space) -> None:
-        """Called from streaming callbacks — update the room row for this space."""
+        """Called from stream callbacks to update this room row."""
         item = self._items.get(space.id)
         if item:
             idu = self._idu_for(space.id)
@@ -604,8 +625,14 @@ class DashboardScreen(Screen):
         space = next((s for s in self._snapshot.rooms if s.id == space_id), None)
         if space is None:
             return
-        idu = next((u for u in self._snapshot.indoor_units if u.space_id == space_id), None)
-        ctrl = next((c for c in self._snapshot.controllers if c.space_id == space_id), None)
+        idu = next(
+            (u for u in self._snapshot.indoor_units if u.space_id == space_id),
+            None,
+        )
+        ctrl = next(
+            (c for c in self._snapshot.controllers if c.space_id == space_id),
+            None,
+        )
         odu = self._snapshot.outdoor_units[0] if self._snapshot.outdoor_units else None
         qsm = self._snapshot.qsm_for_idu(idu) if idu else None
         self.app.push_screen(
@@ -900,7 +927,8 @@ class RoomScreen(Screen):
         preset_name = "--"
         if c.comfort_setting_id:
             cs = next(
-                (x for x in self._snapshot.comfort_settings if x.id == c.comfort_setting_id), None
+                (x for x in self._snapshot.comfort_settings if x.id == c.comfort_setting_id),
+                None,
             )
             if cs:
                 preset_name = f"{cs.name} ({cs.type.name})"
@@ -914,11 +942,24 @@ class RoomScreen(Screen):
             mode_style = _MODE_STYLE.get(space.controls.hvac_mode, "")
         self._kv("ctl-mode", "Mode", mode_label, mode_style)
         self._kv("ctl-heat", "Heat Setpoint", _tc(c.heating_setpoint_c, use_f), "red")
-        self._kv("ctl-cool", "Cool Setpoint", _tc(c.cooling_setpoint_c, use_f), "cyan")
+        self._kv(
+            "ctl-cool",
+            "Cool Setpoint",
+            _tc(c.cooling_setpoint_c, use_f),
+            "cyan",
+        )
         self._kv("ctl-fan", "Fan Speed", idu.controls.fan_speed.name if idu else "--")
-        self._kv("ctl-louver", "Louver", idu.controls.louver_mode.name if idu else "--")
+        self._kv(
+            "ctl-louver",
+            "Louver",
+            idu.controls.louver_mode.name if idu else "--",
+        )
         if idu and idu.controls.louver_mode.name == "FIXED" and idu.controls.louver_fixed_position:
-            self._kv("ctl-louver-pos", "  Fixed Pos", f"{idu.controls.louver_fixed_position:.1f}°")
+            self._kv(
+                "ctl-louver-pos",
+                "  Fixed Pos",
+                f"{idu.controls.louver_fixed_position:.1f}°",
+            )
         else:
             self._kv("ctl-louver-pos", "  Fixed Pos", "--")
         boost_str = "--"
@@ -926,7 +967,12 @@ class RoomScreen(Screen):
             boost_str = "ON" if c.boost_mode.name == "ON" else "Off"
         elif idu:
             boost_str = "Off"
-        self._kv("ctl-boost", "Boost Mode", boost_str, "bold yellow" if boost_str == "ON" else "")
+        self._kv(
+            "ctl-boost",
+            "Boost Mode",
+            boost_str,
+            "bold yellow" if boost_str == "ON" else "",
+        )
         led_str = "--"
         led_color_str = "--"
         led_anim_str = "--"
@@ -958,8 +1004,14 @@ class RoomScreen(Screen):
 
         override_labels = {
             ComfortSettingOverride.NONE: ("Schedule", "dim"),
-            ComfortSettingOverride.UNTIL_NEXT_SCHEDULE: ("Manual (until next event)", "yellow"),
-            ComfortSettingOverride.INDEFINITE: ("Manual (indefinite)", "yellow"),
+            ComfortSettingOverride.UNTIL_NEXT_SCHEDULE: (
+                "Manual (until next event)",
+                "yellow",
+            ),
+            ComfortSettingOverride.INDEFINITE: (
+                "Manual (indefinite)",
+                "yellow",
+            ),
             ComfortSettingOverride.SCHEDULE: ("Schedule", "dim"),
             ComfortSettingOverride.UNOCCUPIED: ("Auto-Away", "yellow dim"),
             ComfortSettingOverride.OCCUPIED: ("Auto-Return", "green dim"),
@@ -968,20 +1020,30 @@ class RoomScreen(Screen):
             override, (override.name.replace("_", " ").title(), "")
         )
         self._kv("ctl-preset-override", "  Applied Via", ov_str, ov_style)
-        # State-reported active comfort setting (may differ from controls preset)
+        # State-reported active comfort setting may differ from controls preset.
         state_preset_name = "--"
         if s.comfort_setting_id:
             cs_state = next(
-                (x for x in self._snapshot.comfort_settings if x.id == s.comfort_setting_id), None
+                (x for x in self._snapshot.comfort_settings if x.id == s.comfort_setting_id),
+                None,
             )
             if cs_state:
                 state_preset_name = cs_state.name
             elif s.comfort_setting_id != c.comfort_setting_id:
                 state_preset_name = f"…{s.comfort_setting_id[-8:]}"
-        self._kv("ctl-state-preset", "  Active (state)", state_preset_name, "yellow dim")
+        self._kv(
+            "ctl-state-preset",
+            "  Active (state)",
+            state_preset_name,
+            "yellow dim",
+        )
         occ_mode_label = sets.occupancy_mode.name.capitalize()
         self._kv("ctl-occ-mode", "Occupancy Mode", occ_mode_label)
-        self._kv("ctl-safety", "Safety Heating", sets.safety_heating.name.capitalize())
+        self._kv(
+            "ctl-safety",
+            "Safety Heating",
+            sets.safety_heating.name.capitalize(),
+        )
 
         # Auto-away / auto-return timeouts (editable with [ ] { })
         away_style = "" if sets.occupancy_mode == OccupancyMode.ENABLED else "dim"
@@ -1029,7 +1091,12 @@ class RoomScreen(Screen):
         with contextlib.suppress(Exception):
             self.query_one("#dial-panel").border_title = dial_title
 
-        self._kv("sen-ambient", "Ambient Temp", _tc(s.ambient_temperature_c, use_f), "green")
+        self._kv(
+            "sen-ambient",
+            "Ambient Temp",
+            _tc(s.ambient_temperature_c, use_f),
+            "green",
+        )
         if idu and idu.state.calculated_ambient_temperature_c:
             self._kv(
                 "sen-calc-ambient",
@@ -1046,7 +1113,11 @@ class RoomScreen(Screen):
             else "--",
         )
         fan_rpm = idu.state.fan_speed_rpm if idu and idu.state else None
-        self._kv("sen-fan-rpm", "Fan Speed (actual)", f"{fan_rpm:.0f} RPM" if fan_rpm else "Off")
+        self._kv(
+            "sen-fan-rpm",
+            "Fan Speed (actual)",
+            f"{fan_rpm:.0f} RPM" if fan_rpm else "Off",
+        )
         fan_sp_rpm = idu.state.fan_speed_setpoint_rpm if idu and idu.state else None
         self._kv(
             "sen-fan-setpoint-rpm",
@@ -1055,11 +1126,19 @@ class RoomScreen(Screen):
         )
         self._kv("sen-setpoint", "Active Setpoint", _tc(s.setpoint_c, use_f))
         if idu and idu.state.inlet_temperature_c:
-            self._kv("sen-inlet", "Inlet Temp", _tc(idu.state.inlet_temperature_c, use_f))
+            self._kv(
+                "sen-inlet",
+                "Inlet Temp",
+                _tc(idu.state.inlet_temperature_c, use_f),
+            )
         else:
             self._kv("sen-inlet", "Inlet Temp", "--")
         if idu and idu.state.outlet_temperature_c:
-            self._kv("sen-outlet", "Outlet Temp", _tc(idu.state.outlet_temperature_c, use_f))
+            self._kv(
+                "sen-outlet",
+                "Outlet Temp",
+                _tc(idu.state.outlet_temperature_c, use_f),
+            )
         else:
             self._kv("sen-outlet", "Outlet Temp", "--")
         if idu and idu.state.louver_angle_up_down_degrees:
@@ -1082,13 +1161,13 @@ class RoomScreen(Screen):
             occ_str, occ_style = "offline", "dim italic"
         else:
             occ_str, occ_style = "--", "dim italic"
-        # occupancy_state is the auto-away ENGINE decision (lags real presence by
+        # occupancy_state is the auto-away engine decision (lags real presence
         # unoccupied_timeout_s).  It controls HVAC setback, not live radar.
         self._kv("sen-occ-state", "Occupancy", occ_str, occ_style)
 
         # Presence sensors — binary DETECTED / UNDETECTED per radar sensor.
-        # KMP uses sensor0Presence / sensor1Presence as Presence enum (DETECTED or UNDETECTED);
-        # these are NOT analog values.  High value = nobody present; low ≠ "closer".
+        # KMP uses sensor0Presence / sensor1Presence as Presence enum
+        # (DETECTED/UNDETECTED); these are NOT analog values.
         if idu and idu.presence:
             from quilt_hp.models.enums import Presence
 
@@ -1167,12 +1246,22 @@ class RoomScreen(Screen):
 
         if ctrl:
             self._kv("dial-serial", "Serial", ctrl.serial_number or "--")
-            self._kv("dial-ambient", "Ambient", _tc(ctrl.calibrated_ambient_c, use_f), "green")
-            self._kv("dial-calib", "Raw Thermistor", _tc(ctrl.raw_thermistor_c, use_f))
+            self._kv(
+                "dial-ambient",
+                "Ambient",
+                _tc(ctrl.calibrated_ambient_c, use_f),
+                "green",
+            )
+            self._kv(
+                "dial-calib",
+                "Raw Thermistor",
+                _tc(ctrl.raw_thermistor_c, use_f),
+            )
             self._kv(
                 "dial-pcb",
                 "PCB A / B",
-                f"{_tc(ctrl.pcb_temperature_a_c, use_f)}  /  {_tc(ctrl.pcb_temperature_b_c, use_f)}",
+                f"{_tc(ctrl.pcb_temperature_a_c, use_f)}  /  "
+                f"{_tc(ctrl.pcb_temperature_b_c, use_f)}",
             )
             # Wi-Fi status: SSID, band, signal
             wifi_parts = []
@@ -1212,7 +1301,10 @@ class RoomScreen(Screen):
             )
             if crs:
                 self._kv(
-                    "dial-crs-temp", "  Zone Temp", _tc(crs.ambient_temperature_c, use_f), "green"
+                    "dial-crs-temp",
+                    "  Zone Temp",
+                    _tc(crs.ambient_temperature_c, use_f),
+                    "green",
                 )
                 self._kv(
                     "dial-crs-humidity",
@@ -1251,7 +1343,11 @@ class RoomScreen(Screen):
                 "dial-crs-battery",
                 "dial-crs-signal",
             ):
-                self._kv(nid, nid.replace("dial-", "").replace("-", " ").title(), "--")
+                self._kv(
+                    nid,
+                    nid.replace("dial-", "").replace("-", " ").title(),
+                    "--",
+                )
 
         # QSM / Smart Module
         qsm = self._qsm
@@ -1309,9 +1405,18 @@ class RoomScreen(Screen):
             self._kv("p-outlet", "Outlet Temp", _tc(pd.outlet_temperature_c, use_f))
             self._kv("p-inlet", "Inlet Temp", _tc(pd.inlet_temperature_c, use_f))
             self._kv("p-gas", "Gas Pipe Temp", _tc(pd.gas_pipe_temperature_c, use_f))
-            self._kv("p-liquid", "Liquid Pipe Temp", _tc(pd.liquid_pipe_temperature_c, use_f))
-            self._kv("p-interval", "Sample Interval", f"{pd.measurement_interval_s:.1f} s")
-            # energy_measurement_j is IDU electronics (QSM + fan board), NOT HVAC/compressor energy.
+            self._kv(
+                "p-liquid",
+                "Liquid Pipe Temp",
+                _tc(pd.liquid_pipe_temperature_c, use_f),
+            )
+            self._kv(
+                "p-interval",
+                "Sample Interval",
+                f"{pd.measurement_interval_s:.1f} s",
+            )
+            # energy_measurement_j is IDU electronics (QSM + fan board),
+            # not HVAC/compressor energy.
             # Actual HVAC power is in performance_metrics below.
             pwr = (
                 pd.energy_measurement_j / pd.measurement_interval_s
@@ -1319,13 +1424,29 @@ class RoomScreen(Screen):
                 else 0
             )
             self._kv("p-energy-j", "IDU Module Power", f"{pwr:.1f} W")
-            self._kv("p-energy-kwh", "IDU Module Energy", f"{pd.energy_measurement_j:.1f} J")
-            self._kv("p-fan-actual", "Fan (actual)", f"{pd.actual_fan_speed_rpm:.0f} RPM")
             self._kv(
-                "p-pd-mode", "Mode (perf)", pd.hvac_mode.name, _MODE_STYLE.get(pd.hvac_mode, "")
+                "p-energy-kwh",
+                "IDU Module Energy",
+                f"{pd.energy_measurement_j:.1f} J",
+            )
+            self._kv(
+                "p-fan-actual",
+                "Fan (actual)",
+                f"{pd.actual_fan_speed_rpm:.0f} RPM",
+            )
+            self._kv(
+                "p-pd-mode",
+                "Mode (perf)",
+                pd.hvac_mode.name,
+                _MODE_STYLE.get(pd.hvac_mode, ""),
             )
             pd_state_fmt = _fmt_state(pd.hvac_state)
-            self._kv("p-pd-state", "State (perf)", pd_state_fmt.plain, str(pd_state_fmt.style))
+            self._kv(
+                "p-pd-state",
+                "State (perf)",
+                pd_state_fmt.plain,
+                str(pd_state_fmt.style),
+            )
         else:
             for nid, label in [
                 ("p-coil", "Coil"),
@@ -1349,12 +1470,24 @@ class RoomScreen(Screen):
             self._kv("p-hvac-power", "HVAC Power", f"{pm.hvac_power_w:.0f} W")
             self._kv("p-led-power", "LED Power", f"{pm.led_power_w:.1f} W")
             self._kv(
-                "p-pm-mode", "Mode (metrics)", pm.hvac_mode.name, _MODE_STYLE.get(pm.hvac_mode, "")
+                "p-pm-mode",
+                "Mode (metrics)",
+                pm.hvac_mode.name,
+                _MODE_STYLE.get(pm.hvac_mode, ""),
             )
             pm_state_fmt = _fmt_state(pm.hvac_state)
-            self._kv("p-pm-state", "State (metrics)", pm_state_fmt.plain, str(pm_state_fmt.style))
+            self._kv(
+                "p-pm-state",
+                "State (metrics)",
+                pm_state_fmt.plain,
+                str(pm_state_fmt.style),
+            )
             self._kv("p-pm-duration", "Window", f"{pm.measurement_duration_s:.1f} s")
-            self._kv("p-pm-energy-total", "Energy (total)", f"{pm.energy_total_j:.1f} J")
+            self._kv(
+                "p-pm-energy-total",
+                "Energy (total)",
+                f"{pm.energy_total_j:.1f} J",
+            )
             self._kv("p-pm-hvac-energy", "Energy (HVAC)", f"{pm.hvac_energy_j:.1f} J")
             self._kv("p-pm-led-energy", "Energy (LED)", f"{pm.led_energy_j:.1f} J")
         else:
@@ -1375,15 +1508,33 @@ class RoomScreen(Screen):
         if idu and idu.hvac_inputs:
             hi = idu.hvac_inputs
             self._kv(
-                "p-hi-ext-ambient", "Ext. Ambient", _tc(hi.external_ambient_temperature_c, use_f)
+                "p-hi-ext-ambient",
+                "Ext. Ambient",
+                _tc(hi.external_ambient_temperature_c, use_f),
             )
-            self._kv("p-hi-setpoint", "Setpoint (ctrl)", _tc(hi.temperature_setpoint_c, use_f))
             self._kv(
-                "p-hi-mode", "Mode (ctrl)", hi.hvac_mode.name, _MODE_STYLE.get(hi.hvac_mode, "")
+                "p-hi-setpoint",
+                "Setpoint (ctrl)",
+                _tc(hi.temperature_setpoint_c, use_f),
+            )
+            self._kv(
+                "p-hi-mode",
+                "Mode (ctrl)",
+                hi.hvac_mode.name,
+                _MODE_STYLE.get(hi.hvac_mode, ""),
             )
             hi_state_fmt = _fmt_state(hi.hvac_state)
-            self._kv("p-hi-state", "State (ctrl)", hi_state_fmt.plain, str(hi_state_fmt.style))
-            self._kv("p-hi-source", "Ambient Source", str(hi.ambient_temperature_source))
+            self._kv(
+                "p-hi-state",
+                "State (ctrl)",
+                hi_state_fmt.plain,
+                str(hi_state_fmt.style),
+            )
+            self._kv(
+                "p-hi-source",
+                "Ambient Source",
+                str(hi.ambient_temperature_source),
+            )
             ctrl_type = hi.hvac_controller_type
             ctrl_type_short = (
                 ctrl_type.name.replace("HVAC_CONTROLLER_TYPE_", "").replace("_", " ").title()
@@ -1414,16 +1565,32 @@ class RoomScreen(Screen):
                 ("p-cond-coilpreheat", "Coil Preheat", co.coil_preheat),
                 ("p-cond-safetyheat", "Safety Heating", co.safety_heating),
                 ("p-cond-anticold", "Anti-Cold Wind", co.anti_cold_wind),
-                ("p-cond-modeswitch", "Mode Switch Delay", co.hvac_mode_switching_delay),
+                (
+                    "p-cond-modeswitch",
+                    "Mode Switch Delay",
+                    co.hvac_mode_switching_delay,
+                ),
                 ("p-cond-modeconflict", "Mode Conflict", co.mode_conflict),
-                ("p-cond-modeconflictavoid", "Mode Conflict Avoid", co.mode_conflict_avoidance),
+                (
+                    "p-cond-modeconflictavoid",
+                    "Mode Conflict Avoid",
+                    co.mode_conflict_avoidance,
+                ),
                 (
                     "p-cond-abnormal-odu-air",
                     "Abnormal ODU Air",
                     co.abnormal_outdoor_air_temperature,
                 ),
-                ("p-cond-odu-comm", "ODU Comm Error", co.outdoor_unit_communication_error),
-                ("p-cond-modbus", "Modbus Comm Error", co.modbus_communication_error),
+                (
+                    "p-cond-odu-comm",
+                    "ODU Comm Error",
+                    co.outdoor_unit_communication_error,
+                ),
+                (
+                    "p-cond-modbus",
+                    "Modbus Comm Error",
+                    co.modbus_communication_error,
+                ),
             ]:
                 text, style = _cs(val)
                 self._kv(nid, label, text, style)
@@ -1454,12 +1621,32 @@ class RoomScreen(Screen):
             self._kv("p-odu-fw", "Firmware", odu.firmware_version or "--")
             if odu.performance_data:
                 pd = odu.performance_data
-                self._kv("p-odu-freq", "Compressor Freq", f"{pd.compressor_frequency_hz:.1f} Hz")
-                self._kv("p-odu-coil", "ODU Coil Temp", _tc(pd.coil_temperature_c, use_f))
-                self._kv("p-odu-exhaust", "Exhaust Temp", _tc(pd.exhaust_temperature_c, use_f))
-                self._kv("p-odu-hi", "High Pressure", f"{pd.high_pressure_kpa:.1f} kPa")
+                self._kv(
+                    "p-odu-freq",
+                    "Compressor Freq",
+                    f"{pd.compressor_frequency_hz:.1f} Hz",
+                )
+                self._kv(
+                    "p-odu-coil",
+                    "ODU Coil Temp",
+                    _tc(pd.coil_temperature_c, use_f),
+                )
+                self._kv(
+                    "p-odu-exhaust",
+                    "Exhaust Temp",
+                    _tc(pd.exhaust_temperature_c, use_f),
+                )
+                self._kv(
+                    "p-odu-hi",
+                    "High Pressure",
+                    f"{pd.high_pressure_kpa:.1f} kPa",
+                )
                 self._kv("p-odu-lo", "Low Pressure", f"{pd.low_pressure_kpa:.1f} kPa")
-                self._kv("p-odu-ambient", "ODU Ambient", _tc(pd.ambient_temperature_c, use_f))
+                self._kv(
+                    "p-odu-ambient",
+                    "ODU Ambient",
+                    _tc(pd.ambient_temperature_c, use_f),
+                )
             else:
                 for nid in (
                     "p-odu-freq",
@@ -1501,7 +1688,15 @@ class RoomScreen(Screen):
         self._sched_day_by_id = {d.id: d for d in snap.schedule_days}
         self._sched_cs_by_id = {cs.id: cs for cs in snap.comfort_settings}
 
-        _DAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
+        _DAYS = [
+            "Monday",
+            "Tuesday",
+            "Wednesday",
+            "Thursday",
+            "Friday",
+            "Saturday",
+            "Sunday",
+        ]
 
         week_table: DataTable = self.query_one("#sched-week", DataTable)
         if not week_table.columns:
@@ -1539,7 +1734,15 @@ class RoomScreen(Screen):
 
     @on(DataTable.RowHighlighted, "#sched-week")
     def _on_sched_week_row_highlighted(self, event: DataTable.RowHighlighted) -> None:
-        _DAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
+        _DAYS = [
+            "Monday",
+            "Tuesday",
+            "Wednesday",
+            "Thursday",
+            "Friday",
+            "Saturday",
+            "Sunday",
+        ]
         idx = event.cursor_row
         row_ids = getattr(self, "_sched_row_day_ids", [[] for _ in _DAYS])
         cs_by_id = getattr(self, "_sched_cs_by_id", {})
@@ -1562,7 +1765,7 @@ class RoomScreen(Screen):
             day_table.add_columns("Time", "Mode", "Heat", "Cool", "Fan", "Preset")
         day_table.clear()
 
-        # Gather all events across all day programs for this weekday, sorted by time.
+        # Gather events across day programs for this weekday, sorted by time.
         all_events = sorted(
             (ev for day in days if isinstance(day, ScheduleDay) for ev in day.events),
             key=lambda e: e.start_s,
@@ -1621,7 +1824,7 @@ class RoomScreen(Screen):
 
     @work
     async def _fetch_energy(self) -> None:
-        """Fetch 30 days of hourly energy data for this room (30-day window for summary totals)."""
+        """Fetch 30 days of hourly room energy data for summary totals."""
         try:
             self._set_energy_status("⟳ Loading energy data…")
             tz = datetime.UTC
@@ -1673,12 +1876,12 @@ class RoomScreen(Screen):
         yesterday = today - datetime.timedelta(days=1)
 
         # Group buckets by local date.
-        # Buckets from the service are always UTC-aware; astimezone converts them.
+        # Buckets are UTC-aware from the service; astimezone converts them.
         by_date: dict[datetime.date, list] = {}
         for b in metrics.buckets:
             bt = b.start_time
             if bt.tzinfo is None:
-                # Defensive: treat naive datetimes as UTC (shouldn't happen after service fix)
+                # Defensive: treat naive datetimes as UTC.
                 bt = bt.replace(tzinfo=datetime.UTC)
             bt_local = bt.astimezone(tz)
             d = bt_local.date()
@@ -2131,7 +2334,14 @@ class SystemScreen(Screen):
         ctrl_table: DataTable = self.query_one("#sys-ctrls", DataTable)
         if not ctrl_table.columns:
             ctrl_table.add_columns(
-                "Name", "Ambient", "Raw Thermistor", "PCB-A", "PCB-B", "WiFi SSID", "IP", "Signal"
+                "Name",
+                "Ambient",
+                "Raw Thermistor",
+                "PCB-A",
+                "PCB-B",
+                "WiFi SSID",
+                "IP",
+                "Signal",
             )
         ctrl_table.clear()
         for ctrl in snap.controllers:
@@ -2150,7 +2360,13 @@ class SystemScreen(Screen):
         sensor_table: DataTable = self.query_one("#sys-sensors", DataTable)
         if not sensor_table.columns:
             sensor_table.add_columns(
-                "Sensor", "Room", "Mode", "Temp", "Humidity", "Battery", "Signal"
+                "Sensor",
+                "Room",
+                "Mode",
+                "Temp",
+                "Humidity",
+                "Battery",
+                "Signal",
             )
         sensor_table.clear()
         # Build IDU→room name map for display
@@ -2159,7 +2375,10 @@ class SystemScreen(Screen):
             for idu in snap.indoor_units:
                 if idu.space_id == room.id:
                     idu_to_room[idu.id] = room.name or room.id[:8]
-        for rs in sorted(snap.remote_sensors, key=lambda r: idu_to_room.get(r.indoor_unit_id, "")):
+        for rs in sorted(
+            snap.remote_sensors,
+            key=lambda r: idu_to_room.get(r.indoor_unit_id, ""),
+        ):
             mode_str = "EN" if rs.control_mode == RemoteSensorControlMode.ENABLED else "DIS"
             mode_style = "green" if rs.control_mode == RemoteSensorControlMode.ENABLED else "dim"
             sensor_table.add_row(
@@ -2178,9 +2397,15 @@ class SystemScreen(Screen):
                 if ctrl
                 else crs.id[:8]
             )
-            room = next((c.space_id for c in snap.controllers if c.id == crs.controller_id), None)
+            room = next(
+                (c.space_id for c in snap.controllers if c.id == crs.controller_id),
+                None,
+            )
             room_name = (
-                next((s.name for s in snap.rooms if s.id == room), room[:8] if room else "--")
+                next(
+                    (s.name for s in snap.rooms if s.id == room),
+                    room[:8] if room else "--",
+                )
                 if room
                 else "--"
             )
@@ -2200,7 +2425,12 @@ class SystemScreen(Screen):
         fw_table: DataTable = self.query_one("#sys-firmware", DataTable)
         if not fw_table.columns:
             fw_table.add_columns(
-                "Device", "Type", "Current Version", "Target Version", "Progress", "State"
+                "Device",
+                "Type",
+                "Current Version",
+                "Target Version",
+                "Progress",
+                "State",
             )
         fw_table.clear()
         sui_by_id = {s.id: s for s in snap.software_update_infos}
@@ -2226,7 +2456,11 @@ class SystemScreen(Screen):
             room = next((s.name for s in snap.rooms if s.id == idu.space_id), idu.id[:8])
             _fw_row(f"IDU {room}", None, idu.firmware_update_info_id)
         for odu in snap.outdoor_units:
-            _fw_row(f"ODU {odu.serial_number or odu.id[:8]}", None, odu.firmware_update_info_id)
+            _fw_row(
+                f"ODU {odu.serial_number or odu.id[:8]}",
+                None,
+                odu.firmware_update_info_id,
+            )
         for ctrl in snap.controllers:
             _fw_row(
                 f"Dial {ctrl.serial_number or ctrl.name or ctrl.id[:8]}",
@@ -2234,7 +2468,11 @@ class SystemScreen(Screen):
                 ctrl.firmware_update_info_id,
             )
         for qsm in snap.quilt_smart_modules:
-            _fw_row(f"QSM {qsm.id[:8]}", qsm.software_update_info_id, qsm.firmware_update_info_id)
+            _fw_row(
+                f"QSM {qsm.id[:8]}",
+                qsm.software_update_info_id,
+                qsm.firmware_update_info_id,
+            )
 
     def action_back(self) -> None:
         self.app.pop_screen()
@@ -2244,7 +2482,7 @@ class SystemScreen(Screen):
         self._populate()
 
     def update_remote_sensor(self, rs: RemoteSensor) -> None:
-        """Called by QuiltApp stream dispatcher when a RemoteSensor update arrives."""
+        """Called by QuiltApp stream dispatcher on RemoteSensor updates."""
         self._populate()
 
     def action_toggle_units(self) -> None:
@@ -2289,13 +2527,13 @@ class QuiltApp(App[None]):
         super().__init__()
         self._email = email
         self._home = home
-        self._client = QuiltClient(email, home=home, snapshot_ttl_s=30, token_store=_store)
+        self._client = QuiltClient(email, home=home, snapshot_ttl_s=30, token_store=_token_store)
         self._stream = None
         self._snapshot = None
-        self._settings = _load_settings()
+        self._settings = _settings_store.load()
         # Apply persisted dark/light before first render
-        if "dark" in self._settings:
-            self.theme = "textual-dark" if self._settings["dark"] else "textual-light"
+        if self._settings.dark is not None:
+            self.theme = "textual-dark" if self._settings.dark else "textual-light"
 
     @property
     def _is_dark(self) -> bool:
@@ -2304,8 +2542,8 @@ class QuiltApp(App[None]):
     def _persist(self) -> None:
         """Save current toggleable settings to disk."""
         screen = self.screen
-        use_f = getattr(screen, "use_f", self._settings.get("use_fahrenheit", False))
-        _save_settings({"use_fahrenheit": use_f, "dark": self._is_dark})
+        use_f = getattr(screen, "use_f", self._settings.use_fahrenheit)
+        self._settings = _settings_store.update(use_fahrenheit=use_f, dark=self._is_dark)
 
     def action_toggle_dark(self) -> None:
         self.theme = "textual-light" if self._is_dark else "textual-dark"
@@ -2318,7 +2556,7 @@ class QuiltApp(App[None]):
 
     @work
     async def _boot(self) -> None:
-        """Log in, fetch snapshot, replace LoadingScreen with DashboardScreen."""
+        """Log in, fetch snapshot, and replace LoadingScreen."""
         loading = self._loading_screen
 
         # _boot is an async @work — it runs on the main event loop, so UI
@@ -2335,9 +2573,8 @@ class QuiltApp(App[None]):
             self._snapshot = snap
 
             # Auto-save home name to settings so future runs don't need --home
-            if self._client.system_name and not self._settings.get("home"):
-                _store.update_settings(home=self._client.system_name)
-                self._settings["home"] = self._client.system_name
+            if self._client.system_name and not self._settings.home:
+                self._settings = _settings_store.update(home=self._client.system_name)
 
             # Set app title to the home name once resolved
             if self._client.system_name:
@@ -2346,8 +2583,9 @@ class QuiltApp(App[None]):
             dashboard = DashboardScreen(snap, self._client)
             await self.switch_screen(dashboard)
 
-            # Restore persisted use_fahrenheit (dark mode already applied in __init__)
-            if self._settings.get("use_fahrenheit"):
+            # Restore persisted use_fahrenheit
+            # (dark mode already applied in __init__)
+            if self._settings.use_fahrenheit:
                 dashboard.use_f = True
 
             # Start the shared stream
@@ -2390,7 +2628,10 @@ class QuiltApp(App[None]):
             screen.update_idu(idu)
         elif isinstance(screen, DashboardScreen):
             space = (
-                next((s for s in self._snapshot.rooms if s.id == idu.space_id), None)
+                next(
+                    (s for s in self._snapshot.rooms if s.id == idu.space_id),
+                    None,
+                )
                 if self._snapshot
                 else None
             )

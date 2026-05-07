@@ -20,7 +20,7 @@ _APP = "quilt-hp"
 
 
 def app_config_dir() -> Path:
-    """Return the platform-appropriate config directory, creating it if needed."""
+    """Return the platform-appropriate config directory, creating if needed."""
     d = Path(user_config_dir(_APP))
     d.mkdir(parents=True, exist_ok=True)
     return d

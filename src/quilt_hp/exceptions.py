@@ -8,7 +8,7 @@ class QuiltError(Exception):
 
 
 class QuiltAuthError(QuiltError):
-    """Authentication failed — OTP rejected, refresh expired, or Cognito error."""
+    """Authentication failed (OTP rejected, refresh expired, Cognito error)."""
 
 
 class QuiltConnectionError(QuiltError):

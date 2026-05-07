@@ -4,7 +4,7 @@ RemoteSensor: standalone BLE temperature/humidity puck linked to an IndoorUnit.
   - Proto field 12 in HomeDatastoreSystem (empty if no sensors paired).
   - APK: C5534qL.java (proto), C3056e81.java (KMP model).
 
-ControllerRemoteSensor: sensor capability of a Controller (Dial) used for zone control.
+ControllerRemoteSensor: sensor capability of a Controller (Dial) for zones.
   - Proto field 16 in HomeDatastoreSystem (empty if sensor mode not configured).
   - APK: CI.java (proto), JD.java (KMP model).
   - Shares RemoteSensorState and RemoteSensorAttributes with RemoteSensor.
@@ -17,8 +17,10 @@ from dataclasses import dataclass
 from quilt_hp.models.enums import RemoteSensorControlMode
 
 
-def _parse_state(s: object) -> tuple[float | None, float | None, float | None, int | None]:
-    """Return (ambient_temp_c, humidity_pct, battery_pct, signal_dbm) from proto state."""
+def _parse_state(
+    s: object,
+) -> tuple[float | None, float | None, float | None, int | None]:
+    """Return ambient temp, humidity, battery, and signal from proto state."""
     return (
         s.ambient_temperature_c or None,  # type: ignore[attr-defined]
         s.humidity_percent or None,  # type: ignore[attr-defined]
@@ -29,7 +31,7 @@ def _parse_state(s: object) -> tuple[float | None, float | None, float | None, i
 
 @dataclass(slots=True)
 class RemoteSensor:
-    """A standalone BLE remote temperature/humidity sensor linked to an IndoorUnit."""
+    """A standalone BLE remote sensor linked to an IndoorUnit."""
 
     id: str
     indoor_unit_id: str

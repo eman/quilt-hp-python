@@ -67,7 +67,7 @@ class FanSpeed(IntEnum):
 
     @classmethod
     def from_wire(cls, mode: int, percent: float) -> FanSpeed:
-        """Decode wire (fan_speed_mode, fan_speed_percent) to a FanSpeed label."""
+        """Decode wire fan_speed_mode/fan_speed_percent to FanSpeed label."""
         if mode != 2:  # FAN_SPEED_MODE_SETPOINT
             return cls.AUTO
         if percent <= 0.21:
@@ -211,7 +211,7 @@ class Presence(IntEnum):
 
 
 class LightState(IntEnum):
-    """Explicit LED on/off state (wire-confirmed field 13 of IndoorUnitControls).
+    """Explicit LED on/off state (field 13 of IndoorUnitControls).
 
     Sent when the ``mobile_led_scheduling_enabled`` Statsig gate is on.
     When state=OFF, brightness is **preserved** server-side (not zeroed) so
