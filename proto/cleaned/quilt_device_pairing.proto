@@ -1,0 +1,105 @@
+// quilt_device_pairing.proto
+// BLE/WiFi device pairing protocol — serialized over Bluetooth (not gRPC).
+// Used during initial setup of Quilt Smart Module (QSM) and Controller devices.
+// Reconstructed from Quilt app v1.0.25 KMP source (ProtoSerializationClientService).
+
+syntax = "proto3";
+
+package quilt.pairing.v1;
+
+import "google/protobuf/timestamp.proto";
+
+option java_package = "com.quilt.proto.pairing";
+
+// ---------------------------------------------------------------------------
+// Enums
+// ---------------------------------------------------------------------------
+
+enum WifiSecurityType {
+  WIFI_SECURITY_TYPE_UNKNOWN = 0;
+  WIFI_SECURITY_TYPE_NONE = 1;
+  WIFI_SECURITY_TYPE_WPAPSK = 2;
+}
+
+enum DeviceType {
+  DEVICE_TYPE_UNKNOWN = 0;
+  DEVICE_TYPE_QUILT_SMART_MODULE = 1;
+  DEVICE_TYPE_INDOOR_UNIT = 2;
+  DEVICE_TYPE_OUTDOOR_UNIT = 3;
+  DEVICE_TYPE_CLOUD_SERVICE = 4;
+  DEVICE_TYPE_CONTROLLER = 5;
+  DEVICE_TYPE_IOS = 6;
+  DEVICE_TYPE_ANDROID = 7;
+}
+
+enum DevicePairingStatus {
+  DEVICE_PAIRING_STATUS_UNKNOWN = 0;
+  DEVICE_PAIRING_STATUS_IDLE = 1;
+  DEVICE_PAIRING_STATUS_CONNECTING_TO_WIFI = 2;
+  DEVICE_PAIRING_STATUS_CONNECTED_TO_WIFI_SUCCESSFULLY = 3;
+  DEVICE_PAIRING_STATUS_WRONG_PASSPHRASE = 4;
+  DEVICE_PAIRING_STATUS_WRONG_SSID = 5;
+  DEVICE_PAIRING_STATUS_CONNECTED_TO_CLOUD_SUCCESSFULLY = 6;
+  DEVICE_PAIRING_STATUS_ERROR_NO_DEVICE_ID = 7;
+  DEVICE_PAIRING_STATUS_ERROR_NO_SYSTEM_ID = 8;
+}
+
+// ---------------------------------------------------------------------------
+// WiFi scan result (device → phone over BLE)
+// ---------------------------------------------------------------------------
+
+message WifiScan {
+  // Field ordering based on KMP model (WifiScan.kt) and confirmed by
+  // observed data: field 4 contains negative dBm values (RSSI).
+  // NM.smali is a DIFFERENT message (WifiState for established connections).
+  string mac_address = 1;         // BSSID
+  string ssid = 2;
+  int32 frequency = 3;           // MHz; >5000 = 5GHz band
+  int32 rssi = 4;                // Signal strength in dBm (negative)
+  WifiSecurityType security_type = 5;  // 0=UNKNOWN, 1=OPEN, 2=WPAPSK
+}
+
+message WifiScanList {
+  repeated WifiScan scans = 1;
+}
+
+// ---------------------------------------------------------------------------
+// Device configuration (phone → device over BLE)
+// ---------------------------------------------------------------------------
+
+message WifiConfiguration {
+  WifiSecurityType security_type = 1;
+  string ssid = 2;
+  string passphrase = 3;
+}
+
+message DeviceConfiguration {
+  int32 version = 1;
+  string device_uuid = 2;    // empty during pairing; device self-assigns
+  DeviceType device_type = 3;
+  string cloud_hostname = 4;   // e.g. "api.prod.quilt.cloud"
+  string token_hostname = 5;   // e.g. "token.prod.quilt.cloud"
+  int32 cloud_host_port = 6;   // 443
+  int32 token_host_port = 7;
+  repeated WifiConfiguration wifi_configs = 8;
+  string space_id = 9;
+  string system_id = 10;       // system UUID from HDS
+}
+
+message DeviceConfigurationRequest {
+  google.protobuf.Timestamp request_timestamp = 1;
+  DeviceConfiguration device_configuration = 2;
+}
+
+// ---------------------------------------------------------------------------
+// Pairing status (device → phone over BLE)
+// ---------------------------------------------------------------------------
+
+message DevicePairingStatusResponse {
+  DevicePairingStatus status = 1;
+}
+
+// Response from SendDeviceConfigRequest (WiFi gRPC provisioning)
+message DeviceConfigurationResult {
+  bool is_device_configured = 1;
+}
