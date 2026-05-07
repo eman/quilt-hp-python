@@ -54,11 +54,14 @@ def test_get_len_field_skip_varint() -> None:
 
 # ─── _dispatch ───────────────────────────────────────────────────────────────
 
+
 @pytest.mark.asyncio
 async def test_dispatch_sync_callback() -> None:
     results: list[str] = []
+
     def sync_cb(val: str) -> None:
         results.append(val)
+
     await _dispatch(sync_cb, "hello")
     assert results == ["hello"]
 
@@ -66,13 +69,16 @@ async def test_dispatch_sync_callback() -> None:
 @pytest.mark.asyncio
 async def test_dispatch_async_callback() -> None:
     results: list[str] = []
+
     async def async_cb(val: str) -> None:
         results.append(val)
+
     await _dispatch(async_cb, "world")
     assert results == ["world"]
 
 
 # ─── NotifierStream — helpers ────────────────────────────────────────────────
+
 
 def _make_stream(topics: list[str] | None = None) -> NotifierStream:
     channel = MagicMock()
@@ -81,6 +87,7 @@ def _make_stream(topics: list[str] | None = None) -> NotifierStream:
 
 
 # ─── callback registration ───────────────────────────────────────────────────
+
 
 def test_on_space_update_registers_callback() -> None:
     stream = _make_stream()
@@ -109,6 +116,7 @@ def test_error_property_initially_none() -> None:
 
 # ─── event parsing ───────────────────────────────────────────────────────────
 
+
 def test_parse_event_empty_topic_is_heartbeat() -> None:
     stream = _make_stream()
     evt = MagicMock()
@@ -128,6 +136,7 @@ def test_parse_event_nonempty_topic_returns_event() -> None:
 
 # ─── subscribe / unsubscribe ─────────────────────────────────────────────────
 
+
 @pytest.mark.asyncio
 async def test_subscribe_adds_topics() -> None:
     stream = _make_stream(["topic-a"])
@@ -145,6 +154,7 @@ async def test_unsubscribe_removes_topics() -> None:
 
 # ─── lifecycle ───────────────────────────────────────────────────────────────
 
+
 @pytest.mark.asyncio
 async def test_stop_before_start_is_safe() -> None:
     await _make_stream().stop()
@@ -153,8 +163,10 @@ async def test_stop_before_start_is_safe() -> None:
 @pytest.mark.asyncio
 async def test_start_stop_lifecycle() -> None:
     stream = _make_stream()
+
     async def _noop() -> None:
         await asyncio.sleep(3600)
+
     stream._run_stream_with_reconnect = _noop  # type: ignore[method-assign]
     await stream.start()
     assert stream._running is True
@@ -167,8 +179,10 @@ async def test_start_stop_lifecycle() -> None:
 @pytest.mark.asyncio
 async def test_start_is_idempotent() -> None:
     stream = _make_stream()
+
     async def _noop() -> None:
         await asyncio.sleep(3600)
+
     stream._run_stream_with_reconnect = _noop  # type: ignore[method-assign]
     await stream.start()
     task1 = stream._task
@@ -178,6 +192,7 @@ async def test_start_is_idempotent() -> None:
 
 
 # ─── error propagation ───────────────────────────────────────────────────────
+
 
 @pytest.mark.asyncio
 async def test_error_callback_called_on_fatal_error() -> None:
@@ -252,11 +267,14 @@ async def test_unauthenticated_triggers_token_refresh() -> None:
 
 # ─── context manager ─────────────────────────────────────────────────────────
 
+
 @pytest.mark.asyncio
 async def test_context_manager_starts_and_stops() -> None:
     stream = _make_stream()
+
     async def _noop() -> None:
         await asyncio.sleep(3600)
+
     stream._run_stream_with_reconnect = _noop  # type: ignore[method-assign]
     async with stream:
         assert stream._running is True

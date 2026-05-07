@@ -341,10 +341,16 @@ class NotifierStream:
                 updated_sui.ParseFromString(sui_bytes)
                 event.software_update_info = SoftwareUpdateInfo.from_proto(updated_sui)
 
-        if (event.space is None and event.indoor_unit is None and event.outdoor_unit is None
-                and event.controller is None and event.qsm is None
-                and event.remote_sensor is None and event.controller_remote_sensor is None
-                and event.software_update_info is None):
+        if (
+            event.space is None
+            and event.indoor_unit is None
+            and event.outdoor_unit is None
+            and event.controller is None
+            and event.qsm is None
+            and event.remote_sensor is None
+            and event.controller_remote_sensor is None
+            and event.software_update_info is None
+        ):
             event.raw_bytes = inner_notif
 
         return event
@@ -432,7 +438,9 @@ class NotifierStream:
                 can_retry = self._max_reconnects < 0 or attempt < self._max_reconnects
 
                 if is_unauth and self._authenticate is not None and can_retry:
-                    logger.warning("Stream got UNAUTHENTICATED; refreshing token (attempt %d)", attempt + 1)
+                    logger.warning(
+                        "Stream got UNAUTHENTICATED; refreshing token (attempt %d)", attempt + 1
+                    )
                     try:
                         await self._authenticate()
                     except Exception:
@@ -448,7 +456,9 @@ class NotifierStream:
                         attempt + 1,
                     )
                 else:
-                    logger.error("Stream error %s: %s; max reconnects reached", exc.code(), exc.details())
+                    logger.error(
+                        "Stream error %s: %s; max reconnects reached", exc.code(), exc.details()
+                    )
                     self._error = QuiltStreamError(f"Stream error: {exc.code()} - {exc.details()}")
                     break
 

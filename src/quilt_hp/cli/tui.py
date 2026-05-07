@@ -70,56 +70,63 @@ _save_settings = _store.save_settings
 # ──────────────────────────────────────────────────────────────────
 
 _MODE_STYLE: dict[HVACMode, str] = {
-    HVACMode.HEAT:         "bold red",
-    HVACMode.COOL:         "bold cyan",
-    HVACMode.AUTO:         "bold yellow",
-    HVACMode.FAN:          "bold green",
-    HVACMode.STANDBY:      "dim",
+    HVACMode.HEAT: "bold red",
+    HVACMode.COOL: "bold cyan",
+    HVACMode.AUTO: "bold yellow",
+    HVACMode.FAN: "bold green",
+    HVACMode.STANDBY: "dim",
     HVACMode.FALLBACK_AUTO: "bold yellow",
-    HVACMode.FALLBACK_OFF:  "dim",
-    HVACMode.UNSPECIFIED:  "dim",
+    HVACMode.FALLBACK_OFF: "dim",
+    HVACMode.UNSPECIFIED: "dim",
 }
 
 _STATE_STYLE: dict[HVACState, str] = {
-    HVACState.HEAT:             "red",
-    HVACState.COOL:             "cyan",
-    HVACState.DRIFT:            "yellow",
-    HVACState.FAN:              "green",
-    HVACState.COOL_DEFERRED:    "cyan",
-    HVACState.HEAT_DEFERRED:    "red",
-    HVACState.FAN_DEFERRED:     "green",
-    HVACState.COOL_PREPARING:   "cyan",
-    HVACState.HEAT_PREPARING:   "red",
-    HVACState.STANDBY:          "dim",
-    HVACState.UNSPECIFIED:      "dim",
+    HVACState.HEAT: "red",
+    HVACState.COOL: "cyan",
+    HVACState.DRIFT: "yellow",
+    HVACState.FAN: "green",
+    HVACState.COOL_DEFERRED: "cyan",
+    HVACState.HEAT_DEFERRED: "red",
+    HVACState.FAN_DEFERRED: "green",
+    HVACState.COOL_PREPARING: "cyan",
+    HVACState.HEAT_PREPARING: "red",
+    HVACState.STANDBY: "dim",
+    HVACState.UNSPECIFIED: "dim",
 }
 
 _MODE_LABELS: dict[HVACMode, str] = {
-    HVACMode.HEAT:         "HEAT",
-    HVACMode.COOL:         "COOL",
-    HVACMode.AUTO:         "AUTO",
-    HVACMode.FAN:          " FAN",
-    HVACMode.STANDBY:      "STBY",
+    HVACMode.HEAT: "HEAT",
+    HVACMode.COOL: "COOL",
+    HVACMode.AUTO: "AUTO",
+    HVACMode.FAN: " FAN",
+    HVACMode.STANDBY: "STBY",
     HVACMode.FALLBACK_AUTO: "FAUTO",
-    HVACMode.FALLBACK_OFF:  "FOFF",
-    HVACMode.UNSPECIFIED:  " -- ",
+    HVACMode.FALLBACK_OFF: "FOFF",
+    HVACMode.UNSPECIFIED: " -- ",
 }
 
 _STATE_SYMBOLS: dict[HVACState, str] = {
-    HVACState.HEAT:             "◉ Heating",
-    HVACState.COOL:             "◉ Cooling",
-    HVACState.DRIFT:            "~ Drift",
-    HVACState.FAN:              "~ Fan",
-    HVACState.COOL_DEFERRED:    "○ Cool (deferred)",
-    HVACState.HEAT_DEFERRED:    "○ Heat (deferred)",
-    HVACState.FAN_DEFERRED:     "○ Fan (deferred)",
-    HVACState.COOL_PREPARING:   "⋯ Preparing to Cool",
-    HVACState.HEAT_PREPARING:   "⋯ Preparing to Heat",
-    HVACState.STANDBY:          "◌ Standby",
-    HVACState.UNSPECIFIED:      "--",
+    HVACState.HEAT: "◉ Heating",
+    HVACState.COOL: "◉ Cooling",
+    HVACState.DRIFT: "~ Drift",
+    HVACState.FAN: "~ Fan",
+    HVACState.COOL_DEFERRED: "○ Cool (deferred)",
+    HVACState.HEAT_DEFERRED: "○ Heat (deferred)",
+    HVACState.FAN_DEFERRED: "○ Fan (deferred)",
+    HVACState.COOL_PREPARING: "⋯ Preparing to Cool",
+    HVACState.HEAT_PREPARING: "⋯ Preparing to Heat",
+    HVACState.STANDBY: "◌ Standby",
+    HVACState.UNSPECIFIED: "--",
 }
 
-_FAN_CYCLE = [FanSpeed.AUTO, FanSpeed.QUIET, FanSpeed.LOW, FanSpeed.MEDIUM, FanSpeed.HIGH, FanSpeed.BLAST]
+_FAN_CYCLE = [
+    FanSpeed.AUTO,
+    FanSpeed.QUIET,
+    FanSpeed.LOW,
+    FanSpeed.MEDIUM,
+    FanSpeed.HIGH,
+    FanSpeed.BLAST,
+]
 _MODE_CYCLE = [HVACMode.HEAT, HVACMode.COOL, HVACMode.AUTO, HVACMode.FAN, HVACMode.STANDBY]
 _LOUVER_CYCLE = [LouverMode.SWEEP, LouverMode.AUTO, LouverMode.FIXED, LouverMode.CLOSED]
 _OCC_CYCLE = [OccupancyMode.DISABLED, OccupancyMode.ENABLED]
@@ -391,6 +398,7 @@ Screen {
 # LoadingScreen
 # ──────────────────────────────────────────────────────────────────
 
+
 class LoadingScreen(Screen):
     """Spinner shown while logging in and fetching the initial snapshot."""
 
@@ -407,6 +415,7 @@ class LoadingScreen(Screen):
 # ──────────────────────────────────────────────────────────────────
 # DashboardScreen
 # ──────────────────────────────────────────────────────────────────
+
 
 class RoomListItem(ListItem):
     """A ListView row representing one room."""
@@ -431,8 +440,9 @@ class RoomListItem(ListItem):
         setpt = c.display_setpoint_str(use_f) if c else "--"
         occ_state = (
             OccupancyState(idu.effective_occupancy_state)
-            if idu and idu.effective_occupancy_state is not None
-               and space.settings.occupancy_mode == OccupancyMode.ENABLED
+            if idu
+            and idu.effective_occupancy_state is not None
+            and space.settings.occupancy_mode == OccupancyMode.ENABLED
             else None
         )
         occ = Text.from_markup(_occ_glyph(occ_state))
@@ -452,7 +462,9 @@ class RoomListItem(ListItem):
             state,
         )
 
-    def update_space(self, space: Space, idu: IndoorUnit | None = None, use_f: bool = False) -> None:
+    def update_space(
+        self, space: Space, idu: IndoorUnit | None = None, use_f: bool = False
+    ) -> None:
         self._space = space
         if idu is not None:
             self._idu = idu
@@ -460,7 +472,9 @@ class RoomListItem(ListItem):
             self.query_one(Static).update(self._build_row(space, self._idu, use_f))
 
     def compose(self) -> ComposeResult:
-        yield Static(self._build_row(self._space, self._idu, False), id=f"room-row-{self._space_id}")
+        yield Static(
+            self._build_row(self._space, self._idu, False), id=f"room-row-{self._space_id}"
+        )
 
 
 class DashboardScreen(Screen):
@@ -612,6 +626,7 @@ class DashboardScreen(Screen):
 # RoomScreen
 # ──────────────────────────────────────────────────────────────────
 
+
 class _KVStatic(Static):
     """A key: value line as Rich markup."""
 
@@ -648,10 +663,10 @@ class RoomScreen(Screen):
         # Presence fence adjustment (Ctrl+arrow keys or letters on Status tab)
         Binding("F", "fence_fwd_inc", "Fence Depth+", show=False),
         Binding("G", "fence_fwd_dec", "Fence Depth-", show=False),
-        Binding("X", "fence_lr_inc",  "Fence L/R+",  show=False),
-        Binding("Z", "fence_lr_dec",  "Fence L/R-",  show=False),
-        Binding("R", "radar_height_inc", "Radar H+",  show=False),
-        Binding("T", "radar_height_dec", "Radar H-",  show=False),
+        Binding("X", "fence_lr_inc", "Fence L/R+", show=False),
+        Binding("Z", "fence_lr_dec", "Fence L/R-", show=False),
+        Binding("R", "radar_height_inc", "Radar H+", show=False),
+        Binding("T", "radar_height_dec", "Radar H-", show=False),
     ]
 
     use_f: reactive[bool] = reactive(False)
@@ -884,7 +899,9 @@ class RoomScreen(Screen):
         # Look up comfort preset name
         preset_name = "--"
         if c.comfort_setting_id:
-            cs = next((x for x in self._snapshot.comfort_settings if x.id == c.comfort_setting_id), None)
+            cs = next(
+                (x for x in self._snapshot.comfort_settings if x.id == c.comfort_setting_id), None
+            )
             if cs:
                 preset_name = f"{cs.name} ({cs.type.name})"
 
@@ -898,10 +915,8 @@ class RoomScreen(Screen):
         self._kv("ctl-mode", "Mode", mode_label, mode_style)
         self._kv("ctl-heat", "Heat Setpoint", _tc(c.heating_setpoint_c, use_f), "red")
         self._kv("ctl-cool", "Cool Setpoint", _tc(c.cooling_setpoint_c, use_f), "cyan")
-        self._kv("ctl-fan",  "Fan Speed",
-                 idu.controls.fan_speed.name if idu else "--")
-        self._kv("ctl-louver", "Louver",
-                 idu.controls.louver_mode.name if idu else "--")
+        self._kv("ctl-fan", "Fan Speed", idu.controls.fan_speed.name if idu else "--")
+        self._kv("ctl-louver", "Louver", idu.controls.louver_mode.name if idu else "--")
         if idu and idu.controls.louver_mode.name == "FIXED" and idu.controls.louver_fixed_position:
             self._kv("ctl-louver-pos", "  Fixed Pos", f"{idu.controls.louver_fixed_position:.1f}°")
         else:
@@ -911,8 +926,7 @@ class RoomScreen(Screen):
             boost_str = "ON" if c.boost_mode.name == "ON" else "Off"
         elif idu:
             boost_str = "Off"
-        self._kv("ctl-boost", "Boost Mode", boost_str,
-                 "bold yellow" if boost_str == "ON" else "")
+        self._kv("ctl-boost", "Boost Mode", boost_str, "bold yellow" if boost_str == "ON" else "")
         led_str = "--"
         led_color_str = "--"
         led_anim_str = "--"
@@ -936,11 +950,12 @@ class RoomScreen(Screen):
                 led_anim_str = "--"
         self._kv("ctl-led", "LED", led_str)
         self._kv("ctl-led-color", "  Color", led_color_str)
-        self._kv("ctl-led-anim",  "  Effect", led_anim_str)
+        self._kv("ctl-led-anim", "  Effect", led_anim_str)
         self._kv("ctl-preset", "Comfort Preset", preset_name, "yellow")
         # Comfort setting override: why the current preset was applied
         override = c.comfort_setting_override
         from quilt_hp.models.enums import ComfortSettingOverride
+
         override_labels = {
             ComfortSettingOverride.NONE: ("Schedule", "dim"),
             ComfortSettingOverride.UNTIL_NEXT_SCHEDULE: ("Manual (until next event)", "yellow"),
@@ -949,12 +964,16 @@ class RoomScreen(Screen):
             ComfortSettingOverride.UNOCCUPIED: ("Auto-Away", "yellow dim"),
             ComfortSettingOverride.OCCUPIED: ("Auto-Return", "green dim"),
         }
-        ov_str, ov_style = override_labels.get(override, (override.name.replace("_", " ").title(), ""))
+        ov_str, ov_style = override_labels.get(
+            override, (override.name.replace("_", " ").title(), "")
+        )
         self._kv("ctl-preset-override", "  Applied Via", ov_str, ov_style)
         # State-reported active comfort setting (may differ from controls preset)
         state_preset_name = "--"
         if s.comfort_setting_id:
-            cs_state = next((x for x in self._snapshot.comfort_settings if x.id == s.comfort_setting_id), None)
+            cs_state = next(
+                (x for x in self._snapshot.comfort_settings if x.id == s.comfort_setting_id), None
+            )
             if cs_state:
                 state_preset_name = cs_state.name
             elif s.comfort_setting_id != c.comfort_setting_id:
@@ -966,16 +985,26 @@ class RoomScreen(Screen):
 
         # Auto-away / auto-return timeouts (editable with [ ] { })
         away_style = "" if sets.occupancy_mode == OccupancyMode.ENABLED else "dim"
-        self._kv("ctl-away-after",  "Auto-Away After",
-                 _fmt_timeout(sets.unoccupied_timeout_s), away_style)
-        self._kv("ctl-return-after", "Auto-Return After",
-                 _fmt_timeout(sets.occupied_timeout_s), away_style)
+        self._kv(
+            "ctl-away-after",
+            "Auto-Away After",
+            _fmt_timeout(sets.unoccupied_timeout_s),
+            away_style,
+        )
+        self._kv(
+            "ctl-return-after",
+            "Auto-Return After",
+            _fmt_timeout(sets.occupied_timeout_s),
+            away_style,
+        )
 
         # Away temperatures — from the space's AWAY comfort setting
         away_cs = next(
-            (cs for cs in self._snapshot.comfort_settings
-             if cs.space_id == space.id
-             and cs.type.name == "AWAY"),
+            (
+                cs
+                for cs in self._snapshot.comfort_settings
+                if cs.space_id == space.id and cs.type.name == "AWAY"
+            ),
             None,
         )
         if away_cs:
@@ -986,7 +1015,6 @@ class RoomScreen(Screen):
             self._kv("ctl-away-temps", "Away Temps", away_temps, "yellow dim")
         else:
             self._kv("ctl-away-temps", "Away Temps", "not configured", "dim")
-
 
         # Update panel titles with offline status
         idu_title = "Sensors  [dim]F/G depth  X/Z L/R  R/T height[/dim]"
@@ -1001,23 +1029,31 @@ class RoomScreen(Screen):
         with contextlib.suppress(Exception):
             self.query_one("#dial-panel").border_title = dial_title
 
-        self._kv("sen-ambient", "Ambient Temp",
-                 _tc(s.ambient_temperature_c, use_f), "green")
+        self._kv("sen-ambient", "Ambient Temp", _tc(s.ambient_temperature_c, use_f), "green")
         if idu and idu.state.calculated_ambient_temperature_c:
-            self._kv("sen-calc-ambient", "Ambient (calc)",
-                     _tc(idu.state.calculated_ambient_temperature_c, use_f))
+            self._kv(
+                "sen-calc-ambient",
+                "Ambient (calc)",
+                _tc(idu.state.calculated_ambient_temperature_c, use_f),
+            )
         else:
             self._kv("sen-calc-ambient", "Ambient (calc)", "--")
-        self._kv("sen-humidity", "Humidity",
-                 f"{idu.state.ambient_humidity_percent:.0f}%" if idu and idu.state.ambient_humidity_percent else "--")
+        self._kv(
+            "sen-humidity",
+            "Humidity",
+            f"{idu.state.ambient_humidity_percent:.0f}%"
+            if idu and idu.state.ambient_humidity_percent
+            else "--",
+        )
         fan_rpm = idu.state.fan_speed_rpm if idu and idu.state else None
-        self._kv("sen-fan-rpm", "Fan Speed (actual)",
-                 f"{fan_rpm:.0f} RPM" if fan_rpm else "Off")
+        self._kv("sen-fan-rpm", "Fan Speed (actual)", f"{fan_rpm:.0f} RPM" if fan_rpm else "Off")
         fan_sp_rpm = idu.state.fan_speed_setpoint_rpm if idu and idu.state else None
-        self._kv("sen-fan-setpoint-rpm", "Fan Speed (setpoint)",
-                 f"{fan_sp_rpm:.0f} RPM" if fan_sp_rpm else "--")
-        self._kv("sen-setpoint", "Active Setpoint",
-                 _tc(s.setpoint_c, use_f))
+        self._kv(
+            "sen-fan-setpoint-rpm",
+            "Fan Speed (setpoint)",
+            f"{fan_sp_rpm:.0f} RPM" if fan_sp_rpm else "--",
+        )
+        self._kv("sen-setpoint", "Active Setpoint", _tc(s.setpoint_c, use_f))
         if idu and idu.state.inlet_temperature_c:
             self._kv("sen-inlet", "Inlet Temp", _tc(idu.state.inlet_temperature_c, use_f))
         else:
@@ -1027,7 +1063,11 @@ class RoomScreen(Screen):
         else:
             self._kv("sen-outlet", "Outlet Temp", "--")
         if idu and idu.state.louver_angle_up_down_degrees:
-            self._kv("sen-louver-angle", "Louver Angle", f"{idu.state.louver_angle_up_down_degrees:.1f}°")
+            self._kv(
+                "sen-louver-angle",
+                "Louver Angle",
+                f"{idu.state.louver_angle_up_down_degrees:.1f}°",
+            )
         else:
             self._kv("sen-louver-angle", "Louver Angle", "--")
         state_fmt = _fmt_state(s.hvac_state)
@@ -1051,12 +1091,14 @@ class RoomScreen(Screen):
         # these are NOT analog values.  High value = nobody present; low ≠ "closer".
         if idu and idu.presence:
             from quilt_hp.models.enums import Presence
+
             def _presence_str(p: Presence) -> tuple[str, str]:
                 if p == Presence.DETECTED:
                     return "Detected", "green bold"
                 if p == Presence.UNDETECTED:
                     return "Not Detected", "dim"
                 return "--", "dim italic"
+
             l_str, l_style = _presence_str(idu.presence.sensor0_presence)
             r_str, r_style = _presence_str(idu.presence.sensor1_presence)
             self._kv("sen-presence-l", "Radar L", l_str, l_style)
@@ -1072,22 +1114,28 @@ class RoomScreen(Screen):
             self._kv("sen-presence-level", "Detection Level", pdl_str)
             st = idu.settings
             if st.presence_fence_left_m or st.presence_fence_right_m:
-                lr_str = f"L {st.presence_fence_left_m:.2f} m  /  R {st.presence_fence_right_m:.2f} m"
+                lr_str = (
+                    f"L {st.presence_fence_left_m:.2f} m  /  R {st.presence_fence_right_m:.2f} m"
+                )
             else:
                 lr_str = "[dim]unconfigured (max range)[/dim]"
             if st.presence_fence_forward_m:
                 fwd_str = f"{st.presence_fence_forward_m:.2f} m"
             else:
                 fwd_str = "[dim]unconfigured (max range)[/dim]"
-            h_str = f"{st.radar_sensor_distance_from_floor_m:.2f} m" if st.radar_sensor_distance_from_floor_m else "[dim]unconfigured[/dim]"
-            self._kv("sen-fence-lr",     "Fence L/R",     lr_str)
-            self._kv("sen-fence-fwd",    "Fence Depth",   fwd_str)
-            self._kv("sen-radar-height", "Radar Height",  h_str)
+            h_str = (
+                f"{st.radar_sensor_distance_from_floor_m:.2f} m"
+                if st.radar_sensor_distance_from_floor_m
+                else "[dim]unconfigured[/dim]"
+            )
+            self._kv("sen-fence-lr", "Fence L/R", lr_str)
+            self._kv("sen-fence-fwd", "Fence Depth", fwd_str)
+            self._kv("sen-radar-height", "Radar Height", h_str)
         else:
             self._kv("sen-presence-level", "Detection Level", "--")
-            self._kv("sen-fence-lr",       "Fence L/R",       "--")
-            self._kv("sen-fence-fwd",      "Fence Depth",     "--")
-            self._kv("sen-radar-height",   "Radar Height",    "--")
+            self._kv("sen-fence-lr", "Fence L/R", "--")
+            self._kv("sen-fence-fwd", "Fence Depth", "--")
+            self._kv("sen-radar-height", "Radar Height", "--")
 
         idu_mode_str = idu.state.hvac_mode.name if idu and idu.state else "--"
         idu_mode_style = _MODE_STYLE.get(idu.state.hvac_mode, "") if idu and idu.state else ""
@@ -1095,8 +1143,11 @@ class RoomScreen(Screen):
         if idu and idu.settings:
             self._kv("sen-idu-name", "IDU Name", idu.settings.name or "--")
             light_pct = idu.settings.light_brightness_default_percent
-            self._kv("sen-idu-light-default", "Default Brightness",
-                     f"{light_pct * 100:.0f}%" if light_pct else "--")
+            self._kv(
+                "sen-idu-light-default",
+                "Default Brightness",
+                f"{light_pct * 100:.0f}%" if light_pct else "--",
+            )
         else:
             self._kv("sen-idu-name", "IDU Name", "--")
             self._kv("sen-idu-light-default", "Default Brightness", "--")
@@ -1115,14 +1166,14 @@ class RoomScreen(Screen):
             return "  ·  ".join(parts) if parts else "--"
 
         if ctrl:
-            self._kv("dial-serial",  "Serial",
-                     ctrl.serial_number or "--")
-            self._kv("dial-ambient", "Ambient",
-                     _tc(ctrl.calibrated_ambient_c, use_f), "green")
-            self._kv("dial-calib",   "Raw Thermistor",
-                     _tc(ctrl.raw_thermistor_c, use_f))
-            self._kv("dial-pcb",     "PCB A / B",
-                     f"{_tc(ctrl.pcb_temperature_a_c, use_f)}  /  {_tc(ctrl.pcb_temperature_b_c, use_f)}")
+            self._kv("dial-serial", "Serial", ctrl.serial_number or "--")
+            self._kv("dial-ambient", "Ambient", _tc(ctrl.calibrated_ambient_c, use_f), "green")
+            self._kv("dial-calib", "Raw Thermistor", _tc(ctrl.raw_thermistor_c, use_f))
+            self._kv(
+                "dial-pcb",
+                "PCB A / B",
+                f"{_tc(ctrl.pcb_temperature_a_c, use_f)}  /  {_tc(ctrl.pcb_temperature_b_c, use_f)}",
+            )
             # Wi-Fi status: SSID, band, signal
             wifi_parts = []
             if ctrl.wifi_ssid:
@@ -1131,38 +1182,75 @@ class RoomScreen(Screen):
                 wifi_parts.append(ctrl.wifi_band)
             if ctrl.wifi_signal_dbm:
                 wifi_parts.append(f"{ctrl.wifi_signal_dbm} dBm")
-            self._kv("dial-wifi",      "WiFi",          "  ·  ".join(wifi_parts) or "--")
-            self._kv("dial-wifi-ip",   "  IP",          ctrl.wifi_ip or "--")
+            self._kv("dial-wifi", "WiFi", "  ·  ".join(wifi_parts) or "--")
+            self._kv("dial-wifi-ip", "  IP", ctrl.wifi_ip or "--")
             # Last seen: format as local time if available
             if ctrl.wifi_last_seen:
                 local_ts = ctrl.wifi_last_seen.astimezone()
                 last_seen_str = local_ts.strftime("%Y-%m-%d %H:%M:%S")
             else:
                 last_seen_str = "--"
-            self._kv("dial-wifi-last", "  Last Seen",   last_seen_str)
-            self._kv("dial-wifi-ap",   "WiFi (AP)",     _wifi_str(ctrl.ap_wifi))
-            self._kv("dial-wifi-p2p",  "WiFi (P2P)",    _wifi_str(ctrl.p2p_wifi))
+            self._kv("dial-wifi-last", "  Last Seen", last_seen_str)
+            self._kv("dial-wifi-ap", "WiFi (AP)", _wifi_str(ctrl.ap_wifi))
+            self._kv("dial-wifi-p2p", "WiFi (P2P)", _wifi_str(ctrl.p2p_wifi))
             rsm = ctrl.remote_sensor_mode
-            rsm_str = "Enabled" if rsm.name == "ENABLED" else ("Disabled" if rsm.name == "DISABLED" else "--")
+            rsm_str = (
+                "Enabled"
+                if rsm.name == "ENABLED"
+                else ("Disabled" if rsm.name == "DISABLED" else "--")
+            )
             rsm_style = "green" if rsm.name == "ENABLED" else "dim"
             self._kv("dial-remote-sensor", "Zone Sensor", rsm_str, rsm_style)
             # ControllerRemoteSensor — Dial acting as zone sensor
-            crs = next((r for r in self._snapshot.controller_remote_sensors if r.controller_id == ctrl.id), None)
+            crs = next(
+                (
+                    r
+                    for r in self._snapshot.controller_remote_sensors
+                    if r.controller_id == ctrl.id
+                ),
+                None,
+            )
             if crs:
-                self._kv("dial-crs-temp", "  Zone Temp", _tc(crs.ambient_temperature_c, use_f), "green")
-                self._kv("dial-crs-humidity", "  Zone Humidity", f"{crs.humidity_percent:.0f}%" if crs.humidity_percent else "--")
-                self._kv("dial-crs-battery", "  Battery", f"{crs.battery_level_percent:.0f}%" if crs.battery_level_percent else "--")
-                self._kv("dial-crs-signal", "  Signal", f"{crs.signal_level_dbm} dBm" if crs.signal_level_dbm else "--")
+                self._kv(
+                    "dial-crs-temp", "  Zone Temp", _tc(crs.ambient_temperature_c, use_f), "green"
+                )
+                self._kv(
+                    "dial-crs-humidity",
+                    "  Zone Humidity",
+                    f"{crs.humidity_percent:.0f}%" if crs.humidity_percent else "--",
+                )
+                self._kv(
+                    "dial-crs-battery",
+                    "  Battery",
+                    f"{crs.battery_level_percent:.0f}%" if crs.battery_level_percent else "--",
+                )
+                self._kv(
+                    "dial-crs-signal",
+                    "  Signal",
+                    f"{crs.signal_level_dbm} dBm" if crs.signal_level_dbm else "--",
+                )
             else:
                 self._kv("dial-crs-temp", "  Zone Temp", "--")
                 self._kv("dial-crs-humidity", "  Zone Humidity", "--")
                 self._kv("dial-crs-battery", "  Battery", "--")
                 self._kv("dial-crs-signal", "  Signal", "--")
         else:
-            for nid in ("dial-serial", "dial-ambient", "dial-calib", "dial-pcb",
-                        "dial-wifi", "dial-wifi-ip", "dial-wifi-last",
-                        "dial-wifi-ap", "dial-wifi-p2p", "dial-remote-sensor",
-                        "dial-crs-temp", "dial-crs-humidity", "dial-crs-battery", "dial-crs-signal"):
+            for nid in (
+                "dial-serial",
+                "dial-ambient",
+                "dial-calib",
+                "dial-pcb",
+                "dial-wifi",
+                "dial-wifi-ip",
+                "dial-wifi-last",
+                "dial-wifi-ap",
+                "dial-wifi-p2p",
+                "dial-remote-sensor",
+                "dial-crs-temp",
+                "dial-crs-humidity",
+                "dial-crs-battery",
+                "dial-crs-signal",
+            ):
                 self._kv(nid, nid.replace("dial-", "").replace("-", " ").title(), "--")
 
         # QSM / Smart Module
@@ -1170,23 +1258,41 @@ class RoomScreen(Screen):
 
         if qsm:
             self._kv("qsm-wifi-hosted", "WiFi (hosted)", _wifi_str(qsm.hosted_wifi))
-            self._kv("qsm-wifi-ap",     "WiFi (AP)",     _wifi_str(qsm.ap_wifi))
-            self._kv("qsm-wifi-p2p",    "WiFi (P2P)",    _wifi_str(qsm.p2p_wifi))
+            self._kv("qsm-wifi-ap", "WiFi (AP)", _wifi_str(qsm.ap_wifi))
+            self._kv("qsm-wifi-p2p", "WiFi (P2P)", _wifi_str(qsm.p2p_wifi))
             if qsm.sensors:
                 s = qsm.sensors
-                self._kv("qsm-presence", "Presence",
-                         f"phase {s.phase_detected_raw:.3f}  target {s.target_detected_raw:.3f}")
-                self._kv("qsm-als",  "Light (ALS)",
-                         f"illum {s.als_illuminance_raw}  IR {s.als_ir_raw}  both {s.als_both_raw}")
-                self._kv("qsm-accel", "Accel X/Y/Z",
-                         f"{s.accel_x_raw}  /  {s.accel_y_raw}  /  {s.accel_z_raw}")
+                self._kv(
+                    "qsm-presence",
+                    "Presence",
+                    f"phase {s.phase_detected_raw:.3f}  target {s.target_detected_raw:.3f}",
+                )
+                self._kv(
+                    "qsm-als",
+                    "Light (ALS)",
+                    f"illum {s.als_illuminance_raw}  IR {s.als_ir_raw}  both {s.als_both_raw}",
+                )
+                self._kv(
+                    "qsm-accel",
+                    "Accel X/Y/Z",
+                    f"{s.accel_x_raw}  /  {s.accel_y_raw}  /  {s.accel_z_raw}",
+                )
             else:
-                for nid, lbl in [("qsm-presence","Presence"),("qsm-als","ALS"),("qsm-accel","Accel")]:
+                for nid, lbl in [
+                    ("qsm-presence", "Presence"),
+                    ("qsm-als", "ALS"),
+                    ("qsm-accel", "Accel"),
+                ]:
                     self._kv(nid, lbl, "--")
         else:
-            for nid, lbl in [("qsm-wifi-hosted","WiFi (hosted)"),("qsm-wifi-ap","WiFi (AP)"),
-                              ("qsm-wifi-p2p","WiFi (P2P)"),
-                              ("qsm-presence","Presence"),("qsm-als","ALS"),("qsm-accel","Accel")]:
+            for nid, lbl in [
+                ("qsm-wifi-hosted", "WiFi (hosted)"),
+                ("qsm-wifi-ap", "WiFi (AP)"),
+                ("qsm-wifi-p2p", "WiFi (P2P)"),
+                ("qsm-presence", "Presence"),
+                ("qsm-als", "ALS"),
+                ("qsm-accel", "Accel"),
+            ]:
                 self._kv(nid, lbl, "no QSM")
 
     def _populate_perf(self) -> None:
@@ -1199,97 +1305,141 @@ class RoomScreen(Screen):
 
         if idu and idu.performance_data:
             pd = idu.performance_data
-            self._kv("p-coil",    "Coil Temp",        _tc(pd.coil_temperature_c, use_f))
-            self._kv("p-outlet",  "Outlet Temp",       _tc(pd.outlet_temperature_c, use_f))
-            self._kv("p-inlet",   "Inlet Temp",        _tc(pd.inlet_temperature_c, use_f))
-            self._kv("p-gas",     "Gas Pipe Temp",     _tc(pd.gas_pipe_temperature_c, use_f))
-            self._kv("p-liquid",  "Liquid Pipe Temp",  _tc(pd.liquid_pipe_temperature_c, use_f))
-            self._kv("p-interval","Sample Interval",   f"{pd.measurement_interval_s:.1f} s")
+            self._kv("p-coil", "Coil Temp", _tc(pd.coil_temperature_c, use_f))
+            self._kv("p-outlet", "Outlet Temp", _tc(pd.outlet_temperature_c, use_f))
+            self._kv("p-inlet", "Inlet Temp", _tc(pd.inlet_temperature_c, use_f))
+            self._kv("p-gas", "Gas Pipe Temp", _tc(pd.gas_pipe_temperature_c, use_f))
+            self._kv("p-liquid", "Liquid Pipe Temp", _tc(pd.liquid_pipe_temperature_c, use_f))
+            self._kv("p-interval", "Sample Interval", f"{pd.measurement_interval_s:.1f} s")
             # energy_measurement_j is IDU electronics (QSM + fan board), NOT HVAC/compressor energy.
             # Actual HVAC power is in performance_metrics below.
-            pwr = pd.energy_measurement_j / pd.measurement_interval_s if pd.measurement_interval_s > 0 else 0
-            self._kv("p-energy-j","IDU Module Power",  f"{pwr:.1f} W")
-            self._kv("p-energy-kwh","IDU Module Energy",f"{pd.energy_measurement_j:.1f} J")
-            self._kv("p-fan-actual","Fan (actual)",    f"{pd.actual_fan_speed_rpm:.0f} RPM")
-            self._kv("p-pd-mode", "Mode (perf)",       pd.hvac_mode.name,
-                     _MODE_STYLE.get(pd.hvac_mode, ""))
+            pwr = (
+                pd.energy_measurement_j / pd.measurement_interval_s
+                if pd.measurement_interval_s > 0
+                else 0
+            )
+            self._kv("p-energy-j", "IDU Module Power", f"{pwr:.1f} W")
+            self._kv("p-energy-kwh", "IDU Module Energy", f"{pd.energy_measurement_j:.1f} J")
+            self._kv("p-fan-actual", "Fan (actual)", f"{pd.actual_fan_speed_rpm:.0f} RPM")
+            self._kv(
+                "p-pd-mode", "Mode (perf)", pd.hvac_mode.name, _MODE_STYLE.get(pd.hvac_mode, "")
+            )
             pd_state_fmt = _fmt_state(pd.hvac_state)
-            self._kv("p-pd-state","State (perf)",      pd_state_fmt.plain, str(pd_state_fmt.style))
+            self._kv("p-pd-state", "State (perf)", pd_state_fmt.plain, str(pd_state_fmt.style))
         else:
-            for nid, label in [("p-coil","Coil"),("p-outlet","Outlet"),("p-inlet","Inlet"),
-                                ("p-gas","Gas Pipe"),("p-liquid","Liquid Pipe"),
-                                ("p-interval","Interval"),("p-energy-j","Energy J"),
-                                ("p-energy-kwh","Energy kWh"),("p-fan-actual","Fan actual"),
-                                ("p-pd-mode","Mode (perf)"),("p-pd-state","State (perf)")]:
+            for nid, label in [
+                ("p-coil", "Coil"),
+                ("p-outlet", "Outlet"),
+                ("p-inlet", "Inlet"),
+                ("p-gas", "Gas Pipe"),
+                ("p-liquid", "Liquid Pipe"),
+                ("p-interval", "Interval"),
+                ("p-energy-j", "Energy J"),
+                ("p-energy-kwh", "Energy kWh"),
+                ("p-fan-actual", "Fan actual"),
+                ("p-pd-mode", "Mode (perf)"),
+                ("p-pd-state", "State (perf)"),
+            ]:
                 self._kv(nid, label, "no data")
 
         if idu and idu.performance_metrics:
             pm = idu.performance_metrics
-            self._kv("p-capacity",  "Capacity",   f"{pm.capacity_w:.0f} W")
-            self._kv("p-cop",       "COP",         f"{pm.coefficient_of_performance:.2f}")
-            self._kv("p-hvac-power","HVAC Power",  f"{pm.hvac_power_w:.0f} W")
-            self._kv("p-led-power", "LED Power",   f"{pm.led_power_w:.1f} W")
-            self._kv("p-pm-mode",   "Mode (metrics)", pm.hvac_mode.name,
-                     _MODE_STYLE.get(pm.hvac_mode, ""))
+            self._kv("p-capacity", "Capacity", f"{pm.capacity_w:.0f} W")
+            self._kv("p-cop", "COP", f"{pm.coefficient_of_performance:.2f}")
+            self._kv("p-hvac-power", "HVAC Power", f"{pm.hvac_power_w:.0f} W")
+            self._kv("p-led-power", "LED Power", f"{pm.led_power_w:.1f} W")
+            self._kv(
+                "p-pm-mode", "Mode (metrics)", pm.hvac_mode.name, _MODE_STYLE.get(pm.hvac_mode, "")
+            )
             pm_state_fmt = _fmt_state(pm.hvac_state)
-            self._kv("p-pm-state",  "State (metrics)", pm_state_fmt.plain, str(pm_state_fmt.style))
-            self._kv("p-pm-duration",    "Window",       f"{pm.measurement_duration_s:.1f} s")
-            self._kv("p-pm-energy-total","Energy (total)", f"{pm.energy_total_j:.1f} J")
-            self._kv("p-pm-hvac-energy", "Energy (HVAC)",  f"{pm.hvac_energy_j:.1f} J")
-            self._kv("p-pm-led-energy",  "Energy (LED)",   f"{pm.led_energy_j:.1f} J")
+            self._kv("p-pm-state", "State (metrics)", pm_state_fmt.plain, str(pm_state_fmt.style))
+            self._kv("p-pm-duration", "Window", f"{pm.measurement_duration_s:.1f} s")
+            self._kv("p-pm-energy-total", "Energy (total)", f"{pm.energy_total_j:.1f} J")
+            self._kv("p-pm-hvac-energy", "Energy (HVAC)", f"{pm.hvac_energy_j:.1f} J")
+            self._kv("p-pm-led-energy", "Energy (LED)", f"{pm.led_energy_j:.1f} J")
         else:
-            for nid, label in [("p-capacity","Capacity"),("p-cop","COP"),
-                                ("p-hvac-power","HVAC Power"),("p-led-power","LED Power"),
-                                ("p-pm-mode","Mode (metrics)"),("p-pm-state","State (metrics)"),
-                                ("p-pm-duration","Window"),("p-pm-energy-total","Energy (total)"),
-                                ("p-pm-hvac-energy","Energy (HVAC)"),("p-pm-led-energy","Energy (LED)")]:
+            for nid, label in [
+                ("p-capacity", "Capacity"),
+                ("p-cop", "COP"),
+                ("p-hvac-power", "HVAC Power"),
+                ("p-led-power", "LED Power"),
+                ("p-pm-mode", "Mode (metrics)"),
+                ("p-pm-state", "State (metrics)"),
+                ("p-pm-duration", "Window"),
+                ("p-pm-energy-total", "Energy (total)"),
+                ("p-pm-hvac-energy", "Energy (HVAC)"),
+                ("p-pm-led-energy", "Energy (LED)"),
+            ]:
                 self._kv(nid, label, "no data")
 
         if idu and idu.hvac_inputs:
             hi = idu.hvac_inputs
-            self._kv("p-hi-ext-ambient", "Ext. Ambient",    _tc(hi.external_ambient_temperature_c, use_f))
-            self._kv("p-hi-setpoint",    "Setpoint (ctrl)", _tc(hi.temperature_setpoint_c, use_f))
-            self._kv("p-hi-mode",        "Mode (ctrl)",     hi.hvac_mode.name,
-                     _MODE_STYLE.get(hi.hvac_mode, ""))
+            self._kv(
+                "p-hi-ext-ambient", "Ext. Ambient", _tc(hi.external_ambient_temperature_c, use_f)
+            )
+            self._kv("p-hi-setpoint", "Setpoint (ctrl)", _tc(hi.temperature_setpoint_c, use_f))
+            self._kv(
+                "p-hi-mode", "Mode (ctrl)", hi.hvac_mode.name, _MODE_STYLE.get(hi.hvac_mode, "")
+            )
             hi_state_fmt = _fmt_state(hi.hvac_state)
-            self._kv("p-hi-state",       "State (ctrl)",    hi_state_fmt.plain, str(hi_state_fmt.style))
-            self._kv("p-hi-source",      "Ambient Source",  str(hi.ambient_temperature_source))
+            self._kv("p-hi-state", "State (ctrl)", hi_state_fmt.plain, str(hi_state_fmt.style))
+            self._kv("p-hi-source", "Ambient Source", str(hi.ambient_temperature_source))
             ctrl_type = hi.hvac_controller_type
-            ctrl_type_short = ctrl_type.name.replace("HVAC_CONTROLLER_TYPE_", "").replace("_", " ").title()
-            self._kv("p-hi-ctrl-type",   "Controller Type", ctrl_type_short)
+            ctrl_type_short = (
+                ctrl_type.name.replace("HVAC_CONTROLLER_TYPE_", "").replace("_", " ").title()
+            )
+            self._kv("p-hi-ctrl-type", "Controller Type", ctrl_type_short)
         else:
-            for nid, label in [("p-hi-ext-ambient","Ext. Ambient"),("p-hi-setpoint","Setpoint (ctrl)"),
-                                ("p-hi-mode","Mode (ctrl)"),("p-hi-state","State (ctrl)"),
-                                ("p-hi-source","Ambient Source"),("p-hi-ctrl-type","Controller Type")]:
+            for nid, label in [
+                ("p-hi-ext-ambient", "Ext. Ambient"),
+                ("p-hi-setpoint", "Setpoint (ctrl)"),
+                ("p-hi-mode", "Mode (ctrl)"),
+                ("p-hi-state", "State (ctrl)"),
+                ("p-hi-source", "Ambient Source"),
+                ("p-hi-ctrl-type", "Controller Type"),
+            ]:
                 self._kv(nid, label, "no data")
 
         if idu and idu.conditions:
             co = idu.conditions
+
             def _cs(val: int) -> tuple[str, str]:
-                return _COND_STATE_LABELS.get(val, str(val)), (_COND_ACTIVE_STYLE if val == 2 else "")
+                return _COND_STATE_LABELS.get(val, str(val)), (
+                    _COND_ACTIVE_STYLE if val == 2 else ""
+                )
+
             for nid, label, val in [
-                ("p-cond-defrost",          "Defrost Cycle",       co.defrost_cycle),
-                ("p-cond-oilreturn",        "Oil Return",          co.oil_return),
-                ("p-cond-coilpreheat",      "Coil Preheat",        co.coil_preheat),
-                ("p-cond-safetyheat",       "Safety Heating",      co.safety_heating),
-                ("p-cond-anticold",         "Anti-Cold Wind",      co.anti_cold_wind),
-                ("p-cond-modeswitch",       "Mode Switch Delay",   co.hvac_mode_switching_delay),
-                ("p-cond-modeconflict",     "Mode Conflict",       co.mode_conflict),
-                ("p-cond-modeconflictavoid","Mode Conflict Avoid", co.mode_conflict_avoidance),
-                ("p-cond-abnormal-odu-air", "Abnormal ODU Air",    co.abnormal_outdoor_air_temperature),
-                ("p-cond-odu-comm",         "ODU Comm Error",      co.outdoor_unit_communication_error),
-                ("p-cond-modbus",           "Modbus Comm Error",   co.modbus_communication_error),
+                ("p-cond-defrost", "Defrost Cycle", co.defrost_cycle),
+                ("p-cond-oilreturn", "Oil Return", co.oil_return),
+                ("p-cond-coilpreheat", "Coil Preheat", co.coil_preheat),
+                ("p-cond-safetyheat", "Safety Heating", co.safety_heating),
+                ("p-cond-anticold", "Anti-Cold Wind", co.anti_cold_wind),
+                ("p-cond-modeswitch", "Mode Switch Delay", co.hvac_mode_switching_delay),
+                ("p-cond-modeconflict", "Mode Conflict", co.mode_conflict),
+                ("p-cond-modeconflictavoid", "Mode Conflict Avoid", co.mode_conflict_avoidance),
+                (
+                    "p-cond-abnormal-odu-air",
+                    "Abnormal ODU Air",
+                    co.abnormal_outdoor_air_temperature,
+                ),
+                ("p-cond-odu-comm", "ODU Comm Error", co.outdoor_unit_communication_error),
+                ("p-cond-modbus", "Modbus Comm Error", co.modbus_communication_error),
             ]:
                 text, style = _cs(val)
                 self._kv(nid, label, text, style)
         else:
             for nid, label in [
-                ("p-cond-defrost","Defrost Cycle"),("p-cond-oilreturn","Oil Return"),
-                ("p-cond-coilpreheat","Coil Preheat"),("p-cond-safetyheat","Safety Heating"),
-                ("p-cond-anticold","Anti-Cold Wind"),("p-cond-modeswitch","Mode Switch Delay"),
-                ("p-cond-modeconflict","Mode Conflict"),("p-cond-modeconflictavoid","Mode Conflict Avoid"),
-                ("p-cond-abnormal-odu-air","Abnormal ODU Air"),("p-cond-odu-comm","ODU Comm Error"),
-                ("p-cond-modbus","Modbus Comm Error"),
+                ("p-cond-defrost", "Defrost Cycle"),
+                ("p-cond-oilreturn", "Oil Return"),
+                ("p-cond-coilpreheat", "Coil Preheat"),
+                ("p-cond-safetyheat", "Safety Heating"),
+                ("p-cond-anticold", "Anti-Cold Wind"),
+                ("p-cond-modeswitch", "Mode Switch Delay"),
+                ("p-cond-modeconflict", "Mode Conflict"),
+                ("p-cond-modeconflictavoid", "Mode Conflict Avoid"),
+                ("p-cond-abnormal-odu-air", "Abnormal ODU Air"),
+                ("p-cond-odu-comm", "ODU Comm Error"),
+                ("p-cond-modbus", "Modbus Comm Error"),
             ]:
                 self._kv(nid, label, "no data")
 
@@ -1297,26 +1447,42 @@ class RoomScreen(Screen):
             hs = HVACState(odu.hvac_state)
             odu_state_str = hs.name if odu.hvac_state else "—"
             odu_state_style = _STATE_STYLE.get(hs, "dim") if odu.hvac_state else "dim"
-            self._kv("p-odu-state",   "ODU State",  odu_state_str, odu_state_style)
+            self._kv("p-odu-state", "ODU State", odu_state_str, odu_state_style)
             model = odu.model_sku if odu.model_sku and odu.model_sku != "N/A" else None
-            self._kv("p-odu-model",   "Model",      model or "--")
-            self._kv("p-odu-serial",  "Serial",     odu.serial_number or "--")
-            self._kv("p-odu-fw",      "Firmware",   odu.firmware_version or "--")
+            self._kv("p-odu-model", "Model", model or "--")
+            self._kv("p-odu-serial", "Serial", odu.serial_number or "--")
+            self._kv("p-odu-fw", "Firmware", odu.firmware_version or "--")
             if odu.performance_data:
                 pd = odu.performance_data
-                self._kv("p-odu-freq",   "Compressor Freq",  f"{pd.compressor_frequency_hz:.1f} Hz")
-                self._kv("p-odu-coil",   "ODU Coil Temp",    _tc(pd.coil_temperature_c, use_f))
-                self._kv("p-odu-exhaust","Exhaust Temp",      _tc(pd.exhaust_temperature_c, use_f))
-                self._kv("p-odu-hi",     "High Pressure",    f"{pd.high_pressure_kpa:.1f} kPa")
-                self._kv("p-odu-lo",     "Low Pressure",     f"{pd.low_pressure_kpa:.1f} kPa")
-                self._kv("p-odu-ambient","ODU Ambient",       _tc(pd.ambient_temperature_c, use_f))
+                self._kv("p-odu-freq", "Compressor Freq", f"{pd.compressor_frequency_hz:.1f} Hz")
+                self._kv("p-odu-coil", "ODU Coil Temp", _tc(pd.coil_temperature_c, use_f))
+                self._kv("p-odu-exhaust", "Exhaust Temp", _tc(pd.exhaust_temperature_c, use_f))
+                self._kv("p-odu-hi", "High Pressure", f"{pd.high_pressure_kpa:.1f} kPa")
+                self._kv("p-odu-lo", "Low Pressure", f"{pd.low_pressure_kpa:.1f} kPa")
+                self._kv("p-odu-ambient", "ODU Ambient", _tc(pd.ambient_temperature_c, use_f))
             else:
-                for nid in ("p-odu-freq","p-odu-coil","p-odu-exhaust","p-odu-hi","p-odu-lo","p-odu-ambient"):
+                for nid in (
+                    "p-odu-freq",
+                    "p-odu-coil",
+                    "p-odu-exhaust",
+                    "p-odu-hi",
+                    "p-odu-lo",
+                    "p-odu-ambient",
+                ):
                     self._kv(nid, nid, "no data")
         else:
-            for nid in ("p-odu-state","p-odu-freq","p-odu-coil","p-odu-exhaust",
-                        "p-odu-hi","p-odu-lo","p-odu-ambient","p-odu-model",
-                        "p-odu-serial","p-odu-fw"):
+            for nid in (
+                "p-odu-state",
+                "p-odu-freq",
+                "p-odu-coil",
+                "p-odu-exhaust",
+                "p-odu-hi",
+                "p-odu-lo",
+                "p-odu-ambient",
+                "p-odu-model",
+                "p-odu-serial",
+                "p-odu-fw",
+            ):
                 self._kv(nid, nid, "no ODU")
 
         # IDU Commands (fallback control on connectivity loss)
@@ -1355,8 +1521,11 @@ class RoomScreen(Screen):
                 week_table.add_row(day_name)
             # Show Monday's events by default
             self._populate_day_events(
-                [self._sched_day_by_id[did] for did in self._sched_row_day_ids[0]
-                 if did in self._sched_day_by_id],
+                [
+                    self._sched_day_by_id[did]
+                    for did in self._sched_row_day_ids[0]
+                    if did in self._sched_day_by_id
+                ],
                 self._sched_cs_by_id,
                 label="Monday",
             )
@@ -1379,9 +1548,7 @@ class RoomScreen(Screen):
         days = [day_by_id[did] for did in day_ids if did in day_by_id]
         self._populate_day_events(days, cs_by_id, label=_DAYS[idx] if idx < 7 else "")
 
-    def _populate_day_events(
-        self, days: list, cs_by_id: dict, label: str = ""
-    ) -> None:
+    def _populate_day_events(self, days: list, cs_by_id: dict, label: str = "") -> None:
         from quilt_hp.models.enums import HVACMode as _HM
         from quilt_hp.models.enums import LouverMode as _LM
         from quilt_hp.models.schedule import ScheduleDay
@@ -1441,8 +1608,11 @@ class RoomScreen(Screen):
 
     def _update_schedule_status(self, paused: bool) -> None:
         try:
-            status = "[yellow]⏸ PAUSED[/yellow]  [dim](p to resume)[/dim]" if paused \
+            status = (
+                "[yellow]⏸ PAUSED[/yellow]  [dim](p to resume)[/dim]"
+                if paused
                 else "[green]▶ RUNNING[/green]"
+            )
             self.query_one("#sched-status", Static).update(status)
         except NoMatches:
             pass
@@ -1459,6 +1629,7 @@ class RoomScreen(Screen):
             if snap_tz:
                 try:
                     import zoneinfo
+
                     tz = zoneinfo.ZoneInfo(snap_tz)
                 except Exception:
                     pass
@@ -1467,9 +1638,7 @@ class RoomScreen(Screen):
                 hour=0, minute=0, second=0, microsecond=0
             )
             metrics = await self._client.get_energy(start=start, end=now)
-            space_metrics = next(
-                (m for m in metrics if m.space_id == self._space.id), None
-            )
+            space_metrics = next((m for m in metrics if m.space_id == self._space.id), None)
             self._populate_energy(space_metrics, tz)
             self._set_energy_status("")
         except Exception as exc:
@@ -1523,10 +1692,10 @@ class RoomScreen(Screen):
         week_kwh = sum(_day_total(today - datetime.timedelta(days=i)) for i in range(7))
         month_kwh = sum(_day_total(today - datetime.timedelta(days=i)) for i in range(30))
 
-        self._kv("e-today",     "Today",        f"{today_kwh:.3f} kWh", "cyan")
-        self._kv("e-yesterday", "Yesterday",    f"{yest_kwh:.3f} kWh")
-        self._kv("e-7day",      "Last 7 days",  f"{week_kwh:.3f} kWh")
-        self._kv("e-30day",     "Last 30 days", f"{month_kwh:.3f} kWh")
+        self._kv("e-today", "Today", f"{today_kwh:.3f} kWh", "cyan")
+        self._kv("e-yesterday", "Yesterday", f"{yest_kwh:.3f} kWh")
+        self._kv("e-7day", "Last 7 days", f"{week_kwh:.3f} kWh")
+        self._kv("e-30day", "Last 30 days", f"{month_kwh:.3f} kWh")
 
         # Sparkline — today so far, 24 fixed hourly slots (00–23 local time)
         cutoff = now - datetime.timedelta(hours=24)
@@ -1555,10 +1724,7 @@ class RoomScreen(Screen):
         table.clear()
         status_labels = {0: "—", 1: "✓", 2: "~"}
         recent_buckets = [
-            (bt, kwh, s)
-            for buckets in by_date.values()
-            for bt, kwh, s in buckets
-            if bt >= cutoff
+            (bt, kwh, s) for buckets in by_date.values() for bt, kwh, s in buckets if bt >= cutoff
         ]
         for bt, kwh, status in sorted(recent_buckets, reverse=True):
             table.add_row(
@@ -1673,15 +1839,17 @@ class RoomScreen(Screen):
         # For now notify the user it's read-only in this version.
         self.notify(f"Occupancy mode would → {nxt.name} (not yet wired)", timeout=3)
 
-    _AWAY_TIMEOUT_STEP_S: float = 300.0   # 5 minutes
+    _AWAY_TIMEOUT_STEP_S: float = 300.0  # 5 minutes
     _RETURN_TIMEOUT_STEP_S: float = 60.0  # 1 minute
-    _TIMEOUT_MIN_S: float = 60.0          # 1 minute minimum
+    _TIMEOUT_MIN_S: float = 60.0  # 1 minute minimum
 
     def action_away_timeout_dec(self) -> None:
         if not self._space:
             return
         cur = self._space.settings.unoccupied_timeout_s
-        self._mutate_settings(unoccupied_timeout_s=max(self._TIMEOUT_MIN_S, cur - self._AWAY_TIMEOUT_STEP_S))
+        self._mutate_settings(
+            unoccupied_timeout_s=max(self._TIMEOUT_MIN_S, cur - self._AWAY_TIMEOUT_STEP_S)
+        )
 
     def action_away_timeout_inc(self) -> None:
         if not self._space:
@@ -1693,7 +1861,9 @@ class RoomScreen(Screen):
         if not self._space:
             return
         cur = self._space.settings.occupied_timeout_s
-        self._mutate_settings(occupied_timeout_s=max(self._TIMEOUT_MIN_S, cur - self._RETURN_TIMEOUT_STEP_S))
+        self._mutate_settings(
+            occupied_timeout_s=max(self._TIMEOUT_MIN_S, cur - self._RETURN_TIMEOUT_STEP_S)
+        )
 
     def action_return_timeout_inc(self) -> None:
         if not self._space:
@@ -1837,6 +2007,7 @@ class RoomScreen(Screen):
             if loc:
                 # patch local cache
                 from dataclasses import replace
+
                 patched = replace(loc, schedule_paused=paused)
                 self._snapshot.locations[0] = patched
             self._update_schedule_status(paused)
@@ -1848,6 +2019,7 @@ class RoomScreen(Screen):
 # ──────────────────────────────────────────────────────────────────
 # SystemScreen
 # ──────────────────────────────────────────────────────────────────
+
 
 class SystemScreen(Screen):
     """System-wide overview: ODU, controllers, remote sensors."""
@@ -1918,7 +2090,11 @@ class SystemScreen(Screen):
         # Header
         loc = snap.primary_location
         tz = snap.timezone or "?"
-        sched = "[yellow]⏸ PAUSED[/yellow]" if (loc and loc.schedule_paused) else "[green]▶ RUNNING[/green]"
+        sched = (
+            "[yellow]⏸ PAUSED[/yellow]"
+            if (loc and loc.schedule_paused)
+            else "[green]▶ RUNNING[/green]"
+        )
         loc_name = loc.name if loc and loc.name else ""
         header_parts = []
         if loc_name:
@@ -1954,7 +2130,9 @@ class SystemScreen(Screen):
         # Controllers table
         ctrl_table: DataTable = self.query_one("#sys-ctrls", DataTable)
         if not ctrl_table.columns:
-            ctrl_table.add_columns("Name", "Ambient", "Raw Thermistor", "PCB-A", "PCB-B", "WiFi SSID", "IP", "Signal")
+            ctrl_table.add_columns(
+                "Name", "Ambient", "Raw Thermistor", "PCB-A", "PCB-B", "WiFi SSID", "IP", "Signal"
+            )
         ctrl_table.clear()
         for ctrl in snap.controllers:
             ctrl_table.add_row(
@@ -1971,7 +2149,9 @@ class SystemScreen(Screen):
         # Remote sensors table
         sensor_table: DataTable = self.query_one("#sys-sensors", DataTable)
         if not sensor_table.columns:
-            sensor_table.add_columns("Sensor", "Room", "Mode", "Temp", "Humidity", "Battery", "Signal")
+            sensor_table.add_columns(
+                "Sensor", "Room", "Mode", "Temp", "Humidity", "Battery", "Signal"
+            )
         sensor_table.clear()
         # Build IDU→room name map for display
         idu_to_room: dict[str, str] = {}
@@ -1993,9 +2173,17 @@ class SystemScreen(Screen):
             )
         for crs in snap.controller_remote_sensors:
             ctrl = next((c for c in snap.controllers if c.id == crs.controller_id), None)
-            label = f"Dial {ctrl.serial_number or ctrl.name or crs.controller_id[:8]}" if ctrl else crs.id[:8]
+            label = (
+                f"Dial {ctrl.serial_number or ctrl.name or crs.controller_id[:8]}"
+                if ctrl
+                else crs.id[:8]
+            )
             room = next((c.space_id for c in snap.controllers if c.id == crs.controller_id), None)
-            room_name = next((s.name for s in snap.rooms if s.id == room), room[:8] if room else "--") if room else "--"
+            room_name = (
+                next((s.name for s in snap.rooms if s.id == room), room[:8] if room else "--")
+                if room
+                else "--"
+            )
             mode_str = "EN" if crs.control_mode == RemoteSensorControlMode.ENABLED else "DIS"
             mode_style = "green" if crs.control_mode == RemoteSensorControlMode.ENABLED else "dim"
             sensor_table.add_row(
@@ -2011,7 +2199,9 @@ class SystemScreen(Screen):
         # Firmware / software update table
         fw_table: DataTable = self.query_one("#sys-firmware", DataTable)
         if not fw_table.columns:
-            fw_table.add_columns("Device", "Type", "Current Version", "Target Version", "Progress", "State")
+            fw_table.add_columns(
+                "Device", "Type", "Current Version", "Target Version", "Progress", "State"
+            )
         fw_table.clear()
         sui_by_id = {s.id: s for s in snap.software_update_infos}
 
@@ -2024,7 +2214,11 @@ class SystemScreen(Screen):
                     continue
                 ver = sui.current_version or "--"
                 target = sui.target_version or "--"
-                prog = f"{sui.current_progress:.0f}/{sui.total_progress:.0f}" if sui.total_progress else "--"
+                prog = (
+                    f"{sui.current_progress:.0f}/{sui.total_progress:.0f}"
+                    if sui.total_progress
+                    else "--"
+                )
                 state = str(sui.state) if sui.state else "--"
                 fw_table.add_row(device_name, label, ver, target, prog, state)
 
@@ -2034,7 +2228,11 @@ class SystemScreen(Screen):
         for odu in snap.outdoor_units:
             _fw_row(f"ODU {odu.serial_number or odu.id[:8]}", None, odu.firmware_update_info_id)
         for ctrl in snap.controllers:
-            _fw_row(f"Dial {ctrl.serial_number or ctrl.name or ctrl.id[:8]}", ctrl.software_update_info_id, ctrl.firmware_update_info_id)
+            _fw_row(
+                f"Dial {ctrl.serial_number or ctrl.name or ctrl.id[:8]}",
+                ctrl.software_update_info_id,
+                ctrl.firmware_update_info_id,
+            )
         for qsm in snap.quilt_smart_modules:
             _fw_row(f"QSM {qsm.id[:8]}", qsm.software_update_info_id, qsm.firmware_update_info_id)
 
@@ -2063,6 +2261,7 @@ class SystemScreen(Screen):
             loc = self._snapshot.primary_location
             if loc:
                 from dataclasses import replace
+
                 patched = replace(loc, schedule_paused=paused)
                 self._snapshot.locations[0] = patched
             self._populate()
@@ -2074,6 +2273,7 @@ class SystemScreen(Screen):
 # ──────────────────────────────────────────────────────────────────
 # QuiltApp
 # ──────────────────────────────────────────────────────────────────
+
 
 class QuiltApp(App[None]):
     """Quilt HVAC TUI application."""
@@ -2177,7 +2377,9 @@ class QuiltApp(App[None]):
         if self._snapshot:
             space = self._snapshot.apply_space(space)
         screen = self.screen
-        if isinstance(screen, DashboardScreen) or (isinstance(screen, RoomScreen) and screen._space.id == space.id):
+        if isinstance(screen, DashboardScreen) or (
+            isinstance(screen, RoomScreen) and screen._space.id == space.id
+        ):
             screen.update_space(space)
 
     def _dispatch_idu(self, idu: IndoorUnit) -> None:
@@ -2187,8 +2389,11 @@ class QuiltApp(App[None]):
         if isinstance(screen, RoomScreen) and screen._idu and screen._idu.id == idu.id:
             screen.update_idu(idu)
         elif isinstance(screen, DashboardScreen):
-            space = next((s for s in self._snapshot.rooms if s.id == idu.space_id), None) \
-                if self._snapshot else None
+            space = (
+                next((s for s in self._snapshot.rooms if s.id == idu.space_id), None)
+                if self._snapshot
+                else None
+            )
             if space:
                 item = screen._items.get(space.id)
                 if item:
@@ -2206,7 +2411,11 @@ class QuiltApp(App[None]):
         if self._snapshot:
             ctrl = self._snapshot.apply_controller(ctrl)
         screen = self.screen
-        if isinstance(screen, RoomScreen) and screen._controller and screen._controller.id == ctrl.id:
+        if (
+            isinstance(screen, RoomScreen)
+            and screen._controller
+            and screen._controller.id == ctrl.id
+        ):
             screen.update_ctrl(ctrl)
 
     def _dispatch_qsm(self, qsm: QuiltSmartModule) -> None:

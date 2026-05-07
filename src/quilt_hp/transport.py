@@ -39,7 +39,9 @@ class _AuthInterceptor(  # type: ignore[misc]
             ("x-quilt-app-version", APP_VERSION),
         ]
 
-    def _patch(self, client_call_details: grpc.aio.ClientCallDetails) -> grpc.aio.ClientCallDetails:
+    def _patch(
+        self, client_call_details: grpc.aio.ClientCallDetails
+    ) -> grpc.aio.ClientCallDetails:
         return grpc.aio.ClientCallDetails(
             method=client_call_details.method,
             timeout=client_call_details.timeout,

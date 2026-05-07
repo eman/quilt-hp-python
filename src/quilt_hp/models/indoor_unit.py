@@ -61,9 +61,9 @@ class IndoorUnitSettings:
     name: str
     description: str
     light_brightness_default_percent: float
-    presence_fence_left_m: float    # detection zone left boundary (0 = unconfigured/max range)
-    presence_fence_right_m: float   # detection zone right boundary
-    presence_fence_forward_m: float # detection zone forward boundary (depth)
+    presence_fence_left_m: float  # detection zone left boundary (0 = unconfigured/max range)
+    presence_fence_right_m: float  # detection zone right boundary
+    presence_fence_forward_m: float  # detection zone forward boundary (depth)
     radar_sensor_distance_from_floor_m: float  # mounting height calibration
 
 
@@ -168,10 +168,17 @@ class IndoorUnitConditions:
         return any(
             getattr(self, f) == 2
             for f in (
-                "mode_conflict", "anti_cold_wind", "abnormal_outdoor_air_temperature",
-                "hvac_mode_switching_delay", "defrost_cycle", "safety_heating",
-                "oil_return", "modbus_communication_error", "coil_preheat",
-                "mode_conflict_avoidance", "outdoor_unit_communication_error",
+                "mode_conflict",
+                "anti_cold_wind",
+                "abnormal_outdoor_air_temperature",
+                "hvac_mode_switching_delay",
+                "defrost_cycle",
+                "safety_heating",
+                "oil_return",
+                "modbus_communication_error",
+                "coil_preheat",
+                "mode_conflict_avoidance",
+                "outdoor_unit_communication_error",
             )
         )
 

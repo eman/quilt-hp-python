@@ -10,6 +10,7 @@ All state lives in two files under the platform config directory
 ``FileStore`` implements the core ``TokenStore`` protocol so it can be
 passed directly to ``QuiltClient(token_store=store)``.
 """
+
 from __future__ import annotations
 
 import json

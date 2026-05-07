@@ -130,11 +130,11 @@ class HomeDatastoreService:
                 timezone=s.timezone,
                 occupancy=s.occupancy_mode.value,
                 occupied_timeout_s=(
-                    occupied_timeout_s if occupied_timeout_s is not None
-                    else s.occupied_timeout_s
+                    occupied_timeout_s if occupied_timeout_s is not None else s.occupied_timeout_s
                 ),
                 unoccupied_timeout_s=(
-                    unoccupied_timeout_s if unoccupied_timeout_s is not None
+                    unoccupied_timeout_s
+                    if unoccupied_timeout_s is not None
                     else s.unoccupied_timeout_s
                 ),
                 safety_heating=s.safety_heating.value,
@@ -227,7 +227,9 @@ class HomeDatastoreService:
                     fence_forward_m if fence_forward_m is not None else st.presence_fence_forward_m
                 ),
                 radar_sensor_distance_from_floor_m=(
-                    radar_height_m if radar_height_m is not None else st.radar_sensor_distance_from_floor_m
+                    radar_height_m
+                    if radar_height_m is not None
+                    else st.radar_sensor_distance_from_floor_m
                 ),
             ),
         )
@@ -402,9 +404,7 @@ class HomeDatastoreService:
         Args:
             paused: True to pause all schedules, False to resume.
         """
-        execution = (
-            hds.SCHEDULE_EXECUTION_PAUSED if paused else hds.SCHEDULE_EXECUTION_RUNNING
-        )
+        execution = hds.SCHEDULE_EXECUTION_PAUSED if paused else hds.SCHEDULE_EXECUTION_RUNNING
         diff = hds.Location(
             header=hds.EntityMetadata(
                 object_id=location_id,

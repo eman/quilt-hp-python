@@ -20,10 +20,10 @@ from quilt_hp.models.enums import (
 class SpaceSettings:
     """Per-space automation and safety settings."""
 
-    name: str                   # space display name (needed to round-trip UpdateSpace settings)
-    timezone: str               # IANA timezone string (e.g. "America/Los_Angeles")
+    name: str  # space display name (needed to round-trip UpdateSpace settings)
+    timezone: str  # IANA timezone string (e.g. "America/Los_Angeles")
     occupancy_mode: OccupancyMode
-    occupied_timeout_s: float   # seconds of presence before "returned"; default 180s
+    occupied_timeout_s: float  # seconds of presence before "returned"; default 180s
     unoccupied_timeout_s: float  # seconds of no-presence before "away"; default 1200s
     safety_heating: SafetyHeatingMode
     hvac_controller_type: HvacControllerType = HvacControllerType.UNSPECIFIED
@@ -43,6 +43,7 @@ class SpaceControls:
 
     def display_setpoint_str(self, use_f: bool = False) -> str:
         """Human-readable setpoint string respecting °C/°F preference."""
+
         def fmt(val_c: float) -> str:
             if use_f:
                 return f"{val_c * 9 / 5 + 32:.1f}°F"
@@ -118,9 +119,9 @@ class Space:
             return self.active_comfort_setting_type == ComfortSettingType.AWAY
         # Fallback: occupancy override shows STANDBY state while controls
         # hold an active mode.
-        return (
-            self.state.hvac_state == HVACState.STANDBY
-            and self.controls.hvac_mode not in (HVACMode.STANDBY, HVACMode.UNSPECIFIED)
+        return self.state.hvac_state == HVACState.STANDBY and self.controls.hvac_mode not in (
+            HVACMode.STANDBY,
+            HVACMode.UNSPECIFIED,
         )
 
     @property
@@ -159,11 +160,15 @@ def _space_from_proto(proto: object) -> Space:
             cooling_setpoint_c=proto.controls.cooling_temperature_setpoint_c,  # type: ignore[attr-defined]
             heating_setpoint_c=proto.controls.heating_temperature_setpoint_c,  # type: ignore[attr-defined]
             comfort_setting_id=proto.controls.comfort_setting_id_string,  # type: ignore[attr-defined]
-            comfort_setting_override=ComfortSettingOverride(proto.controls.comfort_setting_override),  # type: ignore[attr-defined]
+            comfort_setting_override=ComfortSettingOverride(
+                proto.controls.comfort_setting_override
+            ),  # type: ignore[attr-defined]
             boost_mode=BoostMode(proto.controls.boost_mode),  # type: ignore[attr-defined]
         ),
         state=SpaceState(
-            ambient_temperature_c=proto.state.ambient_temperature_c if proto.state.updated_ts else None,  # type: ignore[attr-defined]
+            ambient_temperature_c=proto.state.ambient_temperature_c
+            if proto.state.updated_ts
+            else None,  # type: ignore[attr-defined]
             hvac_state=HVACState(proto.state.hvac_state),  # type: ignore[attr-defined]
             setpoint_c=proto.state.setpoint_temperature_c if proto.state.updated_ts else None,  # type: ignore[attr-defined]
             comfort_setting_id=proto.state.comfort_setting_id,  # type: ignore[attr-defined]

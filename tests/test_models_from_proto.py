@@ -26,6 +26,7 @@ from quilt_hp.models.system import Location, SystemSnapshot
 
 # ─── helpers ────────────────────────────────────────────────────────────────
 
+
 def _ns(**kwargs: object) -> SimpleNamespace:
     """Build a SimpleNamespace recursively from keyword args."""
     return SimpleNamespace(**kwargs)
@@ -36,6 +37,7 @@ def _make_header(object_id: str = "obj-1", system_id: str = "sys-1") -> SimpleNa
 
 
 # ─── Space ──────────────────────────────────────────────────────────────────
+
 
 def _make_space_proto(
     space_id: str = "space-1",
@@ -111,9 +113,11 @@ def test_space_is_room_false_for_root() -> None:
     space = Space.from_proto(proto)
     assert space.is_room is False
 
+
 def test_space_is_off_when_controls_standby() -> None:
     """is_off (no comfort setting type): STANDBY ctrl+state → OFF."""
     from quilt_hp.models.enums import HVACMode, HVACState
+
     proto = _make_space_proto(hvac_mode=HVACMode.STANDBY, hvac_state=HVACState.STANDBY)
     space = Space.from_proto(proto)
     assert space.is_off is True
@@ -123,6 +127,7 @@ def test_space_is_off_when_controls_standby() -> None:
 def test_space_is_away_via_comfort_setting_type() -> None:
     """is_away (with cs type): STANDBY ctrl+state but cs type=AWAY → AWAY."""
     from quilt_hp.models.enums import ComfortSettingType, HVACMode, HVACState
+
     proto = _make_space_proto(hvac_mode=HVACMode.STANDBY, hvac_state=HVACState.STANDBY)
     space = Space.from_proto(proto)
     space.active_comfort_setting_type = ComfortSettingType.AWAY
@@ -133,6 +138,7 @@ def test_space_is_away_via_comfort_setting_type() -> None:
 def test_space_is_off_via_comfort_setting_type_standby() -> None:
     """is_off (with cs type): STANDBY ctrl and cs type=STANDBY → OFF."""
     from quilt_hp.models.enums import ComfortSettingType, HVACMode, HVACState
+
     proto = _make_space_proto(hvac_mode=HVACMode.STANDBY, hvac_state=HVACState.STANDBY)
     space = Space.from_proto(proto)
     space.active_comfort_setting_type = ComfortSettingType.STANDBY
@@ -143,6 +149,7 @@ def test_space_is_off_via_comfort_setting_type_standby() -> None:
 def test_space_is_away_fallback_when_controls_active_but_state_standby() -> None:
     """is_away fallback (no cs type): active ctrl mode but STANDBY state."""
     from quilt_hp.models.enums import HVACMode, HVACState
+
     proto = _make_space_proto(hvac_mode=HVACMode.HEAT, hvac_state=HVACState.STANDBY)
     space = Space.from_proto(proto)
     assert space.is_away is True
@@ -152,6 +159,7 @@ def test_space_is_away_fallback_when_controls_active_but_state_standby() -> None
 def test_space_not_away_when_actively_heating() -> None:
     """is_away is False when state matches controls (room is actually heating)."""
     from quilt_hp.models.enums import HVACMode, HVACState
+
     proto = _make_space_proto(hvac_mode=HVACMode.HEAT, hvac_state=HVACState.HEAT)
     space = Space.from_proto(proto)
     assert space.is_away is False
@@ -161,6 +169,7 @@ def test_space_not_away_when_actively_heating() -> None:
 def test_space_is_off_not_away_when_both_standby_no_cs() -> None:
     """No cs type: STANDBY ctrl+state → OFF not AWAY."""
     from quilt_hp.models.enums import HVACMode, HVACState
+
     proto = _make_space_proto(hvac_mode=HVACMode.STANDBY, hvac_state=HVACState.STANDBY)
     space = Space.from_proto(proto)
     assert space.is_off is True
@@ -196,6 +205,7 @@ def test_space_ambient_zero_celsius() -> None:
 
 
 # ─── SpaceControls.display_setpoint ─────────────────────────────────────────
+
 
 def test_display_setpoint_heat() -> None:
     c = SpaceControls(
@@ -247,6 +257,7 @@ def test_display_setpoint_standby() -> None:
 
 # ─── IndoorUnit ─────────────────────────────────────────────────────────────
 
+
 def _make_idu_proto(
     idu_id: str = "idu-1",
     space_id: str = "space-1",
@@ -272,14 +283,14 @@ def _make_idu_proto(
             radar_sensor_distance_from_floor_m=0.0,
         ),
         controls=_ns(
-            fan_speed_mode=1,      # AUTO
+            fan_speed_mode=1,  # AUTO
             fan_speed_percent=0.0,
             louver_mode=LouverMode.SWEEP,
             louver_fixed_position=0.0,
             led_color_code=0,
             led_color_brightness_percent=0.8,
             led_animation=1,
-            led_state=0,           # LIGHT_STATE_UNSPECIFIED
+            led_state=0,  # LIGHT_STATE_UNSPECIFIED
         ),
         state=_ns(
             hvac_mode=hvac_mode,
@@ -390,7 +401,7 @@ def test_idu_fan_speed_mode_raw_absent() -> None:
     proto.controls.fan_speed_mode = 0
     idu = IndoorUnit.from_proto(proto)
     assert idu.controls.fan_speed == FanSpeed.AUTO  # same decoded value…
-    assert idu.controls.fan_speed_mode_raw == 0     # …but raw correctly shows absent
+    assert idu.controls.fan_speed_mode_raw == 0  # …but raw correctly shows absent
 
 
 def test_idu_led_light_on() -> None:
@@ -429,7 +440,7 @@ def test_idu_led_state_off_preserves_brightness() -> None:
     proto = _make_idu_proto()
     proto.controls.led_color_code = 0xFF460064
     proto.controls.led_color_brightness_percent = 0.29  # preserved, NOT zeroed
-    proto.controls.led_state = 2                         # LIGHT_STATE_OFF
+    proto.controls.led_state = 2  # LIGHT_STATE_OFF
     idu = IndoorUnit.from_proto(proto)
     assert idu.controls.light_on is False
     assert idu.led_on is False
@@ -440,7 +451,7 @@ def test_idu_led_state_on_explicit() -> None:
     proto = _make_idu_proto()
     proto.controls.led_color_code = 0xFF460064
     proto.controls.led_color_brightness_percent = 0.42
-    proto.controls.led_state = 1                         # LIGHT_STATE_ON
+    proto.controls.led_state = 1  # LIGHT_STATE_ON
     idu = IndoorUnit.from_proto(proto)
     assert idu.controls.light_on is True
     assert idu.led_on is True
@@ -497,6 +508,7 @@ import pytest  # noqa: E402 — imported here to avoid top-level for the approx 
 
 # ─── ComfortSetting ──────────────────────────────────────────────────────────
 
+
 def _make_cs_proto(cs_id: str = "cs-1", space_id: str = "space-1") -> SimpleNamespace:
     return _ns(
         header=_make_header(cs_id),
@@ -528,10 +540,13 @@ def test_comfort_setting_from_proto() -> None:
 
 # ─── Controller ─────────────────────────────────────────────────────────────
 
+
 def test_controller_from_proto() -> None:
     proto = _ns(
         header=_make_header("ctrl-1"),
-        relationships=_ns(space_id="space-1", software_update_info_id="", firmware_update_info_id=""),
+        relationships=_ns(
+            space_id="space-1", software_update_info_id="", firmware_update_info_id=""
+        ),
         settings=_ns(name="Living Room Dial"),
         state=_ns(
             updated_ts=_ns(seconds=int(__import__("time").time())),
@@ -547,16 +562,28 @@ def test_controller_from_proto() -> None:
             frequency_mhz=5745,
             updated_ts=_ns(seconds=int(__import__("time").time())),
         ),
-        ap_wifi_state=_ns(ssid="", ipv4_address="", signal_level_dbm=0, frequency_mhz=0, updated_ts=_ns(seconds=0)),
-        p2p_wifi_state=_ns(ssid="", ipv4_address="", signal_level_dbm=0, frequency_mhz=0, updated_ts=_ns(seconds=0)),
+        ap_wifi_state=_ns(
+            ssid="",
+            ipv4_address="",
+            signal_level_dbm=0,
+            frequency_mhz=0,
+            updated_ts=_ns(seconds=0),
+        ),
+        p2p_wifi_state=_ns(
+            ssid="",
+            ipv4_address="",
+            signal_level_dbm=0,
+            frequency_mhz=0,
+            updated_ts=_ns(seconds=0),
+        ),
         controls=_ns(remote_sensor_control_mode=0),
     )
     ctrl = Controller.from_proto(proto)
     assert ctrl.id == "ctrl-1"
     assert ctrl.name == "Living Room Dial"
-    assert ctrl.raw_thermistor_c == 21.9        # raw on-chip reading (biased)
-    assert ctrl.calibrated_ambient_c == 21.0    # corrected value sent to IDU
-    assert ctrl.ambient_temperature_c == 21.0   # property: returns calibrated_ambient_c
+    assert ctrl.raw_thermistor_c == 21.9  # raw on-chip reading (biased)
+    assert ctrl.calibrated_ambient_c == 21.0  # corrected value sent to IDU
+    assert ctrl.ambient_temperature_c == 21.0  # property: returns calibrated_ambient_c
     assert ctrl.pcb_temperature_a_c == 34.0
     assert ctrl.pcb_temperature_b_c == 48.5
     assert ctrl.wifi_ssid == "MyNet"
@@ -570,14 +597,38 @@ def test_controller_from_proto() -> None:
 def test_controller_no_wifi() -> None:
     proto = _ns(
         header=_make_header("ctrl-2"),
-        relationships=_ns(space_id="space-1", software_update_info_id="", firmware_update_info_id=""),
+        relationships=_ns(
+            space_id="space-1", software_update_info_id="", firmware_update_info_id=""
+        ),
         settings=_ns(name=""),
-        state=_ns(updated_ts=_ns(seconds=0), ambient_temperature_c=20.0, temperature_f3=33.0,
-                  temperature_f4=47.0, temperature_f5=20.0),
-        hosted_wifi_state=_ns(ssid="", ipv4_address="", signal_level_dbm=0,
-                              frequency_mhz=0, updated_ts=_ns(seconds=0)),
-        ap_wifi_state=_ns(ssid="", ipv4_address="", signal_level_dbm=0, frequency_mhz=0, updated_ts=_ns(seconds=0)),
-        p2p_wifi_state=_ns(ssid="", ipv4_address="", signal_level_dbm=0, frequency_mhz=0, updated_ts=_ns(seconds=0)),
+        state=_ns(
+            updated_ts=_ns(seconds=0),
+            ambient_temperature_c=20.0,
+            temperature_f3=33.0,
+            temperature_f4=47.0,
+            temperature_f5=20.0,
+        ),
+        hosted_wifi_state=_ns(
+            ssid="",
+            ipv4_address="",
+            signal_level_dbm=0,
+            frequency_mhz=0,
+            updated_ts=_ns(seconds=0),
+        ),
+        ap_wifi_state=_ns(
+            ssid="",
+            ipv4_address="",
+            signal_level_dbm=0,
+            frequency_mhz=0,
+            updated_ts=_ns(seconds=0),
+        ),
+        p2p_wifi_state=_ns(
+            ssid="",
+            ipv4_address="",
+            signal_level_dbm=0,
+            frequency_mhz=0,
+            updated_ts=_ns(seconds=0),
+        ),
         controls=_ns(remote_sensor_control_mode=0),
     )
     ctrl = Controller.from_proto(proto)
@@ -590,6 +641,7 @@ def test_controller_no_wifi() -> None:
 
 
 # ─── QuiltSmartModule ────────────────────────────────────────────────────────
+
 
 def test_qsm_from_proto_with_sensors() -> None:
     proto = _ns(
@@ -619,7 +671,7 @@ def test_qsm_from_proto_with_sensors() -> None:
     assert qsm.hosted_wifi.ip == "192.168.1.50"
     assert qsm.hosted_wifi.signal_dbm == -55
     assert qsm.hosted_wifi.connected is True
-    assert qsm.ap_wifi is None    # empty ssid → None
+    assert qsm.ap_wifi is None  # empty ssid → None
     assert qsm.p2p_wifi is None
     assert qsm.sensors is not None
     assert qsm.sensors.phase_detected_raw == pytest.approx(0.12)
@@ -655,6 +707,7 @@ def test_qsm_from_proto_no_sensors() -> None:
 
 # ─── RemoteSensor ────────────────────────────────────────────────────────────
 
+
 def test_remote_sensor_from_proto() -> None:
     proto = _ns(
         header=_make_header("rs-1"),
@@ -683,8 +736,12 @@ def test_remote_sensor_missing_fields() -> None:
         relationships=_ns(indoor_unit_id="idu-1"),
         attributes=_ns(mac=""),
         controls=_ns(control_mode=0),
-        state=_ns(ambient_temperature_c=0.0, humidity_percent=0.0,
-                  battery_level_percent=0.0, signal_level_dbm=0),
+        state=_ns(
+            ambient_temperature_c=0.0,
+            humidity_percent=0.0,
+            battery_level_percent=0.0,
+            signal_level_dbm=0,
+        ),
     )
     rs = RemoteSensor.from_proto(proto)
     assert rs.mac is None
@@ -694,6 +751,7 @@ def test_remote_sensor_missing_fields() -> None:
 
 
 # ─── ScheduleDay / ScheduleWeek ─────────────────────────────────────────────
+
 
 def _make_event_proto(start_s: int, cs_id: str = "", hvac_mode: int = 0) -> SimpleNamespace:
     return _ns(
@@ -712,9 +770,9 @@ def test_schedule_day_from_proto_sorted() -> None:
         attributes=_ns(name="Weekday"),
         relationships=_ns(space_id="space-1"),
         events=[
-            _make_event_proto(64800),   # 18:00
-            _make_event_proto(25200),   # 07:00
-            _make_event_proto(32400),   # 09:00
+            _make_event_proto(64800),  # 18:00
+            _make_event_proto(25200),  # 07:00
+            _make_event_proto(32400),  # 09:00
         ],
     )
     day = ScheduleDay.from_proto(proto)
@@ -726,7 +784,7 @@ def test_schedule_day_from_proto_sorted() -> None:
 
 def test_schedule_event_start_time() -> None:
     ev = ScheduleEvent(
-        start_s=7 * 3600 + 30 * 60,   # 07:30
+        start_s=7 * 3600 + 30 * 60,  # 07:30
         comfort_setting_id="",
         hvac_mode=0,
         heating_setpoint_c=21.0,
@@ -756,6 +814,7 @@ def test_schedule_week_from_proto() -> None:
 
 # ─── Location ────────────────────────────────────────────────────────────────
 
+
 def test_location_from_proto_running() -> None:
     from quilt_hp._proto import quilt_hds_pb2 as hds
 
@@ -783,6 +842,7 @@ def test_location_from_proto_paused() -> None:
 
 
 # ─── SystemSnapshot ──────────────────────────────────────────────────────────
+
 
 def test_system_snapshot_rooms() -> None:
     """rooms property returns only leaf spaces."""

@@ -37,13 +37,13 @@ class QsmSensors:
     """Raw sensor data from the QSM (updated every few seconds)."""
 
     # Radar presence sensor (mm-wave)
-    phase_detected_raw: float    # phase-channel detection strength
-    target_detected_raw: float   # target-channel detection strength
+    phase_detected_raw: float  # phase-channel detection strength
+    target_detected_raw: float  # target-channel detection strength
 
     # Ambient light sensor
-    als_illuminance_raw: int     # broadband illuminance
-    als_ir_raw: int              # IR channel
-    als_both_raw: int            # combined
+    als_illuminance_raw: int  # broadband illuminance
+    als_ir_raw: int  # IR channel
+    als_both_raw: int  # combined
 
     # Accelerometer (detects unit orientation/tilt)
     accel_x_raw: int
@@ -59,9 +59,9 @@ class QuiltSmartModule:
     system_id: str
     led_color_code: int
     sensors: QsmSensors | None
-    hosted_wifi: WifiInfo | None   # normal station mode (connects to home network)
-    ap_wifi: WifiInfo | None       # access-point mode (direct device provisioning)
-    p2p_wifi: WifiInfo | None      # peer-to-peer / Wi-Fi Direct (usually empty)
+    hosted_wifi: WifiInfo | None  # normal station mode (connects to home network)
+    ap_wifi: WifiInfo | None  # access-point mode (direct device provisioning)
+    p2p_wifi: WifiInfo | None  # peer-to-peer / Wi-Fi Direct (usually empty)
     software_update_info_id: str | None = None
     firmware_update_info_id: str | None = None
 
@@ -69,7 +69,7 @@ class QuiltSmartModule:
     def from_proto(cls, proto: object) -> QuiltSmartModule:
         """Construct from a protobuf QuiltSmartModule message."""
         c = proto.controls  # type: ignore[attr-defined]
-        s = proto.state     # type: ignore[attr-defined]
+        s = proto.state  # type: ignore[attr-defined]
 
         sensors: QsmSensors | None = None
         if s.updated_ts:
@@ -94,8 +94,8 @@ class QuiltSmartModule:
             led_color_code=c.led_color_code,
             sensors=sensors,
             hosted_wifi=_wifi(proto.hosted_wifi_state),  # type: ignore[attr-defined]
-            ap_wifi=_wifi(proto.ap_wifi_state),           # type: ignore[attr-defined]
-            p2p_wifi=_wifi(proto.p2p_wifi_state),         # type: ignore[attr-defined]
+            ap_wifi=_wifi(proto.ap_wifi_state),  # type: ignore[attr-defined]
+            p2p_wifi=_wifi(proto.p2p_wifi_state),  # type: ignore[attr-defined]
             software_update_info_id=proto.relationships.software_update_info_id or None,  # type: ignore[attr-defined]
             firmware_update_info_id=proto.relationships.firmware_update_info_id or None,  # type: ignore[attr-defined]
         )

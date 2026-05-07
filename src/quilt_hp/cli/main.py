@@ -1,4 +1,5 @@
 """CLI entry point for quilt-hp-python."""
+
 from __future__ import annotations
 
 import asyncio
@@ -19,6 +20,7 @@ from quilt_hp.models.enums import HVACMode, HVACState
 app = typer.Typer(help="Quilt HVAC command-line interface.")
 console = Console()
 _store = FileStore()
+
 
 def _run(coro: object) -> object:
     return asyncio.run(coro)  # type: ignore[arg-type]
@@ -82,7 +84,9 @@ def login(
             otp = typer.prompt("Enter OTP code")
             await client.login(otp_callback=lambda _email: otp.strip())
             console.print("[green]✓ Successfully logged in![/green]")
+
     _run(_login())
+
 
 @app.command()
 def info(
@@ -121,7 +125,10 @@ def info(
                     telemetry_node.add(f"Humidity: {idu.state.ambient_humidity_percent:.0f}%")
                     telemetry_node.add(f"Mode/State: {mode} / {state}")
 
-                    if idu.performance_data and (idu.performance_data.coil_temperature_c or idu.performance_data.actual_fan_speed_rpm):
+                    if idu.performance_data and (
+                        idu.performance_data.coil_temperature_c
+                        or idu.performance_data.actual_fan_speed_rpm
+                    ):
                         pd = idu.performance_data
                         telemetry_node.add(f"Coil: {pd.coil_temperature_c:.1f}°C")
                         telemetry_node.add(f"Fan: {pd.actual_fan_speed_rpm:.0f} RPM")
@@ -131,10 +138,14 @@ def info(
             # Outdoor Units
             odu_node = tree.add("[bold]Outdoor Units[/bold]")
             for odu in snap.outdoor_units:
-                node = odu_node.add(f"[cyan]{odu.model_sku or 'ODU'}[/cyan] ({odu.serial_number or odu.id[:8]})")
+                node = odu_node.add(
+                    f"[cyan]{odu.model_sku or 'ODU'}[/cyan] ({odu.serial_number or odu.id[:8]})"
+                )
                 if odu.performance_data and odu.performance_data.compressor_frequency_hz:
                     pd = odu.performance_data
-                    node.add(f"Freq: {pd.compressor_frequency_hz}Hz, Coil: {pd.coil_temperature_c:.1f}°C, Amb: {pd.ambient_temperature_c:.1f}°C")
+                    node.add(
+                        f"Freq: {pd.compressor_frequency_hz}Hz, Coil: {pd.coil_temperature_c:.1f}°C, Amb: {pd.ambient_temperature_c:.1f}°C"
+                    )
 
             # Controllers
             ctrl_node = tree.add("[bold]Controllers (Dials)[/bold]")
@@ -142,10 +153,14 @@ def info(
                 node = ctrl_node.add(f"[cyan]{ctrl.name}[/cyan]")
                 node.add(f"Ambient: {ctrl.ambient_temperature_c:.1f}°C")
                 if ctrl.pcb_temperature_a_c:
-                    node.add(f"PCB-A: {ctrl.pcb_temperature_a_c:.1f}°C / PCB-B: {ctrl.pcb_temperature_b_c:.1f}°C")
+                    node.add(
+                        f"PCB-A: {ctrl.pcb_temperature_a_c:.1f}°C / PCB-B: {ctrl.pcb_temperature_b_c:.1f}°C"
+                    )
 
             console.print(tree)
+
     _run(_info())
+
 
 @app.command()
 def presets(
@@ -172,7 +187,9 @@ def presets(
                 console.print(f"\n  [cyan]{cs.name}[/cyan] ({cs.type.name})")
                 console.print(f"    Mode: {mode}  Heat: {heat}  Cool: {cool}  Fan: {fan}")
             console.print()
+
     _run(_presets())
+
 
 @app.command()
 def schedules(
@@ -213,7 +230,9 @@ def schedules(
                         name = cs.name if cs else "Unknown"
                         console.print(f"      {ev.start_time} → [cyan]{name}[/cyan]")
             console.print()
+
     _run(_schedules())
+
 
 @app.command()
 def energy(
@@ -257,7 +276,9 @@ def energy(
                 if total == 0:
                     continue
                 console.print(f"  {name:<22}  total={total:.3f} kWh")
+
     _run(_energy())
+
 
 @app.command(name="set")
 def set_space(
@@ -284,13 +305,12 @@ def set_space(
             hvac_mode = HVACMode[mode.upper()] if mode else None
 
             await client.set_space(
-                space.id,
-                mode=hvac_mode,
-                heat_setpoint_c=heat,
-                cool_setpoint_c=cool
+                space.id, mode=hvac_mode, heat_setpoint_c=heat, cool_setpoint_c=cool
             )
             console.print(f"[green]✓ Updated {space.name}[/green]")
+
     _run(_set())
+
 
 @app.command()
 def tui(
@@ -303,11 +323,14 @@ def tui(
     try:
         from quilt_hp.cli.tui import QuiltApp
     except ImportError:
-        console.print("[red]Textual not installed. Install with `pip install 'quilt-hp-python[cli]'`[/red]")
+        console.print(
+            "[red]Textual not installed. Install with `pip install 'quilt-hp-python[cli]'`[/red]"
+        )
         sys.exit(1)
 
     tui_app = QuiltApp(email=email, home=home)
     tui_app.run()
+
 
 if __name__ == "__main__":
     app()
