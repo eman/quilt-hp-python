@@ -9,6 +9,7 @@ Files
   tokens.json    Cached Cognito tokens, keyed by email
   settings.json  CLI/TUI user preferences (email, home, use_fahrenheit, dark)
 """
+
 from __future__ import annotations
 
 from pathlib import Path

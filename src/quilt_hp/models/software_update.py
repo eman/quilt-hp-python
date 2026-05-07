@@ -19,11 +19,13 @@ from enum import IntEnum
 
 class SoftwareUpdateState(IntEnum):
     """Update state values (field 2 in SoftwareUpdateInfoAttributes). TBD — values not confirmed."""
+
     UNKNOWN = 0
 
 
 class SoftwareUpdateStatus(IntEnum):
     """Update status values (field 3 in SoftwareUpdateInfoAttributes). TBD — values not confirmed."""
+
     UNKNOWN = 0
 
 

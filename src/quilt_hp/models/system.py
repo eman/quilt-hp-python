@@ -125,12 +125,19 @@ class SystemSnapshot:
         for i, s in enumerate(self.spaces):
             if s.id == space.id:
                 from dataclasses import replace
+
                 updates: dict[str, object] = {}
                 # state absent: ambient_temperature_c is None (set only when updated_ts present)
-                if space.state.ambient_temperature_c is None and s.state.ambient_temperature_c is not None:
+                if (
+                    space.state.ambient_temperature_c is None
+                    and s.state.ambient_temperature_c is not None
+                ):
                     updates["state"] = s.state
                 # controls absent: hvac_mode is UNSPECIFIED and existing mode is real
-                if space.controls.hvac_mode == HVACMode.UNSPECIFIED and s.controls.hvac_mode != HVACMode.UNSPECIFIED:
+                if (
+                    space.controls.hvac_mode == HVACMode.UNSPECIFIED
+                    and s.controls.hvac_mode != HVACMode.UNSPECIFIED
+                ):
                     updates["controls"] = s.controls
                 # settings absent: name is empty (settings.name is always non-empty in a real Space)
                 if not space.settings.name and s.settings.name:
@@ -158,6 +165,7 @@ class SystemSnapshot:
         for i, u in enumerate(self.indoor_units):
             if u.id == idu.id:
                 from dataclasses import replace
+
                 updates: dict[str, object] = {}
                 if idu.qsm_id is None and u.qsm_id:
                     updates["qsm_id"] = u.qsm_id
@@ -175,12 +183,14 @@ class SystemSnapshot:
                 # sent: led_color_code is non-zero, OR led_state is explicit ON/OFF, OR
                 # louver_mode is set.  Brightness alone is not a safe sentinel because when
                 # mobile_led_scheduling_enabled is on, brightness is preserved when LED is OFF.
-                if (idu.state.updated_at is not None
-                        and idu.controls.fan_speed_mode_raw == 0
-                        and idu.controls.louver_mode == LouverMode.UNSPECIFIED
-                        and idu.controls.led_color_code == 0
-                        and idu.controls.led_state == LightState.UNSPECIFIED
-                        and idu.controls.led_brightness == 0.0):
+                if (
+                    idu.state.updated_at is not None
+                    and idu.controls.fan_speed_mode_raw == 0
+                    and idu.controls.louver_mode == LouverMode.UNSPECIFIED
+                    and idu.controls.led_color_code == 0
+                    and idu.controls.led_state == LightState.UNSPECIFIED
+                    and idu.controls.led_brightness == 0.0
+                ):
                     updates["controls"] = u.controls
                 # | None sub-messages: absent from diff → parsed as None; preserve existing data
                 if idu.performance_data is None and u.performance_data is not None:
@@ -206,6 +216,7 @@ class SystemSnapshot:
         existing non-default values so a partial update doesn't erase them.
         """
         from dataclasses import replace
+
         for i, u in enumerate(self.outdoor_units):
             if u.id == odu.id:
                 # Preserve hvac_state when stream diff has a default-zero state
@@ -213,10 +224,12 @@ class SystemSnapshot:
                     odu = replace(odu, hvac_state=u.hvac_state)
                 # Preserve hardware info — stream diffs are parsed without hw_map
                 if odu.model_sku is None and u.model_sku is not None:
-                    odu = replace(odu,
-                                  model_sku=u.model_sku,
-                                  serial_number=u.serial_number,
-                                  firmware_version=u.firmware_version)
+                    odu = replace(
+                        odu,
+                        model_sku=u.model_sku,
+                        serial_number=u.serial_number,
+                        firmware_version=u.firmware_version,
+                    )
                 self.outdoor_units[i] = odu
                 return odu
         self.outdoor_units.append(odu)
@@ -231,6 +244,7 @@ class SystemSnapshot:
         initial snapshot load and is never in stream diffs; always preserve it.
         """
         from dataclasses import replace
+
         for i, c in enumerate(self.controllers):
             if c.id == ctrl.id:
                 updates: dict[str, object] = {}
@@ -246,7 +260,10 @@ class SystemSnapshot:
                     updates["ap_wifi"] = c.ap_wifi
                 if ctrl.p2p_wifi is None and c.p2p_wifi is not None:
                     updates["p2p_wifi"] = c.p2p_wifi
-                if ctrl.remote_sensor_mode == RemoteSensorControlMode.UNSPECIFIED and c.remote_sensor_mode != RemoteSensorControlMode.UNSPECIFIED:
+                if (
+                    ctrl.remote_sensor_mode == RemoteSensorControlMode.UNSPECIFIED
+                    and c.remote_sensor_mode != RemoteSensorControlMode.UNSPECIFIED
+                ):
                     updates["remote_sensor_mode"] = c.remote_sensor_mode
                 # Hardware fields are never in stream diffs — always preserve from snapshot
                 if ctrl.serial_number is None and c.serial_number is not None:
@@ -267,6 +284,7 @@ class SystemSnapshot:
         state sub-messages.  Preserve existing non-None values.
         """
         from dataclasses import replace
+
         for i, q in enumerate(self.quilt_smart_modules):
             if q.id == qsm.id:
                 updates: dict[str, object] = {}
@@ -293,11 +311,15 @@ class SystemSnapshot:
         omits state, zeroing all sensor readings.  Preserve existing non-None values.
         """
         from dataclasses import replace
+
         for i, r in enumerate(self.remote_sensors):
             if r.id == rs.id:
                 updates: dict[str, object] = {}
                 # controls absent: control_mode defaults to UNSPECIFIED
-                if rs.control_mode == RemoteSensorControlMode.UNSPECIFIED and r.control_mode != RemoteSensorControlMode.UNSPECIFIED:
+                if (
+                    rs.control_mode == RemoteSensorControlMode.UNSPECIFIED
+                    and r.control_mode != RemoteSensorControlMode.UNSPECIFIED
+                ):
                     updates["control_mode"] = r.control_mode
                 # state absent: all sensor readings become None
                 if rs.ambient_temperature_c is None and r.ambient_temperature_c is not None:
@@ -315,13 +337,19 @@ class SystemSnapshot:
         self.remote_sensors.append(rs)
         return rs
 
-    def apply_controller_remote_sensor(self, crs: ControllerRemoteSensor) -> ControllerRemoteSensor:
+    def apply_controller_remote_sensor(
+        self, crs: ControllerRemoteSensor
+    ) -> ControllerRemoteSensor:
         """Patch a stream-updated ControllerRemoteSensor into the snapshot (sparse-diff safe)."""
         from dataclasses import replace
+
         for i, r in enumerate(self.controller_remote_sensors):
             if r.id == crs.id:
                 updates: dict[str, object] = {}
-                if crs.control_mode == RemoteSensorControlMode.UNSPECIFIED and r.control_mode != RemoteSensorControlMode.UNSPECIFIED:
+                if (
+                    crs.control_mode == RemoteSensorControlMode.UNSPECIFIED
+                    and r.control_mode != RemoteSensorControlMode.UNSPECIFIED
+                ):
                     updates["control_mode"] = r.control_mode
                 if crs.ambient_temperature_c is None and r.ambient_temperature_c is not None:
                     updates["ambient_temperature_c"] = r.ambient_temperature_c
@@ -385,11 +413,10 @@ class SystemSnapshot:
         tz = locations[0].timezone if locations else None
 
         comfort_settings = [
-            ComfortSetting.from_proto(cs) for cs in proto.comfort_settings  # type: ignore[attr-defined]
+            ComfortSetting.from_proto(cs)
+            for cs in proto.comfort_settings  # type: ignore[attr-defined]
         ]
-        cs_type_by_id: dict[str, ComfortSettingType] = {
-            cs.id: cs.type for cs in comfort_settings
-        }
+        cs_type_by_id: dict[str, ComfortSettingType] = {cs.id: cs.type for cs in comfort_settings}
 
         spaces: list[Space] = []
         for s in proto.spaces:  # type: ignore[attr-defined]
@@ -404,13 +431,19 @@ class SystemSnapshot:
             indoor_units=[IndoorUnit.from_proto(u) for u in proto.indoor_units],  # type: ignore[attr-defined]
             outdoor_units=[OutdoorUnit.from_proto(u, odu_hw_map) for u in proto.outdoor_units],  # type: ignore[attr-defined]
             controllers=[Controller.from_proto(c, ctrl_hw_map) for c in proto.controllers],  # type: ignore[attr-defined]
-            quilt_smart_modules=[QuiltSmartModule.from_proto(q) for q in proto.quilt_smart_modules],  # type: ignore[attr-defined]
+            quilt_smart_modules=[
+                QuiltSmartModule.from_proto(q) for q in proto.quilt_smart_modules
+            ],  # type: ignore[attr-defined]
             comfort_settings=comfort_settings,
             schedule_weeks=[ScheduleWeek.from_proto(w) for w in proto.schedule_weeks],  # type: ignore[attr-defined]
             schedule_days=[ScheduleDay.from_proto(d) for d in proto.schedule_days],  # type: ignore[attr-defined]
             remote_sensors=[RemoteSensor.from_proto(rs) for rs in proto.remote_sensors],  # type: ignore[attr-defined]
-            controller_remote_sensors=[ControllerRemoteSensor.from_proto(crs) for crs in proto.controller_remote_sensors],  # type: ignore[attr-defined]
-            software_update_infos=[SoftwareUpdateInfo.from_proto(s) for s in proto.software_update_infos],  # type: ignore[attr-defined]
+            controller_remote_sensors=[
+                ControllerRemoteSensor.from_proto(crs) for crs in proto.controller_remote_sensors
+            ],  # type: ignore[attr-defined]
+            software_update_infos=[
+                SoftwareUpdateInfo.from_proto(s) for s in proto.software_update_infos
+            ],  # type: ignore[attr-defined]
             locations=locations,
             timezone=tz,
         )

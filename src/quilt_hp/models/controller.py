@@ -19,23 +19,29 @@ class Controller:
     system_id: str
     space_id: str
     name: str
-    raw_thermistor_c: float      # ambient_temperature_c — raw Dial thermistor; biased ~4–8°C high due to self-heating
-    pcb_temperature_a_c: float   # temperature_f3 — PCB temp A (~30–50°C)
-    pcb_temperature_b_c: float   # temperature_f4 — PCB temp B (hotter component, ~45–52°C)
-    calibrated_ambient_c: float  # temperature_f5 — calibrated ext amb sent to IDU (~16–20°C); use this for display
+    raw_thermistor_c: float  # ambient_temperature_c — raw Dial thermistor; biased ~4–8°C high due to self-heating
+    pcb_temperature_a_c: float  # temperature_f3 — PCB temp A (~30–50°C)
+    pcb_temperature_b_c: float  # temperature_f4 — PCB temp B (hotter component, ~45–52°C)
+    calibrated_ambient_c: (
+        float  # temperature_f5 — calibrated ext amb sent to IDU (~16–20°C); use this for display
+    )
     wifi_ssid: str | None
     wifi_ip: str | None
     wifi_signal_dbm: int | None
-    wifi_freq_mhz: int | None = None        # e.g. 5745 → 5 GHz; 2437 → 2.4 GHz
-    wifi_last_seen: datetime | None = None  # WifiState.updated_ts — when the dial last checked in over WiFi
-    ap_wifi: WifiInfo | None = None         # AP-mode interface (device provisioning)
-    p2p_wifi: WifiInfo | None = None        # peer-to-peer / Wi-Fi Direct
+    wifi_freq_mhz: int | None = None  # e.g. 5745 → 5 GHz; 2437 → 2.4 GHz
+    wifi_last_seen: datetime | None = (
+        None  # WifiState.updated_ts — when the dial last checked in over WiFi
+    )
+    ap_wifi: WifiInfo | None = None  # AP-mode interface (device provisioning)
+    p2p_wifi: WifiInfo | None = None  # peer-to-peer / Wi-Fi Direct
     remote_sensor_mode: RemoteSensorControlMode = RemoteSensorControlMode.UNSPECIFIED
     software_update_info_id: str | None = None
     firmware_update_info_id: str | None = None
-    serial_number: str | None = None        # ControllerHardware.attributes.serial_number (e.g. "QD1-1B001451S")
-    model_sku: str | None = None            # ControllerHardware.attributes.model_sku
-    firmware_version: str | None = None     # ControllerHardware.attributes.firmware_version
+    serial_number: str | None = (
+        None  # ControllerHardware.attributes.serial_number (e.g. "QD1-1B001451S")
+    )
+    model_sku: str | None = None  # ControllerHardware.attributes.model_sku
+    firmware_version: str | None = None  # ControllerHardware.attributes.firmware_version
     state_updated_at: datetime | None = None  # ControllerState.updated_ts (field 1)
 
     @property
@@ -119,7 +125,7 @@ class Controller:
             wifi_signal_dbm=w.signal_level_dbm or None,
             wifi_freq_mhz=w.frequency_mhz or None,
             wifi_last_seen=wifi_last_seen,
-            ap_wifi=_wifi(proto.ap_wifi_state),    # type: ignore[attr-defined]
+            ap_wifi=_wifi(proto.ap_wifi_state),  # type: ignore[attr-defined]
             p2p_wifi=_wifi(proto.p2p_wifi_state),  # type: ignore[attr-defined]
             remote_sensor_mode=RemoteSensorControlMode(proto.controls.remote_sensor_control_mode),  # type: ignore[attr-defined]
             software_update_info_id=proto.relationships.software_update_info_id or None,  # type: ignore[attr-defined]

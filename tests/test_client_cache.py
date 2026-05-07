@@ -28,6 +28,7 @@ from quilt_hp.models.system import Location, SystemSnapshot
 
 # ─── helpers ────────────────────────────────────────────────────────────────
 
+
 def _make_space(space_id: str = "space-1", name: str = "Room") -> Space:
     return Space(
         id=space_id,
@@ -103,7 +104,9 @@ def _make_idu(idu_id: str = "idu-1", space_id: str = "space-1") -> IndoorUnit:
     )
 
 
-def _make_snapshot(spaces: list[Space] | None = None, idus: list[IndoorUnit] | None = None) -> SystemSnapshot:
+def _make_snapshot(
+    spaces: list[Space] | None = None, idus: list[IndoorUnit] | None = None
+) -> SystemSnapshot:
     return SystemSnapshot(
         spaces=spaces or [_make_space()],
         indoor_units=idus or [_make_idu()],
@@ -116,7 +119,15 @@ def _make_snapshot(spaces: list[Space] | None = None, idus: list[IndoorUnit] | N
         remote_sensors=[],
         controller_remote_sensors=[],
         software_update_infos=[],
-        locations=[Location(id="loc-1", name="", system_id="sys-1", timezone="America/LA", schedule_paused=False)],
+        locations=[
+            Location(
+                id="loc-1",
+                name="",
+                system_id="sys-1",
+                timezone="America/LA",
+                schedule_paused=False,
+            )
+        ],
         timezone="America/LA",
     )
 
@@ -134,6 +145,7 @@ def _make_client(ttl: float = 0) -> tuple[QuiltClient, AsyncMock]:
 
 
 # ─── snapshot caching ────────────────────────────────────────────────────────
+
 
 @pytest.mark.asyncio
 async def test_snapshot_no_cache_calls_service_each_time() -> None:
@@ -208,6 +220,7 @@ async def test_snapshot_explicit_system_id_bypasses_cache() -> None:
 
 # ─── set_space: object vs string ────────────────────────────────────────────
 
+
 @pytest.mark.asyncio
 async def test_set_space_with_object_no_snapshot_fetch() -> None:
     """Passing a Space object directly skips snapshot fetch."""
@@ -254,6 +267,7 @@ async def test_set_space_unknown_id_raises() -> None:
 
 # ─── set_indoor_unit: object vs string ──────────────────────────────────────
 
+
 @pytest.mark.asyncio
 async def test_set_idu_with_object_no_snapshot_fetch() -> None:
     client, mock_hds = _make_client()
@@ -294,6 +308,7 @@ async def test_set_idu_unknown_id_raises() -> None:
 
 # ─── set_schedule_execution ─────────────────────────────────────────────────
 
+
 @pytest.mark.asyncio
 async def test_set_schedule_execution_uses_primary_location() -> None:
     client, mock_hds = _make_client(ttl=60)
@@ -326,6 +341,7 @@ async def test_set_schedule_execution_no_location_raises() -> None:
 
 # ─── get_system_id caching ───────────────────────────────────────────────────
 
+
 @pytest.mark.asyncio
 async def test_get_system_id_caches() -> None:
     from quilt_hp.models.system import SystemInfo
@@ -334,9 +350,9 @@ async def test_get_system_id_caches() -> None:
     client._system_id = None  # reset cache
 
     mock_sysinfo = MagicMock()
-    mock_sysinfo.list_systems = AsyncMock(return_value=[
-        SystemInfo(id="sys-1", name="Home", timezone="UTC")
-    ])
+    mock_sysinfo.list_systems = AsyncMock(
+        return_value=[SystemInfo(id="sys-1", name="Home", timezone="UTC")]
+    )
     client._sysinfo = mock_sysinfo
 
     sid1 = await client.get_system_id()
@@ -356,10 +372,12 @@ async def test_get_system_id_home_filter() -> None:
     client._home = "vacation"
 
     mock_sysinfo = MagicMock()
-    mock_sysinfo.list_systems = AsyncMock(return_value=[
-        SystemInfo(id="sys-1", name="Home", timezone="UTC"),
-        SystemInfo(id="sys-2", name="Vacation Cabin", timezone="UTC"),
-    ])
+    mock_sysinfo.list_systems = AsyncMock(
+        return_value=[
+            SystemInfo(id="sys-1", name="Home", timezone="UTC"),
+            SystemInfo(id="sys-2", name="Vacation Cabin", timezone="UTC"),
+        ]
+    )
     client._sysinfo = mock_sysinfo
 
     sid = await client.get_system_id()

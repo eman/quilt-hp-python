@@ -330,7 +330,6 @@ class QuiltClient:
             light_brightness_default=light_brightness_default,
         )
 
-
     async def list_comfort_settings(self) -> list[ComfortSetting]:
         """List all comfort presets."""
         snapshot = await self.get_snapshot()
