@@ -30,7 +30,7 @@ Textual event loop
 """
 quilt-tui — real-time HVAC dashboard using Textual.
 
-Install: pip install quilt-hp textual
+Install: pip install 'quilt-hp-python[cli]' textual
 Run:     QUILT_EMAIL=you@example.com python quilt_tui.py
 """
 from __future__ import annotations
