@@ -1,6 +1,6 @@
 # QuiltClient reference
 
-Complete reference for the `quilt_hp` package — all public exports, the `QuiltClient` constructor, and every method with full signatures, parameters, return types, and exceptions.
+Complete reference for the `quilt_hp` package, including all public exports, the `QuiltClient` constructor, and every method with full signatures, parameters, return types, and exceptions.
 
 ---
 
@@ -97,7 +97,7 @@ The primary user-facing class. Manages authentication, the gRPC channel lifecycl
 
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
-| `email` | `str` | — | Quilt account email address. Used as the Cognito username and as the token store key. |
+| `email` | `str` | required | Quilt account email address. Used as the Cognito username and as the token store key. |
 | `home` | `str \| None` | `None` | Home name filter (substring match, case-insensitive) for multi-home accounts. When omitted, the first system returned by `ListSystems` is used. |
 | `environment` | `Environment` | `PROD` | Which Quilt API environment to connect to. |
 | `snapshot_ttl_s` | `float` | `0` | If > 0, `get_snapshot()` results are cached for this many seconds. `0` disables caching. |
@@ -129,7 +129,7 @@ Authenticates using the three-step token resolution: cache → refresh → OTP.
 If cached tokens are valid, returns immediately. If the cached access token is expired but the refresh token is valid, performs a silent `REFRESH_TOKEN_AUTH`. Calls `otp_callback` only when no valid cached or refresh token exists.
 
 **Parameters:**
-- `otp_callback` — `(email: str) -> str | Awaitable[str]`. Required when no valid cached token exists; pass `None` only when tokens are guaranteed to be cached.
+- `otp_callback`: `(email: str) -> str | Awaitable[str]`. Required when no valid cached token exists; pass `None` only when tokens are guaranteed to be cached.
 
 **Raises:** `QuiltAuthError` if authentication fails.
 
@@ -191,7 +191,7 @@ async def get_snapshot(self, system_id: str | None = None) -> SystemSnapshot
 Fetches the complete system state as a `SystemSnapshot`.
 
 **Parameters:**
-- `system_id` — explicit system ID to query. When `None` (default), uses `get_system_id()`. Passing `system_id` bypasses the cache.
+- `system_id`: explicit system ID to query. When `None` (default), uses `get_system_id()`. Passing `system_id` bypasses the cache.
 
 **Raises:** `QuiltNotFoundError` if the system ID is not found. `QuiltError` for other gRPC failures.
 
@@ -235,10 +235,10 @@ async def set_space(
 Updates a space's HVAC mode and/or temperature setpoints.
 
 **Parameters:**
-- `space` — `Space` object (no snapshot lookup) or space ID string (snapshot fetched internally).
-- `mode` — `HVACMode.STANDBY`, `COOL`, `HEAT`, `AUTO`, or `FAN`. Defaults to current mode.
-- `heat_setpoint_c` — heating setpoint in °C. Defaults to current.
-- `cool_setpoint_c` — cooling setpoint in °C. Defaults to current.
+- `space`: `Space` object (no snapshot lookup) or space ID string (snapshot fetched internally).
+- `mode`: `HVACMode.STANDBY`, `COOL`, `HEAT`, `AUTO`, or `FAN`. Defaults to current mode.
+- `heat_setpoint_c`: heating setpoint in °C. Defaults to current.
+- `cool_setpoint_c`: cooling setpoint in °C. Defaults to current.
 
 **Behavioural notes:**
 - `mode=STANDBY` clears `comfort_setting_id`; the room stays off regardless of occupancy.
@@ -265,9 +265,9 @@ async def set_space_settings(
 Updates occupancy automation timeouts.
 
 **Parameters:**
-- `space` — `Space` object or space ID string.
-- `unoccupied_timeout_s` — seconds of no-presence before auto-away.
-- `occupied_timeout_s` — seconds of presence before auto-return.
+- `space`: `Space` object or space ID string.
+- `unoccupied_timeout_s`: seconds of no-presence before auto-away.
+- `occupied_timeout_s`: seconds of presence before auto-return.
 
 **Returns:** Updated `Space`.
 
@@ -304,13 +304,13 @@ async def set_indoor_unit(
 Updates indoor unit controls.
 
 **Parameters:**
-- `idu` — `IndoorUnit` object or IDU ID string.
-- `fan_speed` — `FanSpeed.AUTO`, `QUIET`, `LOW`, `MEDIUM`, `HIGH`, or `BLAST`.
-- `louver_mode` — `LouverMode.CLOSED`, `SWEEP`, `FIXED`, or `AUTO`.
-- `louver_position` — position 0.0–1.0 when `louver_mode=FIXED`.
-- `led_color_code` — RGBW packed int32. Use `LightPreset` constants or compute manually.
-- `led_brightness` — brightness 0.0–1.0.
-- `led_animation` — animation ID (`LedAnimation` enum values).
+- `idu`: `IndoorUnit` object or IDU ID string.
+- `fan_speed`: `FanSpeed.AUTO`, `QUIET`, `LOW`, `MEDIUM`, `HIGH`, or `BLAST`.
+- `louver_mode`: `LouverMode.CLOSED`, `SWEEP`, `FIXED`, or `AUTO`.
+- `louver_position`: position 0.0–1.0 when `louver_mode=FIXED`.
+- `led_color_code`: RGBW packed int32. Use `LightPreset` constants or compute manually.
+- `led_brightness`: brightness 0.0–1.0.
+- `led_animation`: animation ID (`LedAnimation` enum values).
 
 **Returns:** Updated `IndoorUnit`.
 
@@ -334,11 +334,11 @@ async def set_indoor_unit_settings(
 Updates indoor unit calibration settings.
 
 **Parameters:**
-- `fence_left_m` — left boundary of presence detection zone in metres (0 = unconfigured/max range).
-- `fence_right_m` — right boundary.
-- `fence_forward_m` — forward (depth) boundary.
-- `radar_height_m` — radar sensor mounting height from floor in metres.
-- `light_brightness_default` — default LED brightness 0.0–1.0.
+- `fence_left_m`: left boundary of presence detection zone in metres (0 = unconfigured/max range).
+- `fence_right_m`: right boundary.
+- `fence_forward_m`: forward (depth) boundary.
+- `radar_height_m`: radar sensor mounting height from floor in metres.
+- `light_brightness_default`: default LED brightness 0.0–1.0.
 
 **Returns:** Updated `IndoorUnit`.
 
@@ -485,8 +485,8 @@ async def get_energy(
 Returns hourly energy consumption for all spaces.
 
 **Parameters:**
-- `start`, `end` — timezone-aware `datetime` objects.
-- `system_id` — explicit system ID; defaults to the primary system.
+- `start`, `end`: Timezone-aware `datetime` objects.
+- `system_id`: explicit system ID; defaults to the primary system.
 
 **Returns:** List of `SpaceEnergyMetrics`, each with `space_id` and a list of `EnergyBucket` objects (each with `start_time`, `energy_kwh`, `status`).
 
@@ -506,12 +506,12 @@ def stream(
 ) -> NotifierStream
 ```
 
-Creates a `NotifierStream`. Does not start the stream — call `start()`, `run_forever()`, or use as an async context manager.
+Creates a `NotifierStream`. It does not start the stream; call `start()`, `run_forever()`, or use it as an async context manager.
 
 **Parameters:**
-- `topics` — topic strings. Use `snapshot.stream_topics()` to get all topics for a system.
-- `max_reconnects` — maximum reconnect attempts per disconnect. `-1` = unlimited (default). `0` = no retries.
-- `reconnect_delay_s` — initial back-off in seconds. Doubles on each attempt, capped at 60 s.
+- `topics`: topic strings. Use `snapshot.stream_topics()` to get all topics for a system.
+- `max_reconnects`: maximum reconnect attempts per disconnect. `-1` = unlimited (default). `0` = no retries.
+- `reconnect_delay_s`: initial back-off in seconds. Doubles on each attempt, capped at 60 s.
 
 **Returns:** `NotifierStream` instance.
 

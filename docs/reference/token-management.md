@@ -1,13 +1,13 @@
 # Token management reference
 
-This page is a complete reference for the token system: data types, store protocols, refresh hooks and policies, and how to implement custom token persistence.
+This page is a complete reference for the token system: data types, store protocols, refresh hooks and policies, and custom token persistence.
 
 ## Overview
 
 Authentication uses AWS Cognito. After a successful login, the library holds two tokens:
 
-- **IdToken** — a short-lived JWT (typically ~1 hour) sent as the `authorization` header on every gRPC call.
-- **RefreshToken** — a long-lived token (weeks to months) used to silently renew the IdToken without user interaction.
+- **IdToken**: A short-lived JWT (typically about 1 hour) sent as the `authorization` header on every gRPC call.
+- **RefreshToken**: A long-lived token (weeks to months) used to renew the IdToken without user interaction.
 
 The library never stores tokens globally. They live on the `QuiltClient` instance (`self._token`) and optionally in a `TokenStore` for persistence across processes. The `FileStore` in `quilt_hp.cli.store` is the CLI's implementation, but you can provide any store that implements the protocol.
 
@@ -170,7 +170,7 @@ class TokenRefreshHooks(Protocol):
         ...
 ```
 
-Hooks are called in `authenticate()` during the refresh path. They are useful for logging, metrics, and updating secondary caches. Hook failures are not caught — if a hook raises, the exception propagates.
+Hooks are called in `authenticate()` during the refresh path. They are useful for logging, metrics, and updating secondary caches. Hook failures are not caught, so if a hook raises, the exception propagates.
 
 ---
 
@@ -187,8 +187,8 @@ class TokenRefreshPolicy(Protocol):
 
 The policy is consulted after `TokenRefreshHooks.on_refresh_failure`. The return value determines what happens next:
 
-- `RefreshFailureAction.FALLBACK_TO_OTP` — fall through to the OTP login flow. This is the default when no policy is configured. Not useful in daemon contexts where there is no OTP prompt.
-- `RefreshFailureAction.RAISE` — re-raise the refresh error immediately without attempting OTP.
+- `RefreshFailureAction.FALLBACK_TO_OTP`: Falls through to the OTP login flow. This is the default when no policy is configured, and it is not useful in daemon contexts where there is no OTP prompt.
+- `RefreshFailureAction.RAISE`: Re-raises the refresh error immediately without attempting OTP.
 
 ---
 
@@ -204,9 +204,9 @@ class TokenRefreshContext:
 
 Context object passed to refresh hooks and the refresh callback. Fields:
 
-- `reason` — why the refresh is happening (see below).
-- `source` — module/location that triggered the refresh (e.g. `"authenticate"`, `"transport"`, `"streaming"`).
-- `attempt` — which attempt this is (starts at 1).
+- `reason`: Why the refresh is happening (see below).
+- `source`: Module or location that triggered the refresh (for example, `"authenticate"`, `"transport"`, `"streaming"`).
+- `attempt`: Which attempt this is, starting at 1.
 
 ---
 
@@ -219,9 +219,9 @@ class TokenRefreshReason(StrEnum):
     STREAM_UNAUTHENTICATED = "stream_unauthenticated"
 ```
 
-- `EXPIRED_CACHED_TOKEN` — the cached token expired; `authenticate()` is performing a proactive refresh.
-- `TRANSPORT_UNAUTHENTICATED` — the gRPC transport interceptor received `UNAUTHENTICATED` on a unary RPC.
-- `STREAM_UNAUTHENTICATED` — the `NotifierStream` received `UNAUTHENTICATED` and is refreshing before reconnecting.
+- `EXPIRED_CACHED_TOKEN`: The cached token expired, so `authenticate()` is performing a proactive refresh.
+- `TRANSPORT_UNAUTHENTICATED`: The gRPC transport interceptor received `UNAUTHENTICATED` on a unary RPC.
+- `STREAM_UNAUTHENTICATED`: The `NotifierStream` received `UNAUTHENTICATED` and is refreshing before reconnecting.
 
 ---
 

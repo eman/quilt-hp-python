@@ -1,6 +1,6 @@
 # Contribute to the project
 
-This guide covers how to set up a development environment, run the check suite, submit a pull request, and keep documentation in sync with code changes.
+Use this guide to set up a development environment, run the check suite, submit a pull request, and keep documentation in sync with code changes.
 
 ---
 
@@ -58,7 +58,7 @@ Run them in this order. Fix linter and type errors before running tests, and run
 
 2. Make your changes. Add or update tests as appropriate.
 
-3. Run the full check suite (see above). All five gates must pass.
+3. Run the full check suite (see above). All four checks must pass.
 
 4. Commit with a descriptive message (present-tense imperative, under 72 characters):
 

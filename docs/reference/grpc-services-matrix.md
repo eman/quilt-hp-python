@@ -18,7 +18,7 @@ Defined in `quilt_hds.proto`. Package: `core.protos.home_datastore`.
 | `CreateScheduleWeek` | `CreateScheduleWeekRequest` | `ScheduleWeek` | `HomeDatastoreService.create_schedule_week()` → `ScheduleWeek` |
 | `UpdateScheduleWeek` | `UpdateScheduleWeekRequest` | `ScheduleWeek` | `HomeDatastoreService.update_schedule_week()` → `ScheduleWeek` |
 | `DeleteScheduleWeek` | `DeleteScheduleWeekRequest` | `Empty` | `HomeDatastoreService.delete_schedule_week()` |
-| `UpdateLocation` | `UpdateLocationRequest` | `Location` | `HomeDatastoreService.update_location_schedule_execution()` — pauses/resumes schedules |
+| `UpdateLocation` | `UpdateLocationRequest` | `Location` | `HomeDatastoreService.update_location_schedule_execution()`; pauses/resumes schedules |
 
 ## SystemInformationService
 
@@ -47,7 +47,7 @@ Defined in `quilt_notifier.proto`. Package: `core.protos.notifier`.
 
 | Method | Request | Response | Stream type | Library wrapper |
 | --- | --- | --- | --- | --- |
-| `Subscribe` | `stream SubscribeRequest` | `stream SubscribeResponse` | Bidirectional | `NotifierStream` — full lifecycle management |
+| `Subscribe` | `stream SubscribeRequest` | `stream SubscribeResponse` | Bidirectional | `NotifierStream`; full lifecycle management |
 
 ## InvitationService
 

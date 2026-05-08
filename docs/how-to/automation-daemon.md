@@ -1,6 +1,6 @@
 # Build an automation daemon
 
-This guide shows how to build a production-quality Python daemon that runs continuously, handles reconnection automatically, responds to HVAC events with custom logic, and shuts down cleanly.
+This guide shows how to build a long-running Python daemon that reconnects automatically, responds to HVAC events with custom logic, and shuts down cleanly.
 
 ---
 
@@ -204,7 +204,7 @@ async with stream:
 
 ## Handle token expiry in long-running daemons
 
-To ensure the daemon crashes (and systemd restarts it) on token refresh failure rather than hanging on an OTP prompt:
+To make sure the daemon crashes, so systemd can restart it, instead of hanging on an OTP prompt after a token refresh failure:
 
 ```python
 from quilt_hp.tokens import TokenRefreshPolicy, TokenRefreshContext, RefreshFailureAction

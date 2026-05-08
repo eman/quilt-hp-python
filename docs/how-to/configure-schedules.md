@@ -114,4 +114,4 @@ To resume:
 await client.set_schedule_execution(paused=False)
 ```
 
-This is a global switch — it affects all schedule weeks across all spaces in the system. The current pause state is available as `snapshot.schedule_paused`.
+This is a global switch. It affects all schedule weeks across all spaces in the system. The current pause state is available as `snapshot.schedule_paused`.

@@ -1,14 +1,14 @@
 # HDS entities and field semantics
 
-The Home Datastore (HDS) manages all entities that make up a Quilt installation. This page documents the key entity types, their important fields, how they map to Python model classes, and any behavioural semantics that are not obvious from field names alone.
+The Home Datastore (HDS) manages all entities that make up a Quilt installation. This page documents the main entity types, their important fields, how they map to Python model classes, and any behavioural semantics that are not obvious from field names alone.
 
 ## Space
 
-A Space is a zone within a Quilt installation — typically a room. Spaces are hierarchical: there is a root "home" space (no parent) and leaf room spaces (each with a `parent_space_id`). Most operations work with leaf spaces only. `Space.is_room` returns `True` for leaf spaces.
+A Space is a zone within a Quilt installation, typically a room. Spaces are hierarchical: there is a root "home" space (no parent) and leaf room spaces (each with a `parent_space_id`). Most operations work with leaf spaces only. `Space.is_room` returns `True` for leaf spaces.
 
 **Python model**: `quilt_hp.models.space.Space`
 
-### Key fields
+### Fields
 
 | Field | Type | Meaning |
 | --- | --- | --- |
@@ -30,23 +30,23 @@ A Space is a zone within a Quilt installation — typically a room. Spaces are h
 
 ### Behavioural semantics
 
-**STANDBY vs. AWAY**: Setting `hvac_mode=STANDBY` via `UpdateSpace` puts the room into plain off mode — it will stay off regardless of occupancy. This is implemented by clearing `comfort_setting_id` (sending an empty string) in the wire diff. In contrast, AWAY mode is managed by the server's occupancy logic and preserves the active comfort setting ID. `Space.is_off` returns `True` for explicit STANDBY, `Space.is_away` returns `True` when the AWAY comfort preset is active.
+**STANDBY vs. AWAY**: Setting `hvac_mode=STANDBY` via `UpdateSpace` puts the room into plain off mode. It stays off regardless of occupancy. This is implemented by clearing `comfort_setting_id` (sending an empty string) in the wire diff. In contrast, AWAY mode is managed by the server's occupancy logic and preserves the active comfort setting ID. `Space.is_off` returns `True` for explicit STANDBY, `Space.is_away` returns `True` when the AWAY comfort preset is active.
 
-**UpdateSpace requires echoing settings fields**: When calling `UpdateSpace` with a `settings` block, all existing settings fields must be echoed back (name, timezone, occupancy mode, timeouts, safety heating). The server replaces the entire `settings` sub-message — absent fields are cleared to their proto3 defaults. This is why `HomeDatastoreService.update_space_settings()` reads all current settings from the `snapshot_space` parameter before building the diff.
+**UpdateSpace requires echoing settings fields**: When calling `UpdateSpace` with a `settings` block, all existing settings fields must be echoed back (name, timezone, occupancy mode, timeouts, safety heating). The server replaces the entire `settings` sub-message, so absent fields are cleared to their proto3 defaults. This is why `HomeDatastoreService.update_space_settings()` reads all current settings from the `snapshot_space` parameter before building the diff.
 
 **AUTO mode gap enforcement**: When mode is `AUTO`, the library enforces a minimum 2.5°C gap between heating and cooling setpoints: `cool = max(cool, heat + 2.5)`. This matches the Quilt mobile app behaviour.
 
-**Temperature setpoint routing**: The wire `temperature_setpoint_c` field is the "mode-relevant" setpoint — the heating setpoint when mode is HEAT, and the cooling setpoint otherwise. Both `heating_temperature_setpoint_c` and `cooling_temperature_setpoint_c` are always sent.
+**Temperature setpoint routing**: The wire `temperature_setpoint_c` field is the "mode-relevant" setpoint. It is the heating setpoint when mode is HEAT and the cooling setpoint otherwise. Both `heating_temperature_setpoint_c` and `cooling_temperature_setpoint_c` are always sent.
 
 ---
 
 ## IndoorUnit
 
-An IndoorUnit is a wall-mounted mini-split head unit (7⅞ in tall × 38¼ in wide × 8³⁄₁₆ in deep — one of the slimmest heads on the market). Each IDU is rated at 9,000 BTU and operates between 27–48 dBA. It belongs to exactly one Space and one OutdoorUnit. IDUs contain a QuiltSmartModule (the connectivity and radar hardware) and have multiple sub-messages covering controls, state, settings, performance metrics, presence detection, and fault conditions.
+An IndoorUnit is a wall-mounted mini-split head unit (7⅞ in tall × 38¼ in wide × 8³⁄₁₆ in deep). It is one of the slimmest heads on the market. Each IDU is rated at 9,000 BTU and operates between 27–48 dBA. It belongs to exactly one Space and one OutdoorUnit. IDUs contain a QuiltSmartModule (the connectivity and radar hardware) and have multiple sub-messages covering controls, state, settings, performance metrics, presence detection, and fault conditions.
 
 **Python model**: `quilt_hp.models.indoor_unit.IndoorUnit`
 
-### Key fields
+### Fields
 
 | Field | Type | Meaning |
 | --- | --- | --- |
@@ -95,7 +95,7 @@ LED state can be expressed two ways depending on whether the `mobile_led_schedul
 
 ## OutdoorUnit
 
-The variable-speed compressor unit that provides heating and cooling capacity to all connected IDUs. Quilt sells two configurations: a 2-zone model (`QO1-M2Z18-NC-NA`, up to 18,000 BTU/h heating) and a 3-zone model (`QO1-M3Z27-NC-NA`, larger capacity). Both use R32 refrigerant and can operate down to -13°F while maintaining ~90% capacity. Hardware information (model SKU, serial number, firmware) comes from the `outdoor_unit_hardware` lookup map in the snapshot proto — it is not embedded in the main `outdoor_units` list. `SystemSnapshot.from_proto()` resolves this by building a hardware map.
+The variable-speed compressor unit that provides heating and cooling capacity to all connected IDUs. Quilt sells two configurations: a 2-zone model (`QO1-M2Z18-NC-NA`, up to 18,000 BTU/h heating) and a 3-zone model (`QO1-M3Z27-NC-NA`, larger capacity). Both use R32 refrigerant and can operate down to -13°F while maintaining about 90% capacity. Hardware information (model SKU, serial number, firmware) comes from the `outdoor_unit_hardware` lookup map in the snapshot proto. It is not embedded in the main `outdoor_units` list. `SystemSnapshot.from_proto()` resolves this by building a hardware map.
 
 **Python model**: `quilt_hp.models.outdoor_unit.OutdoorUnit`
 
@@ -115,7 +115,7 @@ The variable-speed compressor unit that provides heating and cooling capacity to
 
 ## Controller
 
-The Quilt Dial — a compact circular thermostat (58 mm diameter) that can be wall-mounted or placed on a tabletop. It has a high-res OLED touchscreen, a rotary dial, and built-in sensors for ambient temperature, motion, and proximity. Each Controller is associated with one Space and reports its own ambient temperature independently of the IDU. The Dial is also the primary local control surface for room-by-room and whole-home adjustments.
+The Quilt Dial is a compact circular thermostat (58 mm diameter) that can be wall-mounted or placed on a tabletop. It has a high-res OLED touchscreen, a rotary dial, and built-in sensors for ambient temperature, motion, and proximity. Each Controller is associated with one Space and reports its own ambient temperature independently of the IDU. The Dial is also the primary local control surface for room-by-room and whole-home adjustments.
 
 **Python model**: `quilt_hp.models.controller.Controller`
 
@@ -152,7 +152,7 @@ The intelligent compute and sensor module embedded inside each Indoor Unit. It r
 | `sensors.accel_y_raw` | `float \| None` | Accelerometer Y axis |
 | `sensors.accel_z_raw` | `float \| None` | Accelerometer Z axis |
 
-The radar distinguishes between `phase_detected` (movement) and `target_detected` (presence including stationary humans up to 15 ft / 4.6 m away). This is what enables Auto-Away to correctly detect a person sitting still reading a book — unlike PIR-based sensors that only respond to movement.
+The radar distinguishes between `phase_detected` (movement) and `target_detected` (presence including stationary humans up to 15 ft / 4.6 m away). That lets Auto-Away detect a person sitting still and reading a book, unlike PIR-based sensors that only respond to movement.
 
 ---
 
@@ -165,7 +165,7 @@ Both report:
 - `humidity_percent`
 - `battery_level_percent`
 - `signal_level_dbm`
-- `control_mode` — whether this sensor is used as the zone temperature source
+- `control_mode`: Whether this sensor is used as the zone temperature source
 
 **Python models**: `quilt_hp.models.sensor.RemoteSensor`, `ControllerRemoteSensor`
 
@@ -177,7 +177,7 @@ A named comfort preset that can be assigned to a space or used in a schedule. Ea
 
 **Python model**: `quilt_hp.models.comfort.ComfortSetting`
 
-### Key fields
+### Fields
 
 | Field | Type | Meaning |
 | --- | --- | --- |
@@ -195,15 +195,15 @@ A named comfort preset that can be assigned to a space or used in a schedule. Ea
 
 ## ScheduleDay
 
-A schedule day program — a named set of time-based events that set comfort presets and HVAC behaviour throughout the day. Each event specifies a `start_s` (seconds since midnight), an optional `comfort_setting_id`, and explicit `hvac_mode`, `heating_temperature_setpoint_c`, `cooling_temperature_setpoint_c`.
+A schedule day program is a named set of time-based events that set comfort presets and HVAC behaviour throughout the day. Each event specifies a `start_s` (seconds since midnight), an optional `comfort_setting_id`, and explicit `hvac_mode`, `heating_temperature_setpoint_c`, `cooling_temperature_setpoint_c`.
 
 **Python model**: `quilt_hp.models.schedule.ScheduleDay`
 
-Key fields of `ScheduleEvent`:
-- `start_s` — offset in seconds from midnight when this event starts.
-- `comfort_setting_id` — the comfort preset to activate (can be empty for explicit setpoints).
-- `hvac_mode`, `heating_setpoint_c`, `cooling_setpoint_c` — direct setpoint override.
-- `precondition` — whether to pre-condition the space before the event time.
+Fields of `ScheduleEvent`:
+- `start_s`: Offset in seconds from midnight when this event starts.
+- `comfort_setting_id`: The comfort preset to activate (can be empty for explicit setpoints).
+- `hvac_mode`, `heating_setpoint_c`, `cooling_setpoint_c`: Direct setpoint override.
+- `precondition`: Whether to pre-condition the space before the event time.
 
 ---
 

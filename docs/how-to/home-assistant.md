@@ -1,6 +1,6 @@
 # Build a Home Assistant custom component
 
-This guide walks through building a Home Assistant custom component that exposes Quilt rooms as `climate` entities with real-time updates via the streaming API.
+This guide shows how to build a Home Assistant custom component that exposes Quilt rooms as `climate` entities with real-time updates through the streaming API.
 
 ---
 
@@ -8,8 +8,8 @@ This guide walks through building a Home Assistant custom component that exposes
 
 A Quilt HA component uses two parts:
 
-1. **`DataUpdateCoordinator`** — manages the `QuiltClient` connection, holds the `SystemSnapshot`, and drives entity updates.
-2. **Entity classes** — translate `Space` and `IndoorUnit` models into HA platform abstractions.
+1. **`DataUpdateCoordinator`**: Manages the `QuiltClient` connection, holds the `SystemSnapshot`, and drives entity updates.
+2. **Entity classes**: Translate `Space` and `IndoorUnit` models into Home Assistant platform abstractions.
 
 The coordinator uses an initial snapshot fetch on `async_setup_entry`, then a `NotifierStream` for real-time diffs. Polling is configured as a long-TTL fallback only.
 
@@ -24,7 +24,7 @@ HA event loop
 
 ---
 
-## Step 1 — Implement the token store
+## Step 1: Implement the token store
 
 To use HA's persistent JSON storage for tokens:
 
@@ -74,7 +74,7 @@ For the `TokenStore` protocol definition, see [Token management reference](../re
 
 ---
 
-## Step 2 — Build the coordinator
+## Step 2: Build the coordinator
 
 ```python
 from __future__ import annotations
@@ -140,7 +140,7 @@ class QuiltCoordinator(DataUpdateCoordinator[SystemSnapshot]):
 
 ---
 
-## Step 3 — Create the climate entity
+## Step 3: Create the climate entity
 
 ```python
 from homeassistant.components.climate import (
@@ -226,7 +226,7 @@ class QuiltClimateEntity(ClimateEntity):
 
 ---
 
-## Step 4 — Create a temperature sensor entity
+## Step 4: Create a temperature sensor entity
 
 ```python
 from homeassistant.components.sensor import SensorEntity, SensorDeviceClass
@@ -264,7 +264,7 @@ class QuiltIndoorTempSensor(SensorEntity):
 
 ---
 
-## Step 5 — Wire up the integration entry point
+## Step 5: Wire up the integration entry point
 
 ```python
 async def async_setup_entry(hass, entry):

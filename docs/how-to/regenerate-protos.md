@@ -8,14 +8,14 @@ For background on why the stubs are vendored and what the script does internally
 
 ## When to regenerate
 
-Regenerate the stubs whenever you change a `.proto` file in `proto/cleaned/`. Changes that require regeneration include:
+Regenerate the stubs whenever you change a `.proto` file in `proto/cleaned/`. Regenerate the stubs for changes such as:
 
 - Adding, removing, or renaming an RPC method
 - Adding, removing, or renaming a message field
 - Adding a new `.proto` file
 - Changing a field type or `oneof` grouping
 
-Do not regenerate just for comment or whitespace changes — the generated output will not change.
+Do not regenerate just for comment or whitespace changes. The generated output will not change.
 
 ---
 
@@ -51,7 +51,7 @@ Do not regenerate just for comment or whitespace changes — the generated outpu
 
 ## What the script does
 
-The script runs `python -m grpc_tools.protoc` against all five proto files in `proto/cleaned/`, generating `*_pb2.py`, `*_pb2_grpc.py`, and `*_pb2.pyi` files. It then rewrites absolute package imports to relative imports (e.g., `import quilt_hds_pb2` → `from . import quilt_hds_pb2`) using `sed`, so the stubs work inside the `_proto` sub-package.
+The script runs `python -m grpc_tools.protoc` against all five proto files in `proto/cleaned/`, generating `*_pb2.py`, `*_pb2_grpc.py`, and `*_pb2.pyi` files. It then rewrites absolute package imports to relative imports (for example, `import quilt_hds_pb2` becomes `from . import quilt_hds_pb2`) using `sed`, so the stubs work inside the `_proto` sub-package.
 
 For a detailed description of what the script does step by step, see [gRPC and protobuf](../explanation/grpc-and-protobuf.md).
 
@@ -71,7 +71,7 @@ git commit -m "proto: add new SpaceSettings field for X
 - Update docs/reference/hds-entities.md"
 ```
 
-Always include the generated files in the same commit as the proto change. Do not commit proto changes without regenerating — the CI pipeline will catch the mismatch.
+Always include the generated files in the same commit as the proto change. Do not commit proto changes without regenerating. The CI pipeline will catch the mismatch.
 
 ---
 

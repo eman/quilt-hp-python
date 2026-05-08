@@ -10,8 +10,8 @@ Every page should answer: *"What does this actually do and how do I use it?"* Bu
 
 - **Prose paragraphs** that explain behavior with context and nuance.
 - **Working code examples** from real source code, not pseudocode.
-- **Exact values** — endpoint hostnames, timeout constants, buffer durations, field names — drawn from the source.
-- **Behavioral semantics** — what happens at runtime, not just what the interface looks like.
+- **Exact values:** Endpoint hostnames, timeout constants, buffer durations, and field names drawn from the source.
+- **Behavioral semantics:** What happens at runtime, not just what the interface looks like.
 
 ---
 
@@ -97,7 +97,7 @@ Documentation must reflect the actual source code at time of writing. Verify:
 - Constant values (timeouts, buffer durations, Cognito IDs) against `const.py`.
 - Method signatures against the source (not docs that may be stale).
 - Default parameter values and their behavioural implications.
-- Exception types raised — check both the method body and called service layers.
+- Exception types raised: Check both the method body and the service layers it calls.
 
 If you are uncertain about a detail, check the source rather than guessing.
 
@@ -122,7 +122,7 @@ Use these terms consistently throughout the docs:
 
 ## What not to write
 
-- Headings like "Overview" or "Introduction" for the first section — use the page title.
+- Headings like "Overview" or "Introduction" for the first section. Use the page title instead.
 - Placeholder sections with "TODO" or "Coming soon".
 - Generic advice that applies to all Python libraries (e.g., "Make sure you have Python installed").
-- Repeating the same information in multiple places — cross-link instead.
+- Repeating the same information in multiple places. Cross-link instead.
