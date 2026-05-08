@@ -44,7 +44,6 @@ nav:
       - Token management: reference/token-management.md
       - HDS entities: reference/hds-entities.md
       - gRPC services matrix: reference/grpc-services-matrix.md
-      - Source inventory: reference/source-inventory.md
       - Documentation standards: reference/documentation-standards.md
   - Explanation:
       - Architecture: explanation/architecture.md

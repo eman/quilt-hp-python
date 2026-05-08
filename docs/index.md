@@ -68,18 +68,8 @@ async with QuiltClient("you@example.com", token_store=store) as client:
 
 **`NotifierStream`** is the real-time update channel. Register callbacks on it with `on_space_update()`, `on_indoor_unit_update()`, and related methods. The callbacks run whenever the server pushes a change. The stream reconnects automatically with exponential back-off.
 
-## Documentation structure
-
-The documentation follows the [Diátaxis](https://diataxis.fr/) framework, organised into four quadrants:
-
-- **Tutorial:** A hands-on learning path for newcomers. Start here if you've never used the library before.
-- **How-to guides:** Step-by-step recipes for specific tasks. Use these when you know what you want to do and need to know how.
-- **Reference:** API documentation for parameters, return types, and other details you need to look up.
-- **Explanation:** Background, context, and design rationale. Read these when you want to understand *why* something works the way it does.
-
-## Documentation sections
+## Going further
 
 - **[Tutorial: Get started](tutorial/get-started.md):** Build a working script that logs in, reads rooms, controls a space, and streams live updates.
-- **How-to guides:** [Authenticate and manage tokens](how-to/authenticate.md) · [Control spaces and indoor units](how-to/control-spaces.md) · [Stream real-time updates](how-to/stream-updates.md) · [Build a Home Assistant component](how-to/home-assistant.md) · [Build an automation daemon](how-to/automation-daemon.md) · [Automate with the CLI](how-to/cli-scripting.md) · and more.
-- **[Reference: QuiltClient](reference/client.md):** Complete API reference for every method, parameter, and return type.
-- **[Explanation: Architecture](explanation/architecture.md):** Why the library is layered the way it is, the async-first constraint, and the injection design.
+- **[Reference: QuiltClient](reference/client.md):** Every method, parameter, and return type.
+- **[Explanation: Architecture](explanation/architecture.md):** Why the library is layered the way it is and how the pieces fit together.
