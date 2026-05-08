@@ -64,7 +64,7 @@ Defined in `quilt_services.proto`. Not currently wrapped by the library.
 
 ## PartnerService
 
-Defined in `quilt_services.proto`. iOS/KMP + live-capture only; absent from current Android APK. Not wrapped.
+Defined in `quilt_services.proto`. Not wrapped by this library.
 
 | Method | Request | Response |
 | --- | --- | --- |

@@ -6,7 +6,7 @@ This page explains the gRPC design decisions, the five proto services, why the s
 
 ## Why gRPC for this API
 
-Quilt's mobile applications (iOS and Android) communicate with the cloud backend over gRPC. The wire protocol was reconstructed from the mobile apps and documented in `proto/cleaned/`. Using gRPC lets the library speak the same protocol as the official apps, which is the most stable and complete interface available.
+Quilt's mobile applications (iOS and Android) communicate with the cloud backend over gRPC. Using gRPC lets the library speak the same protocol as the Quilt apps, which is the most stable and complete interface available.
 
 There are three properties of gRPC that make it particularly well-suited here:
 
