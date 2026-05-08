@@ -1,6 +1,6 @@
-# Automation service daemon
+# Build an automation daemon
 
-This playbook shows how to build a production-quality Python daemon that runs `quilt-hp-python` continuously, handles reconnection automatically, responds to HVAC events with custom logic, and shuts down cleanly.
+This guide shows how to build a production-quality Python daemon that runs continuously, handles reconnection automatically, responds to HVAC events with custom logic, and shuts down cleanly.
 
 ---
 
@@ -35,7 +35,6 @@ import asyncio
 import logging
 import os
 import signal
-from datetime import datetime, timezone
 from quilt_hp import QuiltClient
 from quilt_hp.cli.store import FileStore
 from quilt_hp.models.space import Space
@@ -54,10 +53,6 @@ _stop = asyncio.Event()
 _snapshot: SystemSnapshot | None = None
 
 
-# ---------------------------------------------------------------------------
-# Event handlers — put your automation logic here
-# ---------------------------------------------------------------------------
-
 async def on_space_update(space: Space) -> None:
     global _snapshot
     if _snapshot is not None:
@@ -70,7 +65,6 @@ async def on_space_update(space: Space) -> None:
     )
     LOG.info("[space] %s — mode=%s temp=%s", space.name, space.controls.mode.value, temp)
 
-    # Example rule: if a room gets too hot and is in AUTO mode, log a warning
     if (
         space.state.current_temp_c is not None
         and space.state.current_temp_c > 27.0
@@ -85,18 +79,6 @@ async def on_idu_update(idu: IndoorUnit) -> None:
         _snapshot.indoor_units[idu.id] = idu
     LOG.debug("[idu] %s — fan=%s online=%s", idu.id, idu.controls.fan_speed.value, idu.state.is_online)
 
-
-async def on_connected() -> None:
-    LOG.info("Stream connected")
-
-
-async def on_disconnected() -> None:
-    LOG.warning("Stream disconnected; will reconnect automatically")
-
-
-# ---------------------------------------------------------------------------
-# Main coroutine
-# ---------------------------------------------------------------------------
 
 async def run() -> None:
     global _snapshot
@@ -118,8 +100,8 @@ async def run() -> None:
         stream = client.stream(topics, max_reconnects=-1, reconnect_delay_s=2.0)
         stream.on_space_update(on_space_update)
         stream.on_indoor_unit_update(on_idu_update)
-        stream.on_connected(on_connected)
-        stream.on_disconnected(on_disconnected)
+        stream.on_connected(lambda: LOG.info("Stream connected"))
+        stream.on_disconnected(lambda: LOG.warning("Stream disconnected; will reconnect automatically"))
 
         async with stream:
             LOG.info("Daemon running. Send SIGINT or SIGTERM to stop.")
@@ -127,10 +109,6 @@ async def run() -> None:
 
         LOG.info("Daemon stopped cleanly.")
 
-
-# ---------------------------------------------------------------------------
-# Entry point
-# ---------------------------------------------------------------------------
 
 def main() -> None:
     loop = asyncio.new_event_loop()
@@ -157,7 +135,7 @@ if __name__ == "__main__":
 
 ---
 
-## Installing as a systemd service
+## Install as a systemd service
 
 Create `/etc/systemd/system/quilt-daemon.service`:
 
@@ -189,13 +167,12 @@ journalctl -fu quilt-daemon
 
 ---
 
-## Periodic snapshot refresh
+## Add a periodic snapshot refresh
 
-If your daemon needs to verify the in-memory snapshot against server state periodically (e.g., to catch any missed events during a reconnect window), add a refresh task alongside the stream:
+To re-fetch the full snapshot periodically as a consistency check after reconnects:
 
 ```python
 async def refresh_loop(client: QuiltClient, interval_s: float = 300.0) -> None:
-    """Periodically re-fetch the full snapshot as a consistency check."""
     while not _stop.is_set():
         await asyncio.sleep(interval_s)
         if _stop.is_set():
@@ -203,15 +180,14 @@ async def refresh_loop(client: QuiltClient, interval_s: float = 300.0) -> None:
         try:
             client.invalidate_snapshot()
             fresh = await client.get_snapshot()
-            LOG.info("Periodic snapshot refresh: %d rooms", len(fresh.rooms))
-            # Replace the global snapshot atomically
             global _snapshot
             _snapshot = fresh
+            LOG.info("Periodic snapshot refresh: %d rooms", len(fresh.rooms))
         except Exception:
-            LOG.warning("Periodic snapshot refresh failed; will retry next cycle", exc_info=True)
+            LOG.warning("Periodic snapshot refresh failed; will retry", exc_info=True)
 ```
 
-Start this as a background task alongside the stream:
+Start it alongside the stream:
 
 ```python
 async with stream:
@@ -226,14 +202,9 @@ async with stream:
 
 ---
 
-## Handling token expiry in long-running daemons
+## Handle token expiry in long-running daemons
 
-The library handles token expiry automatically:
-
-- The `_AuthInterceptor` retries unary RPCs once after a silent refresh on `UNAUTHENTICATED`.
-- The `NotifierStream` calls `refresh_callback` and reconnects after `UNAUTHENTICATED` on the stream.
-
-For extra resilience in daemons, configure a `TokenRefreshPolicy` that raises immediately (rather than falling back to OTP) so the daemon logs the failure and the systemd watchdog triggers a restart:
+To ensure the daemon crashes (and systemd restarts it) on token refresh failure rather than hanging on an OTP prompt:
 
 ```python
 from quilt_hp.tokens import TokenRefreshPolicy, TokenRefreshContext, RefreshFailureAction
@@ -245,9 +216,7 @@ class DaemonRefreshPolicy:
     ) -> RefreshFailureAction:
         LOG.error(
             "Token refresh failed (attempt=%d source=%s): %s",
-            context.attempt,
-            context.source,
-            error,
+            context.attempt, context.source, error,
         )
         return RefreshFailureAction.RAISE
 
@@ -260,4 +229,6 @@ async with QuiltClient(
     ...
 ```
 
-With `RefreshFailureAction.RAISE`, a failed refresh propagates as `QuiltAuthError`, which exits the `async with` block, exits `run()`, and lets the daemon process crash. systemd then restarts it after `RestartSec`.
+With `RAISE`, a refresh failure propagates as `QuiltAuthError`, exits `run()`, and lets systemd restart the process after `RestartSec`.
+
+For more on token refresh policies, see [Authenticate and manage tokens](authenticate.md).

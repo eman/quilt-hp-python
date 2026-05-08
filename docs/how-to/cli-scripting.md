@@ -1,12 +1,12 @@
-# CLI and scripting
+# Automate with the CLI
 
-The `quilt-hp` CLI is a thin wrapper around the Python client. It exposes the same operations as the Python API through subcommands that print JSON, making it easy to pipe output into `jq`, use in shell scripts, or call from CI pipelines.
+The `quilt-hp` CLI exposes the same operations as the Python API through subcommands that print JSON, making it easy to pipe output into `jq`, use in shell scripts, or call from CI pipelines.
 
 ---
 
-## Authentication
+## Authenticate from the command line
 
-Log in once to cache tokens:
+To log in and cache tokens:
 
 ```bash
 quilt-hp login
@@ -20,11 +20,7 @@ To log out and clear the token cache:
 quilt-hp logout
 ```
 
----
-
-## Environment variable
-
-Set `QUILT_EMAIL` to avoid specifying `--email` on every command:
+To avoid specifying `--email` on every command, set the environment variable:
 
 ```bash
 export QUILT_EMAIL="you@example.com"
@@ -32,13 +28,13 @@ export QUILT_EMAIL="you@example.com"
 
 ---
 
-## Getting a snapshot as JSON
+## Get a system snapshot as JSON
 
 ```bash
 quilt-hp snapshot
 ```
 
-Outputs the full system state as JSON. Pipe to `jq` for filtering:
+Pipe to `jq` for filtering:
 
 ```bash
 # All room names and current temperatures
@@ -53,7 +49,7 @@ quilt-hp snapshot | jq '[.indoor_units[] | select(.state.is_online == false)]'
 
 ---
 
-## Controlling spaces from the shell
+## Control spaces from the shell
 
 ```bash
 # Set a space to COOL mode at 22°C
@@ -68,7 +64,7 @@ quilt-hp set-space "Guest Room" --mode standby
 
 ---
 
-## Bash script: set all rooms to a setpoint
+## Write a bash script to set all rooms to a setpoint
 
 ```bash
 #!/usr/bin/env bash
@@ -86,16 +82,14 @@ quilt-hp snapshot \
 
 ---
 
-## Python script: process snapshot from CLI output
+## Process snapshot output in Python without importing the library
 
-When you want Python's expressiveness but don't need to import the library directly, call the CLI and parse its JSON output:
+When you want Python's expressiveness but don't need to import the library directly:
 
 ```python
 #!/usr/bin/env python3
-"""Parse quilt-hp snapshot JSON from stdout."""
 import json
 import subprocess
-import sys
 
 result = subprocess.run(
     ["quilt-hp", "snapshot", "--output", "json"],
@@ -115,7 +109,7 @@ for room in data["rooms"]:
 
 ---
 
-## Cron job: nightly standby
+## Set up a cron job for nightly standby
 
 Put all rooms in STANDBY at midnight:
 
@@ -123,7 +117,7 @@ Put all rooms in STANDBY at midnight:
 0 0 * * * QUILT_EMAIL=you@example.com /usr/local/bin/quilt-hp set-all-spaces --mode standby
 ```
 
-Or using a custom script that reads the snapshot to avoid calling the CLI per-room:
+Or use a script that reads the snapshot to avoid a CLI call per room:
 
 ```bash
 #!/usr/bin/env bash
@@ -136,28 +130,11 @@ done
 
 ---
 
-## Listing energy usage
-
-```bash
-# Last 7 days
-quilt-hp energy --days 7
-
-# Specific range
-quilt-hp energy --start 2024-01-01 --end 2024-01-31
-
-# As JSON for processing
-quilt-hp energy --days 7 --output json | jq '[.[] | {space: .space_id, kwh: ([.buckets[].energy_kwh] | add)}]'
-```
-
----
-
-## Piping to monitoring tools
-
-Write snapshot metrics to a file for Prometheus node_exporter's textfile collector:
+## Write snapshot metrics to a Prometheus textfile
 
 ```bash
 #!/usr/bin/env bash
-# /etc/cron.d/quilt-metrics — runs every minute
+# Runs every minute via cron
 OUTFILE="/var/lib/node_exporter/quilt.prom"
 TMPFILE="${OUTFILE}.tmp"
 
@@ -177,7 +154,23 @@ mv "$TMPFILE" "$OUTFILE"
 
 ---
 
-## Exit codes
+## Query energy usage
+
+```bash
+# Last 7 days
+quilt-hp energy --days 7
+
+# Specific date range
+quilt-hp energy --start 2024-01-01 --end 2024-01-31
+
+# As JSON, summed per space
+quilt-hp energy --days 7 --output json \
+  | jq '[.[] | {space: .space_id, kwh: ([.buckets[].energy_kwh] | add)}]'
+```
+
+---
+
+## CLI exit codes
 
 | Code | Meaning |
 |------|---------|

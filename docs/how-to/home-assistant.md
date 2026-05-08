@@ -1,17 +1,17 @@
-# Home Assistant custom component
+# Build a Home Assistant custom component
 
-This playbook walks through building a Home Assistant custom component for Quilt mini-splits. The resulting component exposes each room as a `climate` entity and each indoor unit's temperature as a `sensor` entity, with real-time updates via the Quilt streaming API.
+This guide walks through building a Home Assistant custom component that exposes Quilt rooms as `climate` entities with real-time updates via the streaming API.
 
 ---
 
-## Architecture
+## Architecture overview
 
-A HA custom component typically has two parts:
+A Quilt HA component uses two parts:
 
-1. **`DataUpdateCoordinator`** — manages the Quilt connection, holds the `SystemSnapshot`, and drives updates through the HA entity registry.
+1. **`DataUpdateCoordinator`** — manages the `QuiltClient` connection, holds the `SystemSnapshot`, and drives entity updates.
 2. **Entity classes** — translate `Space` and `IndoorUnit` models into HA platform abstractions.
 
-Because the Quilt streaming API delivers real-time diffs rather than polling, we use a hybrid approach: an initial snapshot fetch on `async_setup_entry`, then a `NotifierStream` that calls `coordinator.async_set_updated_data()` whenever a diff arrives. Polling is configured with a long TTL (`update_interval=timedelta(minutes=5)`) only as a fallback.
+The coordinator uses an initial snapshot fetch on `async_setup_entry`, then a `NotifierStream` for real-time diffs. Polling is configured as a long-TTL fallback only.
 
 ```
 HA event loop
@@ -24,9 +24,9 @@ HA event loop
 
 ---
 
-## Token store using HA storage
+## Step 1 — Implement the token store
 
-HA provides a JSON storage helper that survives reboots. Implement `TokenStore` over it:
+To use HA's persistent JSON storage for tokens:
 
 ```python
 from __future__ import annotations
@@ -70,9 +70,11 @@ class HATokenStore:
         await self._store.async_save(data)
 ```
 
+For the `TokenStore` protocol definition, see [Token management reference](../reference/token-management.md).
+
 ---
 
-## Coordinator
+## Step 2 — Build the coordinator
 
 ```python
 from __future__ import annotations
@@ -138,7 +140,7 @@ class QuiltCoordinator(DataUpdateCoordinator[SystemSnapshot]):
 
 ---
 
-## Climate entity
+## Step 3 — Create the climate entity
 
 ```python
 from homeassistant.components.climate import (
@@ -224,7 +226,7 @@ class QuiltClimateEntity(ClimateEntity):
 
 ---
 
-## Temperature sensor entity
+## Step 4 — Create a temperature sensor entity
 
 ```python
 from homeassistant.components.sensor import SensorEntity, SensorDeviceClass
@@ -262,9 +264,7 @@ class QuiltIndoorTempSensor(SensorEntity):
 
 ---
 
-## Integration setup flow
-
-The `async_setup_entry` function wires the coordinator into HA:
+## Step 5 — Wire up the integration entry point
 
 ```python
 async def async_setup_entry(hass, entry):
@@ -279,4 +279,14 @@ async def async_setup_entry(hass, entry):
     return True
 ```
 
-Registration of OTP: because HA has no interactive terminal, OTP login should be done outside HA using the `quilt-hp` CLI (`quilt-hp login`). The `HATokenStore` then loads those tokens on first setup. If re-authentication is ever needed, HA can surface a config flow that prompts the user for the OTP code.
+---
+
+## OTP authentication with HA
+
+Because HA has no interactive terminal, perform the initial OTP login outside HA using the `quilt-hp` CLI:
+
+```bash
+quilt-hp login
+```
+
+The `HATokenStore` loads those cached tokens on first setup. If re-authentication is needed later, surface an OTP prompt through a HA config flow.
