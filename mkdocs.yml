@@ -22,6 +22,20 @@ markdown_extensions:
       anchor_linenums: true
   - pymdownx.inlinehilite
   - pymdownx.snippets
+plugins:
+  - search
+  - mkdocstrings:
+      handlers:
+        python:
+          options:
+            show_source: false
+            show_root_heading: true
+            show_symbol_type_heading: true
+            show_symbol_type_toc: true
+            docstring_style: google
+            merge_init_into_class: true
+            filters:
+              - "!^_"
 nav:
   - Home: index.md
   - Tutorial:
@@ -40,6 +54,7 @@ nav:
       - Contribute to the project: how-to/contribute.md
   - Reference:
       - QuiltClient: reference/client.md
+      - API reference: reference/api-reference.md
       - Models: reference/models.md
       - Token management: reference/token-management.md
       - HDS entities: reference/hds-entities.md
