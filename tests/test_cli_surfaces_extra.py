@@ -15,7 +15,7 @@ runner = CliRunner()
 def test_version_option_outputs_package_version() -> None:
     result = runner.invoke(cli_main.app, ["--version"])
     assert result.exit_code == 0
-    assert result.stdout.strip() == "0.1.0"
+    assert result.stdout.strip() == "0.1.1"
 
 
 class _FakeClient:
