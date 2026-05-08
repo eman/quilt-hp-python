@@ -1,41 +1,98 @@
 # gRPC services and method matrix
 
-This matrix summarizes the known Quilt service surface and what this Python
-client currently wraps.
+This table lists every RPC method in the Quilt API proto definitions, along with its request and response types and what (if anything) the library does with it.
 
-## Service/method matrix
+## HomeDatastoreService
 
-| Service | Method(s) | Status in `quilt-hp-python` | Notes |
+Defined in `quilt_hds.proto`. Package: `core.protos.home_datastore`.
+
+| Method | Request | Response | Library wrapper |
 | --- | --- | --- | --- |
-| `HomeDatastoreService` | `GetHomeDatastoreSystem` | Implemented (`HomeDatastoreService.get_system`) | Primary snapshot read path. |
-| `HomeDatastoreService` | `UpdateSpace`, `UpdateIndoorUnit`, `UpdateComfortSetting`, schedule day/week create/update/delete, `UpdateLocation` | Implemented | Used by `QuiltClient` convenience APIs. |
-| `HomeDatastoreService` | Remaining CRUD/list/get methods (`GetSpace`, `CreateSpace`, `DeleteSpace`, remote sensor CRUD, additional schedule/comfort/location methods, etc.) | Schema-defined, not wrapped | Available in protobufs; call directly from generated stubs if needed. |
-| `SystemInformationService` | `ListSystems`, `GetEnergyMetrics` | Implemented | Used for system discovery and energy queries. |
-| `SystemInformationService` | `SetAddress` | Schema-defined, not wrapped | Not exposed by `SystemInformationService` wrapper. |
-| `UserService` | `GetLoggedInUser`, `UpdateLoggedInUser`, `GetUserAttributes`, `PatchUserAttributes` | Implemented | Exposed by `UserService` and `QuiltClient` user-profile wrappers. |
-| `NotifierService` | `Subscribe` (bidirectional stream) | Implemented (`NotifierStream`) | Stream parsing and reconnect logic included. |
-| `InvitationService` | All methods | Schema-defined, not wrapped | Present in service protobuf. |
-| `PartnerService` | All methods | Schema-defined, not wrapped | Present in service protobuf. |
-| `SystemUserService` | All methods | Schema-defined, not wrapped | Present in service protobuf. |
-| `MobileAppService` | `AuthorizeNewDevice` | Schema-defined, not wrapped | Present in service protobuf. |
-| `SystemService` (`core.protos.system`) | `GetSystem`, `CreateSystem`, `UpdateSystem`, `DeleteSystem`, `ListSystems` | Schema-defined, not wrapped | Separate service family in cleaned protos. |
-| `quilt.pairing.v1` payloads | BLE/Wi-Fi pairing messages | Schema-defined only | Message contracts, not a wrapped gRPC service in this package. |
+| `GetHomeDatastoreSystem` | `GetHomeDatastoreSystemRequest` | `HomeDatastoreSystem` | `HomeDatastoreService.get_system()` → `SystemSnapshot` |
+| `UpdateSpace` | `UpdateSpaceRequest` | `Space` | `HomeDatastoreService.update_space()` and `update_space_settings()` → `Space` |
+| `UpdateIndoorUnit` | `UpdateIndoorUnitRequest` | `IndoorUnit` | `HomeDatastoreService.update_indoor_unit()` and `update_indoor_unit_settings()` → `IndoorUnit` |
+| `UpdateComfortSetting` | `UpdateComfortSettingRequest` | `ComfortSetting` | `HomeDatastoreService.update_comfort_setting()` → `ComfortSetting` |
+| `CreateScheduleDay` | `CreateScheduleDayRequest` | `ScheduleDay` | `HomeDatastoreService.create_schedule_day()` → `ScheduleDay` |
+| `UpdateScheduleDay` | `UpdateScheduleDayRequest` | `ScheduleDay` | `HomeDatastoreService.update_schedule_day()` → `ScheduleDay` |
+| `DeleteScheduleDay` | `DeleteScheduleDayRequest` | `Empty` | `HomeDatastoreService.delete_schedule_day()` |
+| `CreateScheduleWeek` | `CreateScheduleWeekRequest` | `ScheduleWeek` | `HomeDatastoreService.create_schedule_week()` → `ScheduleWeek` |
+| `UpdateScheduleWeek` | `UpdateScheduleWeekRequest` | `ScheduleWeek` | `HomeDatastoreService.update_schedule_week()` → `ScheduleWeek` |
+| `DeleteScheduleWeek` | `DeleteScheduleWeekRequest` | `Empty` | `HomeDatastoreService.delete_schedule_week()` |
+| `UpdateLocation` | `UpdateLocationRequest` | `Location` | `HomeDatastoreService.update_location_schedule_execution()` — pauses/resumes schedules |
 
-## Practical call flow implemented in this package
+## SystemInformationService
 
-```mermaid
-flowchart LR
-    A[QuiltClient] --> B[SystemInformationService.ListSystems]
-    A --> C[HomeDatastoreService.GetHomeDatastoreSystem]
-    A --> D[HomeDatastoreService.Update*]
-    A --> E[NotifierService.Subscribe]
-    E --> F[Stream parser]
-    F --> G[SystemSnapshot.apply_* merge]
-```
+Defined in `quilt_services.proto`. Package: `core.protos.app`.
 
-## Notes for alternate clients
+| Method | Request | Response | Library wrapper |
+| --- | --- | --- | --- |
+| `ListSystems` | `ListSystemInformationRequest` | `ListSystemInformationResponse` | `SystemInformationService.list_systems()` → `list[SystemInfo]` |
+| `GetEnergyMetrics` | `GetEnergyMetricsRequest` | `GetEnergyMetricsResponse` | `SystemInformationService.get_energy_metrics()` → `list[SpaceEnergyMetrics]` |
+| `SetAddress` | `SetAddressRequest` | `SetAddressResponse` | Not wrapped |
 
-- The protobuf surface is broader than the wrapper surface in this package.
-- For methods marked "Schema-defined, not wrapped", use generated stubs directly
-  and follow the transport/auth guidance from this documentation.
-- Streaming support in this package is focused on `NotifierService.Subscribe`.
+## UserService
+
+Defined in `quilt_services.proto`. Package: `core.protos.app`.
+
+| Method | Request | Response | Library wrapper |
+| --- | --- | --- | --- |
+| `GetLoggedInUser` | `GetLoggedInUserRequest` | `GetLoggedInUserResponse` | `UserService.get_current_user()` → `User` |
+| `UpdateLoggedInUser` | `UpdateLoggedInUserRequest` | `UpdateLoggedInUserResponse` | `UserService.update_current_user()` → `User` |
+| `GetUserAttributes` | `GetUserAttributesRequest` | `UserAttributes` | `UserService.get_user_attributes()` → `UserAttributes` |
+| `PatchUserAttributes` | `PatchUserAttributesRequest` | `UserAttributes` | `UserService.patch_user_attributes()` → `UserAttributes` |
+
+## NotifierService
+
+Defined in `quilt_notifier.proto`. Package: `core.protos.notifier`.
+
+| Method | Request | Response | Stream type | Library wrapper |
+| --- | --- | --- | --- | --- |
+| `Subscribe` | `stream SubscribeRequest` | `stream SubscribeResponse` | Bidirectional | `NotifierStream` — full lifecycle management |
+
+## InvitationService
+
+Defined in `quilt_services.proto`. Not currently wrapped by the library.
+
+| Method | Request | Response |
+| --- | --- | --- |
+| `ListPendingInvitationsForLoggedInUser` | `ListPendingInvitationsRequest` | `ListPendingInvitationsResponse` |
+| `CreateInvitation` | `CreateInvitationRequest` | `CreateInvitationResponse` |
+| `AcceptInvitation` | `AcceptInvitationRequest` | `AcceptInvitationResponse` |
+| `RejectInvitation` | `RejectInvitationRequest` | `RejectInvitationResponse` |
+| `CancelInvitation` | `CancelInvitationRequest` | `CancelInvitationResponse` |
+| `SendNotificationForInvitation` | `SendNotificationForInvitationRequest` | `SendNotificationForInvitationResponse` |
+
+## PartnerService
+
+Defined in `quilt_services.proto`. iOS/KMP + live-capture only; absent from current Android APK. Not wrapped.
+
+| Method | Request | Response |
+| --- | --- | --- |
+| `InviteSystemOwner` | `InviteSystemOwnerRequest` | `InviteSystemOwnerResponse` |
+| `GetLoggedInUserPartnerDetails` | `GetLoggedInUserPartnerDetailsRequest` | `GetLoggedInUserPartnerDetailsResponse` |
+| `JoinPartnerOrganization` | `JoinPartnerOrganizationRequest` | `JoinPartnerOrganizationResponse` |
+| `LeavePartnerOrganization` | `LeavePartnerOrganizationRequest` | `LeavePartnerOrganizationResponse` |
+
+## SystemUserService
+
+Defined in `quilt_services.proto`. Not currently wrapped by the library.
+
+| Method | Request | Response |
+| --- | --- | --- |
+| `ListSystemUsers` | `ListSystemUsersRequest` | `ListSystemUsersResponse` |
+| `GetRoleOfLoggedInSystemUser` | `GetRoleOfLoggedInSystemUserRequest` | `GetRoleOfLoggedInSystemUserResponse` |
+| `RemoveSystemUser` | `RemoveSystemUserRequest` | `RemoveSystemUserResponse` |
+| `RemoveLoggedInSystemUser` | `RemoveLoggedInSystemUserRequest` | `RemoveLoggedInSystemUserResponse` |
+| `ChangeRoleOfSystemUser` | `ChangeRoleOfSystemUserRequest` | `ChangeRoleOfSystemUserResponse` |
+
+## DevicePairingService
+
+Defined in `quilt_device_pairing.proto`. Not currently wrapped by the library.
+
+## SystemService
+
+Defined in `quilt_system.proto`. Package: `core.protos.system`. Not currently wrapped by the library.
+
+## MobileAppService
+
+Defined in `quilt_services.proto`. Contains `AuthorizeNewDevice`. Not currently wrapped by the library.

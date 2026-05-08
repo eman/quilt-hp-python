@@ -1,87 +1,282 @@
-# Home Assistant integration playbook
+# Home Assistant custom component
 
-## Recommended architecture
+This playbook walks through building a Home Assistant custom component for Quilt mini-splits. The resulting component exposes each room as a `climate` entity and each indoor unit's temperature as a `sensor` entity, with real-time updates via the Quilt streaming API.
 
-Use Home Assistant's coordinator pattern with one authenticated `QuiltClient` per config entry.
+---
 
-```mermaid
-flowchart TD
-    HA[HA Config Entry] --> COORD[DataUpdateCoordinator]
-    COORD --> QC[QuiltClient]
-    QC --> SNAP[get_snapshot\n(list/read path)]
-    QC --> STREAM[NotifierStream\n(optional push updates)]
-    COORD --> CLIMATE[Climate entities per room Space]
-    COORD --> SENSOR[Sensors\nenergy, telemetry, online state]
-    COORD --> NUMBER[Number/select/switch entities\nsetpoints, fan, louver, execution]
+## Architecture
+
+A HA custom component typically has two parts:
+
+1. **`DataUpdateCoordinator`** — manages the Quilt connection, holds the `SystemSnapshot`, and drives updates through the HA entity registry.
+2. **Entity classes** — translate `Space` and `IndoorUnit` models into HA platform abstractions.
+
+Because the Quilt streaming API delivers real-time diffs rather than polling, we use a hybrid approach: an initial snapshot fetch on `async_setup_entry`, then a `NotifierStream` that calls `coordinator.async_set_updated_data()` whenever a diff arrives. Polling is configured with a long TTL (`update_interval=timedelta(minutes=5)`) only as a fallback.
+
+```
+HA event loop
+└── QuiltCoordinator (DataUpdateCoordinator)
+    ├── QuiltClient (gRPC channel + token store)
+    ├── SystemSnapshot  ← full state in-memory
+    └── NotifierStream  ← real-time diffs → async_set_updated_data()
+        └── on_space_update, on_indoor_unit_update
 ```
 
-### Entity mapping (implemented-model aligned)
+---
 
-| HA entity | Quilt model / API | Notes |
-| --- | --- | --- |
-| `climate` per room | `Space` (`snapshot.rooms`), `set_space()` | Primary control surface: mode + dual setpoints. |
-| Room config entities | `SpaceSettings`, `set_space_settings()` | Occupancy timeout tuning. |
-| Fan/select/light-like controls | `IndoorUnit`, `set_indoor_unit()` | Fan speed, louver mode/position, LED properties. |
-| Preset/select entities | `ComfortSetting`, `update_comfort_setting()` | Use when exposing named comfort presets. |
-| Schedule entities | `ScheduleDay`/`ScheduleWeek` APIs | Create/update/delete day/week. |
-| Binary sensor/switch | `Location.schedule_paused`, `set_schedule_execution()` | Global schedule execution control. |
-| Energy sensors | `get_energy()` (`SpaceEnergyMetrics`) | Periodic pull; aggregate with HA statistics. |
+## Token store using HA storage
 
-## Auth and token persistence in HA
+HA provides a JSON storage helper that survives reboots. Implement `TokenStore` over it:
 
-1. Implement HA-backed `TokenStore` (or `LegacyTokenStore`) for secure persistence.
-2. Store refresh/id tokens in HA `.storage` or config-entry managed storage with restricted access.
-3. Keep non-secret options (home filter, polling interval, enable stream) in `ConfigEntry.options`, not in token storage.
-4. Initialize client as `QuiltClient(email, home=..., token_store=...)`.
-5. Trigger OTP only from config flow/re-auth flow when `login()` cannot satisfy cached/refresh auth.
+```python
+from __future__ import annotations
+import logging
+from homeassistant.helpers.storage import Store
+from quilt_hp.tokens import TokenStore, CachedTokens
 
-```mermaid
-sequenceDiagram
-    participant HA as HA Integration
-    participant TS as TokenStore
-    participant QC as QuiltClient
-    HA->>QC: login()
-    QC->>TS: load(email)
-    alt cached token valid
-        QC-->>HA: authenticated
-    else refresh available
-        QC->>QC: refresh_token()
-        QC->>TS: save(updated tokens)
-        QC-->>HA: authenticated
-    else OTP required
-        QC-->>HA: QuiltAuthError (re-auth needed)
-    end
+_LOGGER = logging.getLogger(__name__)
+_STORE_KEY = "quilt_hp_tokens"
+_STORE_VERSION = 1
+
+
+class HATokenStore:
+    """TokenStore backed by HA's async JSON storage."""
+
+    def __init__(self, hass) -> None:
+        self._store: Store = Store(hass, _STORE_VERSION, _STORE_KEY)
+
+    async def load(self, email: str) -> CachedTokens | None:
+        data = await self._store.async_load() or {}
+        entry = data.get(email)
+        if entry is None:
+            return None
+        try:
+            return CachedTokens(
+                id_token=entry["id_token"],
+                refresh_token=entry["refresh_token"],
+                expires_at=entry["expires_at"],
+            )
+        except KeyError:
+            _LOGGER.warning("Malformed token cache for %s; will re-authenticate", email)
+            return None
+
+    async def save(self, email: str, tokens: CachedTokens) -> None:
+        data = await self._store.async_load() or {}
+        data[email] = {
+            "id_token": tokens.id_token,
+            "refresh_token": tokens.refresh_token,
+            "expires_at": tokens.expires_at,
+        }
+        await self._store.async_save(data)
 ```
 
-## Polling vs streaming strategy
+---
 
-Recommended default for HA: **hybrid**.
+## Coordinator
 
-- **Polling baseline:** `get_snapshot()` on coordinator interval for full consistency.
-- **Streaming acceleration:** `client.stream(snapshot.stream_topics())` for low-latency updates.
-- Apply stream diffs into an in-memory snapshot via `SystemSnapshot.apply_*` helpers before notifying entities.
-- If stream fails, keep polling active; stream is additive, not required for correctness.
+```python
+from __future__ import annotations
+import logging
+from datetime import timedelta
+from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
+from quilt_hp import QuiltClient
+from quilt_hp.models.system import SystemSnapshot
+from quilt_hp.models.space import Space
+from quilt_hp.models.indoor_unit import IndoorUnit
 
-## Reliability, backoff, and error handling
+_LOGGER = logging.getLogger(__name__)
 
-- Treat `QuiltAuthError` as re-auth required; surface HA Repairs/config entry reauth.
-- For transient `QuiltError`/gRPC faults, keep last good coordinator data and retry next interval.
-- For streaming, use built-in reconnect (`max_reconnects`, `reconnect_delay_s`, exponential backoff capped at 60s).
-- Register `stream.on_error(...)` to mark stream unhealthy and fall back to polling-only mode.
-- Avoid service hammering: clamp minimum poll interval and jitter coordinator refreshes.
 
-## Configuration/options guidance
+class QuiltCoordinator(DataUpdateCoordinator[SystemSnapshot]):
+    def __init__(self, hass, email: str, token_store) -> None:
+        super().__init__(
+            hass,
+            _LOGGER,
+            name="Quilt HP",
+            update_interval=timedelta(minutes=5),
+        )
+        self._client = QuiltClient(email, token_store=token_store)
+        self._stream = None
 
-Recommended `ConfigEntry.options`:
+    async def async_setup(self) -> None:
+        await self._client.__aenter__()
+        await self._client.login()
+        snapshot = await self._client.get_snapshot()
+        self.async_set_updated_data(snapshot)
+        await self._start_stream(snapshot)
 
-- `home` (optional system-name substring filter)
-- `poll_interval_s` (e.g., 30-120s)
-- `enable_stream` (default true)
-- `max_reconnects` (default `-1` unlimited)
-- `reconnect_delay_s` (default `1.0`)
-- `snapshot_ttl_s` (usually `0` for HA coordinator-driven freshness)
+    async def _start_stream(self, snapshot: SystemSnapshot) -> None:
+        topics = snapshot.stream_topics()
+        self._stream = self._client.stream(topics, max_reconnects=-1)
+        self._stream.on_space_update(self._on_space_update)
+        self._stream.on_indoor_unit_update(self._on_idu_update)
+        self._stream.on_disconnected(lambda: _LOGGER.warning("Quilt stream disconnected"))
+        await self._stream.start()
 
-Operational guidance:
+    def _on_space_update(self, space: Space) -> None:
+        if self.data is not None:
+            self.data.spaces[space.id] = space
+            self.async_set_updated_data(self.data)
 
-- Use one `QuiltClient` per entry; avoid per-entity clients.
-- Expose diagnostics from safe metadata (system id/name, stream status, last refresh), never tokens.
+    def _on_idu_update(self, idu: IndoorUnit) -> None:
+        if self.data is not None:
+            self.data.indoor_units[idu.id] = idu
+            self.async_set_updated_data(self.data)
+
+    async def _async_update_data(self) -> SystemSnapshot:
+        try:
+            self._client.invalidate_snapshot()
+            return await self._client.get_snapshot()
+        except Exception as err:
+            raise UpdateFailed(f"Error fetching Quilt snapshot: {err}") from err
+
+    async def async_shutdown(self) -> None:
+        if self._stream is not None:
+            await self._stream.stop()
+        await self._client.__aexit__(None, None, None)
+```
+
+---
+
+## Climate entity
+
+```python
+from homeassistant.components.climate import (
+    ClimateEntity,
+    ClimateEntityFeature,
+    HVACMode as HAHVACMode,
+)
+from homeassistant.const import UnitOfTemperature
+from quilt_hp.models.enums import HVACMode as QHVACMode
+
+_MODE_MAP: dict[QHVACMode, HAHVACMode] = {
+    QHVACMode.STANDBY: HAHVACMode.OFF,
+    QHVACMode.COOL: HAHVACMode.COOL,
+    QHVACMode.HEAT: HAHVACMode.HEAT,
+    QHVACMode.AUTO: HAHVACMode.HEAT_COOL,
+    QHVACMode.FAN: HAHVACMode.FAN_ONLY,
+}
+
+_HA_TO_QUILT: dict[HAHVACMode, QHVACMode] = {v: k for k, v in _MODE_MAP.items()}
+
+
+class QuiltClimateEntity(ClimateEntity):
+    _attr_temperature_unit = UnitOfTemperature.CELSIUS
+    _attr_supported_features = (
+        ClimateEntityFeature.TARGET_TEMPERATURE
+        | ClimateEntityFeature.TARGET_TEMPERATURE_RANGE
+    )
+    _attr_hvac_modes = list(_MODE_MAP.values())
+
+    def __init__(self, coordinator, space_id: str) -> None:
+        self._coordinator = coordinator
+        self._space_id = space_id
+
+    @property
+    def space(self):
+        return self._coordinator.data.spaces[self._space_id]
+
+    @property
+    def name(self) -> str:
+        return self.space.name
+
+    @property
+    def unique_id(self) -> str:
+        return f"quilt_space_{self._space_id}"
+
+    @property
+    def hvac_mode(self) -> HAHVACMode:
+        return _MODE_MAP.get(self.space.controls.mode, HAHVACMode.OFF)
+
+    @property
+    def current_temperature(self) -> float | None:
+        return self.space.state.current_temp_c
+
+    @property
+    def target_temperature(self) -> float | None:
+        mode = self.space.controls.mode
+        if mode == QHVACMode.COOL:
+            return self.space.controls.cool_setpoint_c
+        if mode == QHVACMode.HEAT:
+            return self.space.controls.heat_setpoint_c
+        return None
+
+    @property
+    def target_temperature_high(self) -> float | None:
+        return self.space.controls.cool_setpoint_c
+
+    @property
+    def target_temperature_low(self) -> float | None:
+        return self.space.controls.heat_setpoint_c
+
+    async def async_set_hvac_mode(self, hvac_mode: HAHVACMode) -> None:
+        mode = _HA_TO_QUILT[hvac_mode]
+        await self._coordinator._client.set_space(self.space, mode=mode)
+
+    async def async_set_temperature(self, **kwargs) -> None:
+        from homeassistant.const import ATTR_TEMPERATURE, ATTR_TARGET_TEMP_HIGH, ATTR_TARGET_TEMP_LOW
+        await self._coordinator._client.set_space(
+            self.space,
+            heat_setpoint_c=kwargs.get(ATTR_TARGET_TEMP_LOW),
+            cool_setpoint_c=kwargs.get(ATTR_TARGET_TEMP_HIGH) or kwargs.get(ATTR_TEMPERATURE),
+        )
+```
+
+---
+
+## Temperature sensor entity
+
+```python
+from homeassistant.components.sensor import SensorEntity, SensorDeviceClass
+from homeassistant.const import UnitOfTemperature
+
+
+class QuiltIndoorTempSensor(SensorEntity):
+    _attr_device_class = SensorDeviceClass.TEMPERATURE
+    _attr_native_unit_of_measurement = UnitOfTemperature.CELSIUS
+
+    def __init__(self, coordinator, idu_id: str) -> None:
+        self._coordinator = coordinator
+        self._idu_id = idu_id
+
+    @property
+    def idu(self):
+        return self._coordinator.data.indoor_units[self._idu_id]
+
+    @property
+    def name(self) -> str:
+        return f"IDU {self._idu_id} temperature"
+
+    @property
+    def unique_id(self) -> str:
+        return f"quilt_idu_temp_{self._idu_id}"
+
+    @property
+    def native_value(self) -> float | None:
+        return self.idu.state.actual_temp_c
+
+    @property
+    def available(self) -> bool:
+        return self.idu.state.is_online
+```
+
+---
+
+## Integration setup flow
+
+The `async_setup_entry` function wires the coordinator into HA:
+
+```python
+async def async_setup_entry(hass, entry):
+    token_store = HATokenStore(hass)
+    coordinator = QuiltCoordinator(hass, entry.data["email"], token_store)
+    await coordinator.async_setup()
+
+    hass.data.setdefault("quilt_hp", {})[entry.entry_id] = coordinator
+
+    await hass.config_entries.async_forward_entry_setups(entry, ["climate", "sensor"])
+    entry.async_on_unload(coordinator.async_shutdown)
+    return True
+```
+
+Registration of OTP: because HA has no interactive terminal, OTP login should be done outside HA using the `quilt-hp` CLI (`quilt-hp login`). The `HATokenStore` then loads those tokens on first setup. If re-authentication is ever needed, HA can surface a config flow that prompts the user for the OTP code.

@@ -1,321 +1,382 @@
-# Python API examples cookbook
+# Examples
 
-These examples are intentionally "runnable-ish": copy them into scripts, replace account/home values, and run with an event loop. All snippets use implemented APIs in `src/quilt_hp`.
+Complete runnable scripts demonstrating common tasks. Each example is self-contained and shows realistic usage including error handling and clean shutdown.
 
-## 1) Authenticated client lifecycle with token persistence
+## Prerequisites
 
-**Context:** long-running integration that should prompt for OTP only when needed.  
-**Assumptions:** first run may need OTP; later runs can use refresh tokens.  
-**Expected behavior:** `login()` reuses cached tokens when valid, refreshes when expired, and only falls back to OTP if required.
+Install the library and set your email:
 
-```mermaid
-flowchart TD
-    A[client.login()] --> B{cached id token valid?}
-    B -->|yes| C[continue]
-    B -->|no| D{refresh token available?}
-    D -->|yes| E[refresh + save]
-    D -->|no| F[OTP callback]
-    E --> C
-    F --> G[save tokens]
-    G --> C
+```bash
+pip install quilt-hp
+export QUILT_EMAIL="you@example.com"
 ```
 
+All examples use `FileStore` so tokens are cached after the first login. Replace with your own `TokenStore` for non-CLI applications.
+
+---
+
+## List all spaces and current temperatures
+
 ```python
+#!/usr/bin/env python3
+"""Print every space, its current mode, and the room temperature."""
 import asyncio
-from quilt_hp import QuiltClient
-from quilt_hp.tokens import CachedTokens, TokenStore
+import os
+from quilt_hp import QuiltClient, Environment
+from quilt_hp.cli.store import FileStore
+from quilt_hp.models.enums import HVACMode
 
-
-class InMemoryTokenStore(TokenStore):
-    def __init__(self) -> None:
-        self._cache: dict[str, CachedTokens] = {}
-
-    async def load(self, email: str) -> CachedTokens | None:
-        return self._cache.get(email)
-
-    async def save(self, email: str, tokens: CachedTokens) -> None:
-        self._cache[email] = tokens
-
-
-async def prompt_otp(email: str) -> str:
-    return input(f"Enter OTP for {email}: ").strip()
+EMAIL = os.environ["QUILT_EMAIL"]
 
 
 async def main() -> None:
-    token_store = InMemoryTokenStore()
-
-    async with QuiltClient("user@example.com", token_store=token_store) as client:
-        await client.login(otp_callback=prompt_otp)
-        user = await client.get_current_user()
-        print(f"Authenticated as {user.email}")
-
-
-asyncio.run(main())
-```
-
-## 2) Read-only snapshot polling (with TTL cache)
-
-**Context:** dashboard or exporter that polls often without writing controls.  
-**Assumptions:** "fresh enough" data within a short cache window is acceptable.  
-**Expected behavior:** repeated `get_snapshot()` calls inside the TTL reuse cache; periodic invalidation forces a fresh fetch.
-
-```python
-import asyncio
-from quilt_hp import QuiltClient
-
-
-async def main() -> None:
-    async with QuiltClient("user@example.com", snapshot_ttl_s=10) as client:
-        await client.login(otp_callback=lambda email: input(f"OTP for {email}: "))
-
-        for i in range(1, 31):
-            snapshot = await client.get_snapshot()
-            rows = [
-                (room.name, room.state.ambient_temperature_c, room.controls.display_setpoint)
-                for room in snapshot.rooms
-            ]
-            print(f"poll={i} rooms={rows}")
-
-            if i % 10 == 0:
-                client.invalidate_snapshot()  # force a network refresh next cycle
-
-            await asyncio.sleep(2)
-
-
-asyncio.run(main())
-```
-
-## 3) Control updates (space mode/setpoints + indoor unit controls)
-
-**Context:** automation rule updates room comfort and matching IDU behavior.  
-**Assumptions:** room and IDU names are stable enough to discover from snapshot.  
-**Expected behavior:** space control update succeeds first; IDU control update then applies fan/louver/LED choices.
-
-```python
-import asyncio
-from quilt_hp import QuiltClient
-from quilt_hp.models.enums import FanSpeed, HVACMode, LouverMode
-
-
-async def main() -> None:
-    async with QuiltClient("user@example.com") as client:
-        await client.login(otp_callback=lambda email: input(f"OTP for {email}: "))
+    store = FileStore()
+    async with QuiltClient(EMAIL, token_store=store) as client:
+        await client.login()
         snapshot = await client.get_snapshot()
 
-        living = next(space for space in snapshot.rooms if space.name == "Living Room")
-        idu = next(unit for unit in snapshot.indoor_units if unit.space_id == living.id)
+        print(f"System: {snapshot.system_id}")
+        print()
 
-        updated_space = await client.set_space(
-            living,
+        for space in sorted(snapshot.rooms, key=lambda s: s.name):
+            temp = (
+                f"{space.state.current_temp_c:.1f}°C"
+                if space.state.current_temp_c is not None
+                else "—"
+            )
+            mode = space.controls.mode.value
+            heat = f"{space.controls.heat_setpoint_c:.1f}"
+            cool = f"{space.controls.cool_setpoint_c:.1f}"
+
+            print(f"{space.name:<20} {mode:<8} {temp:<8} (heat {heat}°C / cool {cool}°C)")
+
+
+if __name__ == "__main__":
+    asyncio.run(main())
+```
+
+---
+
+## Control a space
+
+```python
+#!/usr/bin/env python3
+"""Set a specific space to COOL mode at 22°C."""
+import asyncio
+import os
+import sys
+from quilt_hp import QuiltClient
+from quilt_hp.cli.store import FileStore
+from quilt_hp.models.enums import HVACMode
+
+EMAIL = os.environ["QUILT_EMAIL"]
+SPACE_NAME = sys.argv[1] if len(sys.argv) > 1 else "Living Room"
+
+
+async def main() -> None:
+    store = FileStore()
+    async with QuiltClient(EMAIL, token_store=store) as client:
+        await client.login()
+        snapshot = await client.get_snapshot()
+
+        # Find the space by name (case-insensitive)
+        space = next(
+            (s for s in snapshot.rooms if s.name.lower() == SPACE_NAME.lower()),
+            None,
+        )
+        if space is None:
+            rooms = ", ".join(s.name for s in snapshot.rooms)
+            print(f"Space '{SPACE_NAME}' not found. Available: {rooms}")
+            return
+
+        updated = await client.set_space(
+            space,
             mode=HVACMode.COOL,
             cool_setpoint_c=22.0,
         )
-        print("space setpoint:", updated_space.controls.display_setpoint)
-
-        updated_idu = await client.set_indoor_unit(
-            idu.id,  # string IDs are supported and resolved through snapshot
-            fan_speed=FanSpeed.MEDIUM,
-            louver_mode=LouverMode.SWEEP,
-            led_brightness=0.35,
+        print(
+            f"Updated '{updated.name}': mode={updated.controls.mode.value}, "
+            f"cool={updated.controls.cool_setpoint_c}°C"
         )
-        print("idu fan:", updated_idu.controls.fan_speed.name)
 
 
-asyncio.run(main())
+if __name__ == "__main__":
+    asyncio.run(main())
 ```
 
-## 4) Streaming subscriber with reconnect and error handling
+---
 
-**Context:** host process keeping near-real-time local state.  
-**Assumptions:** occasional disconnects or token expiry may happen during runtime.  
-**Expected behavior:** stream auto-reconnects (with backoff), refreshes auth when needed, and exposes fatal errors via `on_error`.
-
-```mermaid
-sequenceDiagram
-    participant App
-    participant Stream as NotifierStream
-    participant API as Quilt API
-    App->>Stream: run_forever()
-    Stream->>API: subscribe(topics)
-    API-->>Stream: events
-    API-->>Stream: disconnect or UNAUTHENTICATED
-    Stream->>Stream: backoff + optional refresh_token
-    Stream->>API: reconnect + re-subscribe
-    API-->>Stream: fatal error
-    Stream-->>App: on_error(exception)
-```
+## Fetch energy data for the past week
 
 ```python
+#!/usr/bin/env python3
+"""Print daily kWh totals per space for the last 7 days."""
 import asyncio
+import os
+from datetime import datetime, timedelta, timezone
 from quilt_hp import QuiltClient
+from quilt_hp.cli.store import FileStore
+
+EMAIL = os.environ["QUILT_EMAIL"]
 
 
 async def main() -> None:
-    async with QuiltClient("user@example.com") as client:
-        await client.login(otp_callback=lambda email: input(f"OTP for {email}: "))
+    now = datetime.now(timezone.utc)
+    start = now - timedelta(days=7)
+
+    store = FileStore()
+    async with QuiltClient(EMAIL, token_store=store) as client:
+        await client.login()
+        snapshot = await client.get_snapshot()
+        metrics = await client.get_energy(start=start, end=now)
+
+        space_name = {s.id: s.name for s in snapshot.rooms}
+
+        print(f"Energy: {start.date()} – {now.date()}")
+        print()
+
+        for entry in sorted(metrics, key=lambda e: space_name.get(e.space_id, "")):
+            name = space_name.get(entry.space_id, entry.space_id)
+            total_kwh = sum(b.energy_kwh for b in entry.buckets)
+            print(f"  {name:<20} {total_kwh:.2f} kWh")
+
+
+if __name__ == "__main__":
+    asyncio.run(main())
+```
+
+---
+
+## Subscribe to real-time updates for 60 seconds
+
+```python
+#!/usr/bin/env python3
+"""Stream space and indoor-unit updates for 60 seconds then exit."""
+import asyncio
+import os
+from quilt_hp import QuiltClient
+from quilt_hp.cli.store import FileStore
+from quilt_hp.models.space import Space
+from quilt_hp.models.indoor_unit import IndoorUnit
+
+EMAIL = os.environ["QUILT_EMAIL"]
+
+
+async def on_space(space: Space) -> None:
+    temp = (
+        f"{space.state.current_temp_c:.1f}°C"
+        if space.state.current_temp_c is not None
+        else "—"
+    )
+    print(f"[space] {space.name}: mode={space.controls.mode.value}, temp={temp}")
+
+
+async def on_idu(idu: IndoorUnit) -> None:
+    print(
+        f"[idu]   {idu.id}: fan={idu.controls.fan_speed.value}, "
+        f"online={idu.state.is_online}"
+    )
+
+
+async def main() -> None:
+    store = FileStore()
+    async with QuiltClient(EMAIL, token_store=store) as client:
+        await client.login()
+        snapshot = await client.get_snapshot()
+        topics = snapshot.stream_topics()
+
+        stream = client.stream(topics)
+        stream.on_space_update(on_space)
+        stream.on_indoor_unit_update(on_idu)
+
+        async with stream:
+            print(f"Streaming {len(topics)} topics for 60 seconds…")
+            await asyncio.sleep(60)
+
+        print("Done.")
+
+
+if __name__ == "__main__":
+    asyncio.run(main())
+```
+
+---
+
+## Simple HVAC daemon
+
+A long-running process that keeps a snapshot fresh via streaming and responds to events. This pattern is the foundation for Home Assistant integrations and automation services.
+
+```python
+#!/usr/bin/env python3
+"""
+Minimal HVAC daemon.
+
+Maintains a live SystemSnapshot, reacts to temperature changes,
+and shuts down cleanly on SIGINT/SIGTERM.
+"""
+import asyncio
+import logging
+import os
+import signal
+from quilt_hp import QuiltClient
+from quilt_hp.cli.store import FileStore
+from quilt_hp.models.space import Space
+
+EMAIL = os.environ["QUILT_EMAIL"]
+LOG = logging.getLogger("quilt-daemon")
+logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
+
+snapshot = None  # kept in sync by stream callbacks
+stop_event = asyncio.Event()
+
+
+async def on_space_update(space: Space) -> None:
+    global snapshot
+    if snapshot is not None:
+        snapshot.spaces[space.id] = space
+
+    if space.state.current_temp_c is not None:
+        LOG.info(
+            "Temperature update: %s = %.1f°C (mode=%s)",
+            space.name,
+            space.state.current_temp_c,
+            space.controls.mode.value,
+        )
+
+
+async def run() -> None:
+    global snapshot
+
+    store = FileStore()
+    async with QuiltClient(EMAIL, token_store=store, snapshot_ttl_s=300) as client:
+        await client.login()
+        snapshot = await client.get_snapshot()
+        LOG.info("Loaded snapshot: %d rooms", len(snapshot.rooms))
+
+        topics = snapshot.stream_topics()
+        stream = client.stream(topics, max_reconnects=-1)
+        stream.on_space_update(on_space_update)
+        stream.on_connected(lambda: LOG.info("Stream connected"))
+        stream.on_disconnected(lambda: LOG.info("Stream disconnected; will reconnect"))
+
+        async with stream:
+            LOG.info("Daemon running. Send SIGINT to stop.")
+            await stop_event.wait()
+            LOG.info("Shutdown signal received.")
+
+
+def main() -> None:
+    loop = asyncio.new_event_loop()
+
+    def _stop(sig: signal.Signals) -> None:
+        LOG.info("Received %s", sig.name)
+        loop.call_soon_threadsafe(stop_event.set)
+
+    for sig in (signal.SIGINT, signal.SIGTERM):
+        loop.add_signal_handler(sig, _stop, sig)
+
+    try:
+        loop.run_until_complete(run())
+    finally:
+        loop.close()
+
+
+if __name__ == "__main__":
+    main()
+```
+
+---
+
+## List all devices as JSON
+
+```python
+#!/usr/bin/env python3
+"""Emit a JSON document with all spaces, IDUs, and ODUs."""
+import asyncio
+import json
+import os
+from dataclasses import asdict
+from quilt_hp import QuiltClient
+from quilt_hp.cli.store import FileStore
+
+EMAIL = os.environ["QUILT_EMAIL"]
+
+
+def _clean(obj: object) -> object:
+    """Recursively convert non-serialisable values for json.dumps."""
+    if isinstance(obj, dict):
+        return {k: _clean(v) for k, v in obj.items()}
+    if isinstance(obj, list):
+        return [_clean(v) for v in obj]
+    from datetime import datetime
+    if isinstance(obj, datetime):
+        return obj.isoformat()
+    return obj
+
+
+async def main() -> None:
+    store = FileStore()
+    async with QuiltClient(EMAIL, token_store=store) as client:
+        await client.login()
         snapshot = await client.get_snapshot()
 
-        def on_space(space) -> None:
-            merged = snapshot.apply_space(space)
-            print("space update:", merged.name, merged.controls.display_setpoint)
-
-        async def on_error(exc: Exception) -> None:
-            print(f"stream fatal error: {exc!r}")
-
-        stream = client.stream(
-            snapshot.stream_topics(),
-            max_reconnects=-1,
-            reconnect_delay_s=1.0,
-        )
-        stream.on_space_update(on_space)
-        stream.on_error(on_error)
-        await stream.run_forever()
-
-
-asyncio.run(main())
-```
-
-## 5) Custom token store implementation pattern (sync or async backends)
-
-**Context:** production integration storing secrets outside process memory.  
-**Assumptions:** host has secure persistence (DB, keyring, KMS-backed vault, etc.).  
-**Expected behavior:** client accepts either async (`TokenStore`) or sync (`LegacyTokenStore`) implementations.
-
-```python
-import json
-from pathlib import Path
-from quilt_hp.tokens import CachedTokens, LegacyTokenStore
-
-
-class JsonTokenStore(LegacyTokenStore):
-    def __init__(self, path: Path = Path(".quilt_tokens.json")) -> None:
-        self._path = path
-
-    def load(self, email: str) -> CachedTokens | None:
-        if not self._path.exists():
-            return None
-        data = json.loads(self._path.read_text())
-        row = data.get(email)
-        if row is None:
-            return None
-        return CachedTokens(
-            id_token=row["id_token"],
-            refresh_token=row["refresh_token"],
-            expires_at=float(row["expires_at"]),
-        )
-
-    def save(self, email: str, tokens: CachedTokens) -> None:
-        data = json.loads(self._path.read_text()) if self._path.exists() else {}
-        data[email] = {
-            "id_token": tokens.id_token,
-            "refresh_token": tokens.refresh_token,
-            "expires_at": tokens.expires_at,
+        doc = {
+            "system_id": snapshot.system_id,
+            "spaces": _clean([asdict(s) for s in snapshot.rooms]),
+            "indoor_units": _clean(list(asdict(u) for u in snapshot.indoor_units.values())),
+            "outdoor_units": _clean(list(asdict(u) for u in snapshot.outdoor_units.values())),
+            "controllers": _clean(list(asdict(c) for c in snapshot.controllers.values())),
         }
-        self._path.write_text(json.dumps(data))
+        print(json.dumps(doc, indent=2))
+
+
+if __name__ == "__main__":
+    asyncio.run(main())
 ```
 
-Use it with `QuiltClient("user@example.com", token_store=JsonTokenStore())`. For production, replace JSON-file storage with an encrypted backend.
+---
 
-## 6) Refresh hooks and policy control example
-
-**Context:** host app needs telemetry around refresh behavior and different
-fallback behavior by call path.  
-**Expected behavior:** refresh lifecycle hooks emit observability events and
-policy can force raise vs OTP fallback.
+## Apply a comfort setting to all rooms
 
 ```python
+#!/usr/bin/env python3
+"""Apply a named comfort setting to every room that supports it."""
 import asyncio
+import os
+import sys
 from quilt_hp import QuiltClient
-from quilt_hp.tokens import (
-    CachedTokens,
-    RefreshFailureAction,
-    TokenRefreshContext,
-)
+from quilt_hp.cli.store import FileStore
 
-
-class Hooks:
-    async def on_refresh_start(self, context: TokenRefreshContext) -> None:
-        print("start", context.reason, context.source, context.attempt)
-
-    async def on_refresh_success(
-        self,
-        context: TokenRefreshContext,
-        tokens: CachedTokens,
-    ) -> None:
-        print("success", context.reason, int(tokens.expires_at))
-
-    async def on_refresh_failure(
-        self,
-        context: TokenRefreshContext,
-        error: Exception,
-    ) -> None:
-        print("failure", context.reason, repr(error))
-
-
-class Policy:
-    def on_refresh_failure(
-        self,
-        context: TokenRefreshContext,
-        error: Exception,
-    ) -> RefreshFailureAction:
-        if context.source == "authenticate":
-            return RefreshFailureAction.FALLBACK_TO_OTP
-        return RefreshFailureAction.RAISE
+EMAIL = os.environ["QUILT_EMAIL"]
+PRESET_NAME = sys.argv[1] if len(sys.argv) > 1 else "Eco"
 
 
 async def main() -> None:
-    async with QuiltClient(
-        "user@example.com",
-        token_refresh_hooks=Hooks(),
-        token_refresh_policy=Policy(),
-    ) as client:
-        await client.login(otp_callback=lambda email: input(f"OTP for {email}: "))
-        await client.get_snapshot()
+    store = FileStore()
+    async with QuiltClient(EMAIL, token_store=store) as client:
+        await client.login()
+        snapshot = await client.get_snapshot()
+
+        # Find the comfort setting by name
+        preset = next(
+            (cs for cs in snapshot.comfort_settings.values() if cs.name == PRESET_NAME),
+            None,
+        )
+        if preset is None:
+            names = [cs.name for cs in snapshot.comfort_settings.values()]
+            print(f"Preset '{PRESET_NAME}' not found. Available: {names}")
+            return
+
+        for space in snapshot.rooms:
+            updated = await client.set_space(
+                space,
+                mode=preset.hvac_mode,
+                heat_setpoint_c=preset.heat_setpoint_c,
+                cool_setpoint_c=preset.cool_setpoint_c,
+            )
+            print(f"  {updated.name}: mode={updated.controls.mode.value}")
 
 
-asyncio.run(main())
-```
-
-## 7) Home Assistant-style coordinator loop skeleton
-
-**Context:** host integration needs stable periodic refresh with optional stream
-acceleration.  
-**Expected behavior:** polling remains source-of-truth and stream callbacks
-apply sparse updates into current snapshot.
-
-```python
-import asyncio
-from quilt_hp import QuiltClient
-
-
-class Coordinator:
-    def __init__(self, client: QuiltClient, poll_interval_s: float = 60) -> None:
-        self.client = client
-        self.poll_interval_s = poll_interval_s
-        self.snapshot = None
-
-    async def refresh(self) -> None:
-        self.snapshot = await self.client.get_snapshot()
-        print("rooms:", [room.name for room in self.snapshot.rooms])
-
-    async def run(self) -> None:
-        while True:
-            await self.refresh()
-            await asyncio.sleep(self.poll_interval_s)
-
-
-async def main() -> None:
-    async with QuiltClient("user@example.com") as client:
-        await client.login(otp_callback=lambda email: input(f"OTP for {email}: "))
-        coordinator = Coordinator(client, poll_interval_s=30)
-        await coordinator.refresh()
-
-        stream = client.stream(coordinator.snapshot.stream_topics())
-        stream.on_space_update(lambda space: coordinator.snapshot.apply_space(space))
-        stream_task = asyncio.create_task(stream.run_forever())
-        poll_task = asyncio.create_task(coordinator.run())
-        await asyncio.gather(stream_task, poll_task)
-
-
-asyncio.run(main())
+if __name__ == "__main__":
+    asyncio.run(main())
 ```
