@@ -30,6 +30,9 @@ htmlcov/
 .DS_Store
 Thumbs.db
 
+# MkDocs build output
+site/
+
 # Keep source protos in-repo for standalone regeneration
 !proto/
 !proto/cleaned/
