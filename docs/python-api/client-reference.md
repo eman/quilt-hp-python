@@ -1,8 +1,8 @@
 # QuiltClient API reference
 
-`QuiltClient` is the high-level async facade in `quilt_hp.client`. It owns auth, channel lifecycle, system targeting, state reads, control writes, schedules, energy queries, and stream creation.
+Complete reference for all `QuiltClient` methods. For usage examples see [Usage patterns](usage.md) and [Advanced workflows](advanced-workflows.md).
 
-## Construction
+## Constructor
 
 ```python
 QuiltClient(
@@ -17,220 +17,469 @@ QuiltClient(
 )
 ```
 
-Behavior notes:
+See [Public API reference](public-api-reference.md) for full parameter documentation.
 
-- `email` is the account identity for OTP and token lookup.
-- `home` is a substring filter used by `get_system_id()` when multiple systems exist.
-- `snapshot_ttl_s > 0` enables cached default-snapshot reads.
-- `token_store` enables token persistence/refresh without OTP every run.
-- hooks/policy are optional host controls around refresh failures.
+## Async context manager
 
-Common error conditions:
-
-- Auth failures raise `QuiltAuthError`.
-- gRPC/service failures raise `QuiltError` (or `QuiltNotFoundError` for missing system in snapshot fetch).
-
-## Lifecycle and auth
-
-### `login(otp_callback: OtpCallback | None = None) -> None`
-
-Authenticates and initializes service wrappers/channel.
-
-- Uses cached token first, then refresh token, then OTP (if needed).
-- OTP callback can be sync or async.
-
-Errors:
-
-- `QuiltAuthError` if no valid cache and no `otp_callback`, or Cognito challenge fails.
-
-### `refresh_token(context: TokenRefreshContext | None = None) -> None`
-
-Refresh-only auth path (no OTP fallback from this call site).
-
-- Default context: `EXPIRED_CACHED_TOKEN`, source `"client"`.
-- Used by transport and stream retry paths with specific refresh reasons.
-
-### `close() -> None`, `async with QuiltClient(...)`
-
-Closes gRPC channel. Context manager calls `close()` in `__aexit__`.
-
-### `get_current_token() -> str`
-
-Token-provider method for transport metadata.
-
-Errors:
-
-- `QuiltAuthError` if `login()` has not completed.
-
-## System discovery and snapshot/cache
-
-### `list_systems() -> list[SystemInfo]`
-
-Lists systems available to authenticated user.
-
-### `system_name: str | None`
-
-Resolved system name after `get_system_id()`.
-
-### `get_system_id(home: str | None = None) -> str`
-
-Resolves and caches system id.
-
-Behavior notes:
-
-- If `home` is omitted and cached id exists, cached value is returned.
-- If a specific `home` filter is provided, cache is bypassed unless it matches configured `self._home`.
-- With no filter, the first returned system is treated as primary.
-
-Errors:
-
-- `QuiltError` when no systems exist or no home name matches.
-
-### `get_snapshot(system_id: str | None = None) -> SystemSnapshot`
-
-Returns full HomeDatastore snapshot.
-
-Cache behavior:
-
-- Cache only applies when `system_id is None` and `snapshot_ttl_s > 0`.
-- Passing explicit `system_id` bypasses cache and does not populate default cache.
-
-### `invalidate_snapshot() -> None`
-
-Clears cached snapshot/timestamp.
-
-```mermaid
-flowchart TD
-    A[get_snapshot() called] --> B{system_id passed?}
-    B -->|yes| C[Fetch from HDS]
-    B -->|no| D{snapshot_ttl_s > 0 and cache fresh?}
-    D -->|yes| E[Return cached snapshot]
-    D -->|no| F[Fetch from HDS]
-    F --> G[Update cache+timestamp]
-    C --> H[Return snapshot]
-    E --> H
-    G --> H
+```python
+async def __aenter__(self) -> QuiltClient: ...
+async def __aexit__(self, *_: object) -> None: ...
 ```
 
-## Controls
+`__aexit__` closes the gRPC channel. Always use `QuiltClient` as an async context manager unless you are managing the channel lifecycle manually.
 
-### Spaces
+---
 
-- `list_spaces() -> list[Space]`
-- `set_space(space, *, mode=None, heat_setpoint_c=None, cool_setpoint_c=None) -> Space`
-- `set_space_settings(space, *, unoccupied_timeout_s=None, occupied_timeout_s=None) -> Space`
+## Authentication
 
-Behavior notes:
+### `login`
 
-- `space` may be `Space` object or `space_id` string.
-- String ids trigger snapshot lookup; object input avoids extra lookup.
-- `set_space()` enforces service logic such as AUTO heat/cool separation and STANDBY comfort-association clearing.
+```python
+async def login(self, otp_callback: OtpCallback | None = None) -> None
+```
 
-Errors:
+Authenticates with the Quilt API using the three-step token resolution (cache → refresh → OTP).
 
-- `QuiltError` if string id cannot be resolved.
+If cached tokens are valid, returns immediately without any network call. If the cached access token is expired but the refresh token is valid, performs a silent `REFRESH_TOKEN_AUTH` without user interaction. Only calls `otp_callback` if no valid cached or refresh token is available.
 
-### Indoor units
+**Parameters**:
+- `otp_callback` — callable `(email: str) -> str | Awaitable[str]`. Receives the account email and must return the OTP code. Can be synchronous or async. Required if no valid cached token exists; `None` is acceptable when you know tokens are cached.
 
-- `list_indoor_units() -> list[IndoorUnit]`
-- `set_indoor_unit(idu, *, fan_speed=None, louver_mode=None, louver_position=None, led_color_code=None, led_brightness=None, led_animation=None) -> IndoorUnit`
-- `set_indoor_unit_settings(idu, *, fence_left_m=None, fence_right_m=None, fence_forward_m=None, radar_height_m=None, light_brightness_default=None) -> IndoorUnit`
+**Raises**: `QuiltAuthError` if authentication fails.
 
-Behavior notes:
+---
 
-- Accepts object or id string; id uses snapshot resolution.
-- Fence values are meters; `0.0` can be used to clear boundaries.
+### `refresh_token`
 
-### Comfort presets
+```python
+async def refresh_token(self, context: TokenRefreshContext | None = None) -> None
+```
 
-- `list_comfort_settings() -> list[ComfortSetting]`
-- `update_comfort_setting(setting, *, name=None, hvac_mode=None, heat_setpoint_c=None, cool_setpoint_c=None, fan_speed=None) -> ComfortSetting`
+Refreshes the auth token silently using the refresh token. Does not attempt OTP. Called automatically by the transport interceptor and `NotifierStream` on `UNAUTHENTICATED`; you rarely need to call this directly.
+
+---
+
+## System discovery
+
+### `list_systems`
+
+```python
+async def list_systems(self) -> list[SystemInfo]
+```
+
+Lists all Quilt systems the authenticated user has access to. Returns a list of `SystemInfo` objects with `id`, `name`, and `timezone`. For most users this returns a single system.
+
+**Raises**: `QuiltError` if the gRPC call fails.
+
+---
+
+### `get_system_id`
+
+```python
+async def get_system_id(self, home: str | None = None) -> str
+```
+
+Returns the system ID for the current home filter (or the specified `home` override). Caches the result after the first call. Calls `list_systems()` internally.
+
+---
+
+### `system_name`
+
+```python
+@property
+def system_name(self) -> str | None
+```
+
+The name of the resolved system (set after `get_system_id()` is called).
+
+---
+
+### `get_snapshot`
+
+```python
+async def get_snapshot(self, system_id: str | None = None) -> SystemSnapshot
+```
+
+Fetches the complete system state as a `SystemSnapshot`. This is the primary read operation — it returns all spaces, indoor units, outdoor units, controllers, sensors, comfort settings, and schedules in a single RPC call.
+
+If `snapshot_ttl_s > 0` was configured and the cached snapshot is still fresh, the cached copy is returned without a network call. Passing `system_id` explicitly bypasses the cache and does not populate it.
+
+**Parameters**:
+- `system_id` — explicit system ID to query. When `None` (default), uses the primary system from `get_system_id()`.
+
+**Raises**: `QuiltNotFoundError` if the system ID is not found. `QuiltError` for other gRPC failures.
+
+---
+
+### `invalidate_snapshot`
+
+```python
+def invalidate_snapshot(self) -> None
+```
+
+Discards the cached snapshot so the next `get_snapshot()` call fetches fresh data. Call this after write operations when you need an up-to-date snapshot immediately.
+
+---
+
+## Space control
+
+### `list_spaces`
+
+```python
+async def list_spaces(self) -> list[Space]
+```
+
+Returns all room-level spaces (leaf spaces with a parent). Equivalent to `snapshot.rooms`. Fetches a snapshot internally.
+
+---
+
+### `set_space`
+
+```python
+async def set_space(
+    self,
+    space: Space | str,
+    *,
+    mode: HVACMode | None = None,
+    heat_setpoint_c: float | None = None,
+    cool_setpoint_c: float | None = None,
+) -> Space
+```
+
+Updates a space's HVAC mode and/or temperature setpoints.
+
+**Parameters**:
+- `space` — a `Space` object (no snapshot lookup) or a space ID string (snapshot is fetched to resolve).
+- `mode` — HVAC mode to set: `HVACMode.STANDBY`, `COOL`, `HEAT`, `AUTO`, `FAN`. Defaults to the current mode.
+- `heat_setpoint_c` — heating setpoint in °C. Defaults to the current heating setpoint.
+- `cool_setpoint_c` — cooling setpoint in °C. Defaults to the current cooling setpoint.
+
+**Behavioural notes**:
+- Setting `mode=HVACMode.STANDBY` clears the comfort setting association (the room stays off regardless of occupancy).
+- Setting `mode=HVACMode.AUTO` with a gap less than 2.5°C between heating and cooling setpoints: the cooling setpoint is raised to `heat + 2.5` automatically.
+
+**Returns**: Updated `Space` from the server response.
+
+**Raises**: `QuiltError` if the space is not found or the RPC fails.
+
+---
+
+### `set_space_settings`
+
+```python
+async def set_space_settings(
+    self,
+    space: Space | str,
+    *,
+    unoccupied_timeout_s: float | None = None,
+    occupied_timeout_s: float | None = None,
+) -> Space
+```
+
+Updates a space's occupancy automation timeouts. All existing settings fields are echoed back to avoid server-side clearing.
+
+**Parameters**:
+- `space` — `Space` object or space ID string.
+- `unoccupied_timeout_s` — seconds of no-presence before auto-away.
+- `occupied_timeout_s` — seconds of presence before auto-return.
+
+**Returns**: Updated `Space`.
+
+---
+
+## Indoor unit control
+
+### `list_indoor_units`
+
+```python
+async def list_indoor_units(self) -> list[IndoorUnit]
+```
+
+Returns all indoor units. Fetches a snapshot internally.
+
+---
+
+### `set_indoor_unit`
+
+```python
+async def set_indoor_unit(
+    self,
+    idu: IndoorUnit | str,
+    *,
+    fan_speed: FanSpeed | None = None,
+    louver_mode: LouverMode | None = None,
+    louver_position: float | None = None,
+    led_color_code: int | None = None,
+    led_brightness: float | None = None,
+    led_animation: int | None = None,
+) -> IndoorUnit
+```
+
+Updates indoor unit controls.
+
+**Parameters**:
+- `idu` — `IndoorUnit` object or IDU ID string.
+- `fan_speed` — `FanSpeed.AUTO`, `QUIET`, `LOW`, `MEDIUM`, `HIGH`, `BLAST`.
+- `louver_mode` — `LouverMode.CLOSED`, `SWEEP`, `FIXED`, `AUTO`.
+- `louver_position` — position 0.0–1.0 when `louver_mode=FIXED`.
+- `led_color_code` — RGBW packed int32 (use `LightPreset` constants or compute manually).
+- `led_brightness` — brightness 0.0–1.0.
+- `led_animation` — animation ID (use `LedAnimation` enum values).
+
+**Returns**: Updated `IndoorUnit`.
+
+---
+
+### `set_indoor_unit_settings`
+
+```python
+async def set_indoor_unit_settings(
+    self,
+    idu: IndoorUnit | str,
+    *,
+    fence_left_m: float | None = None,
+    fence_right_m: float | None = None,
+    fence_forward_m: float | None = None,
+    radar_height_m: float | None = None,
+    light_brightness_default: float | None = None,
+) -> IndoorUnit
+```
+
+Updates indoor unit calibration settings. All omitted fields keep their current values.
+
+**Parameters**:
+- `fence_left_m` — left boundary of presence detection zone in metres (0 = unconfigured/max range).
+- `fence_right_m` — right boundary.
+- `fence_forward_m` — forward (depth) boundary.
+- `radar_height_m` — radar sensor mounting height from floor in metres.
+- `light_brightness_default` — default LED brightness 0.0–1.0.
+
+---
+
+## Comfort settings
+
+### `list_comfort_settings`
+
+```python
+async def list_comfort_settings(self) -> list[ComfortSetting]
+```
+
+Returns all comfort presets. Fetches a snapshot internally.
+
+---
+
+### `update_comfort_setting`
+
+```python
+async def update_comfort_setting(
+    self,
+    setting: ComfortSetting | str,
+    *,
+    name: str | None = None,
+    hvac_mode: HVACMode | None = None,
+    heat_setpoint_c: float | None = None,
+    cool_setpoint_c: float | None = None,
+    fan_speed: FanSpeed | None = None,
+) -> ComfortSetting
+```
+
+Updates a comfort preset. Omitted fields keep their current values.
+
+**Parameters**:
+- `setting` — `ComfortSetting` object or comfort setting ID string.
+
+**Returns**: Updated `ComfortSetting`.
+
+---
 
 ## Schedules
 
-- `create_schedule_day(space_id, name, events) -> ScheduleDay`
-- `update_schedule_day(schedule_day_id, space_id, name=None, events=None) -> ScheduleDay`
-- `delete_schedule_day(schedule_day_id) -> None`
-- `create_schedule_week(space_id, days=None) -> ScheduleWeek`
-- `update_schedule_week(schedule_week_id, space_id, days) -> ScheduleWeek`
-- `delete_schedule_week(schedule_week_id) -> None`
-- `set_schedule_execution(paused: bool) -> None`
+### `create_schedule_day`
 
-Behavior notes:
+```python
+async def create_schedule_day(
+    self,
+    space_id: str,
+    name: str,
+    events: list[ScheduleEvent],
+) -> ScheduleDay
+```
 
-- Day/week create/update methods resolve `system_id` from current target system.
-- `set_schedule_execution()` modifies primary location execution flag.
+Creates a new schedule day program for a space.
 
-Errors:
+---
 
-- `QuiltError` if no location exists in snapshot for schedule execution toggle.
+### `update_schedule_day`
+
+```python
+async def update_schedule_day(
+    self,
+    schedule_day_id: str,
+    space_id: str,
+    name: str | None = None,
+    events: list[ScheduleEvent] | None = None,
+) -> ScheduleDay
+```
+
+Updates an existing schedule day's name and/or events.
+
+---
+
+### `delete_schedule_day`
+
+```python
+async def delete_schedule_day(self, schedule_day_id: str) -> None
+```
+
+Deletes a schedule day program.
+
+---
+
+### `create_schedule_week`
+
+```python
+async def create_schedule_week(
+    self,
+    space_id: str,
+    days: list[ScheduleWeekDay] | None = None,
+) -> ScheduleWeek
+```
+
+Creates a new schedule week, optionally mapping weekdays to day programs.
+
+---
+
+### `update_schedule_week`
+
+```python
+async def update_schedule_week(
+    self,
+    schedule_week_id: str,
+    space_id: str,
+    days: list[ScheduleWeekDay],
+) -> ScheduleWeek
+```
+
+Updates a schedule week's day assignments.
+
+---
+
+### `delete_schedule_week`
+
+```python
+async def delete_schedule_week(self, schedule_week_id: str) -> None
+```
+
+Deletes a schedule week.
+
+---
+
+### `set_schedule_execution`
+
+```python
+async def set_schedule_execution(self, paused: bool) -> None
+```
+
+Globally pauses or resumes all schedules for the primary location. `True` pauses; `False` resumes.
+
+---
 
 ## Energy
 
-### `get_energy(start: datetime, end: datetime, system_id: str | None = None) -> list[SpaceEnergyMetrics]`
+### `get_energy`
 
-- Uses hourly resolution from `SystemInformationService`.
-- Explicit `system_id` overrides default resolved system.
+```python
+async def get_energy(
+    self,
+    start: datetime,
+    end: datetime,
+    system_id: str | None = None,
+) -> list[SpaceEnergyMetrics]
+```
+
+Returns hourly energy consumption for all spaces in the given time range.
+
+**Parameters**:
+- `start`, `end` — timezone-aware `datetime` objects defining the query range.
+- `system_id` — explicit system ID; defaults to the primary system.
+
+**Returns**: List of `SpaceEnergyMetrics`, each with a `space_id` and a list of `EnergyBucket` objects (each with `start_time`, `energy_kwh`, `status`).
+
+---
 
 ## Streaming
 
-### `stream(topics: list[str], *, max_reconnects: int = -1, reconnect_delay_s: float = 1.0) -> NotifierStream`
+### `stream`
 
-Creates a `NotifierStream` configured with auth metadata and refresh callback.
-
-Behavior notes:
-
-- `max_reconnects=-1` means unlimited reconnect attempts.
-- Backoff doubles per attempt up to 60s in stream implementation.
-- Stream UNAUTHENTICATED refresh context uses reason `STREAM_UNAUTHENTICATED`.
-
-```mermaid
-sequenceDiagram
-    participant App
-    participant Stream as NotifierStream
-    participant API as Quilt API
-    App->>Stream: run_forever() / start()
-    Stream->>API: Subscribe(topics, metadata)
-    API-->>Stream: events
-    API-->>Stream: UNAUTHENTICATED
-    Stream->>App: refresh callback (context: STREAM_UNAUTHENTICATED)
-    App-->>Stream: token refreshed
-    Stream->>API: reconnect with backoff
+```python
+def stream(
+    self,
+    topics: list[str],
+    *,
+    max_reconnects: int = -1,
+    reconnect_delay_s: float = 1.0,
+) -> NotifierStream
 ```
+
+Creates a `NotifierStream` for real-time updates. Does not start the stream — call `start()`, `run_forever()`, or use as an async context manager.
+
+**Parameters**:
+- `topics` — list of topic strings. Use `snapshot.stream_topics()` to get all topics for a system.
+- `max_reconnects` — maximum automatic reconnect attempts per disconnect. `-1` = unlimited (default).
+- `reconnect_delay_s` — initial back-off in seconds before reconnecting. Doubles on each attempt, capped at 60 s.
+
+**Returns**: `NotifierStream` instance.
+
+See [Streaming protocol behavior](../protocol/streaming-protocol.md) for full stream documentation.
+
+---
 
 ## User
 
-### `get_current_user() -> User`
+### `get_current_user`
 
-Returns current account profile (`id`, `first_name`, `last_name`, `email`,
-`phone_number`).
-
-### `update_current_user(*, first_name: str, last_name: str, phone_number: str | None = None) -> User`
-
-Updates current account profile fields through `UserService.UpdateLoggedInUser`.
-
-### `get_user_attributes() -> UserAttributes`
-
-Returns user attributes, including `declared_user_type`.
-
-### `patch_user_attributes(*, declared_user_type: DeclaredUserType) -> UserAttributes`
-
-Patches current user attributes through `UserService.PatchUserAttributes`.
-
-## Auth/refresh lifecycle diagram
-
-```mermaid
-flowchart TD
-    A[login()] --> B[authenticate()]
-    B --> C{Cached token valid?}
-    C -->|yes| D[Use cached IdToken]
-    C -->|no| E{Refresh token available?}
-    E -->|yes| F[Attempt refresh]
-    F --> G{Refresh success?}
-    G -->|yes| H[Save tokens and continue]
-    G -->|no| I{Policy allows OTP fallback?}
-    I -->|yes| J[OTP login flow]
-    I -->|no| K[Raise auth error]
-    E -->|no| J
-    J --> L[Save tokens and continue]
+```python
+async def get_current_user(self) -> User
 ```
+
+Returns the authenticated user's profile: `quilt_user_id`, `first_name`, `last_name`, `email`, `phone_number`.
+
+---
+
+### `update_current_user`
+
+```python
+async def update_current_user(
+    self,
+    *,
+    first_name: str,
+    last_name: str,
+    phone_number: str | None = None,
+) -> User
+```
+
+Updates the authenticated user's name and optional phone number.
+
+---
+
+### `get_user_attributes`
+
+```python
+async def get_user_attributes(self) -> UserAttributes
+```
+
+Returns user attributes including `declared_user_type` (`HOMEOWNER` or `PARTNER`).
+
+---
+
+### `patch_user_attributes`
+
+```python
+async def patch_user_attributes(
+    self,
+    *,
+    declared_user_type: DeclaredUserType,
+) -> UserAttributes
+```
+
+Updates user attributes.
