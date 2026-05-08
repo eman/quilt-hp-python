@@ -92,7 +92,7 @@ Keeping them separate makes each testable independently. You can test the auth f
 
 ## Why gRPC
 
-Quilt's mobile applications communicate with the cloud backend over gRPC. The wire protocol was reconstructed from the mobile apps and documented in `proto/cleaned/`. Using gRPC lets the library speak the same protocol as the official apps, which is the most stable and complete interface available.
+Quilt's mobile applications communicate with the cloud backend over gRPC. Using gRPC lets the library speak the same protocol, which is the most stable and complete interface available.
 
 gRPC also provides the bidirectional streaming used for real-time notifications, which is a core feature of the library. A REST API would require polling, which would either miss fast changes or generate excessive traffic. The `NotifierService.Subscribe` bidirectional stream lets the server push changes the moment they happen.
 
