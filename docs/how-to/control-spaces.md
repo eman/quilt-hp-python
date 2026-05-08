@@ -1,6 +1,6 @@
 # Control spaces and indoor units
 
-This page covers how to change HVAC settings on spaces (rooms) and indoor units. All examples assume you have an authenticated `QuiltClient` and a `SystemSnapshot`. For authentication setup, see [Authenticate and manage tokens](authenticate.md).
+Use these examples to change HVAC settings on spaces (rooms) and indoor units. All examples assume you have an authenticated `QuiltClient` and a `SystemSnapshot`. For authentication setup, see [Authenticate and manage tokens](authenticate.md).
 
 ---
 
@@ -76,7 +76,7 @@ To turn a room off:
 updated = await client.set_space(room, mode=HVACMode.STANDBY)
 ```
 
-Setting STANDBY clears the active comfort setting association — the room stays off regardless of occupancy automation. To turn the room back on, set a different mode.
+Setting STANDBY clears the active comfort setting association. The room stays off regardless of occupancy automation. To turn the room back on, set a different mode.
 
 ---
 

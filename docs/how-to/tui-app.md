@@ -1,6 +1,6 @@
 # Build a TUI app
 
-[Textual](https://github.com/Textualize/textual) is an async Python TUI framework built on asyncio. Because `quilt-hp-python` is also async, both run in the same event loop — you call `QuiltClient` from Textual event handlers or background workers without thread bridging.
+[Textual](https://github.com/Textualize/textual) is an async Python TUI framework built on asyncio. Because `quilt-hp-python` is also async, both run in the same event loop. You can call `QuiltClient` from Textual event handlers or background workers without thread bridging.
 
 ---
 
@@ -8,9 +8,9 @@
 
 A Quilt Textual integration uses three layers:
 
-1. **`App.on_mount`** — log in and fetch the initial snapshot.
-2. **A `Worker`** — runs the `NotifierStream` indefinitely; stream callbacks post `Message` objects to the Textual app.
-3. **Reactive widgets** — re-render when they receive Quilt messages.
+1. **`App.on_mount`**: Log in and fetch the initial snapshot.
+2. **A `Worker`**: Runs the `NotifierStream` indefinitely; stream callbacks post `Message` objects to the Textual app.
+3. **Reactive widgets**: Re-render when they receive Quilt messages.
 
 ```
 Textual event loop
@@ -185,9 +185,9 @@ Textual is not thread-safe, but `post_message()` is. Stream callbacks run in the
 
 ## Manage worker lifecycle
 
-`run_worker(exclusive=True)` ensures only one stream worker runs at a time. If the user calls `action_refresh`, a new worker replaces the old one. The stream's `max_reconnects=-1` means the reconnect loop runs inside the worker — the worker task only exits when the app shuts down.
+`run_worker(exclusive=True)` makes sure only one stream worker runs at a time. If the user calls `action_refresh`, a new worker replaces the old one. The stream's `max_reconnects=-1` means the reconnect loop runs inside the worker, and the worker task exits only when the app shuts down.
 
-The worker coroutine ends with `await asyncio.Event().wait()` — a never-resolved event that blocks indefinitely. When Textual cancels the worker on app shutdown, this is the task that gets cancelled, which causes the `async with stream:` block to call `stream.stop()`.
+The worker coroutine ends with `await asyncio.Event().wait()`, a never-resolved event that blocks indefinitely. When Textual cancels the worker on app shutdown, this is the task that gets cancelled, which causes the `async with stream:` block to call `stream.stop()`.
 
 ---
 

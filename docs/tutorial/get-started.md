@@ -19,7 +19,7 @@ That's the only dependency you need. The gRPC stubs are bundled, so there's noth
 
 ---
 
-## Step 1 — First login
+## Step 1: First login
 
 Create a file called `quilt_demo.py` and add this:
 
@@ -41,9 +41,9 @@ Run it:
 python quilt_demo.py
 ```
 
-Quilt will send a one-time password to your email address. Type it in when prompted. You'll see `Logged in successfully!` — the library exchanged your OTP for a Cognito session token and is now authenticated.
+Quilt will send a one-time password to your email address. Type it in when prompted. You'll see `Logged in successfully!` The library exchanged your OTP for a Cognito session token and is now authenticated.
 
-You'll notice that if you run the script again immediately, it still asks for an OTP. That's because we haven't told the library where to save the tokens yet. Let's fix that now — update your script to use `FileStore`:
+You'll notice that if you run the script again immediately, it still asks for an OTP. That's because we haven't told the library where to save the tokens yet. Let's fix that now by updating your script to use `FileStore`:
 
 ```python
 import asyncio
@@ -60,11 +60,11 @@ async def main() -> None:
 asyncio.run(main())
 ```
 
-Run it once more. After this run, the tokens are cached. Try running it a third time — no OTP prompt. The library found the cached tokens and reused them.
+Run it once more. After this run, the tokens are cached. Try running it a third time. There should be no OTP prompt because the library found the cached tokens and reused them.
 
 ---
 
-## Step 2 — Read your system
+## Step 2: Read your system
 
 Now let's fetch the current state of your home and print every room's temperature. Add `get_snapshot()` after the login:
 
@@ -102,13 +102,13 @@ Living Room          AUTO     20.8°C
 Guest Room           STANDBY  —
 ```
 
-`snapshot` is a `SystemSnapshot` — the object that represents your whole home at a point in time. It contains every room, indoor unit, outdoor unit, sensor, comfort setting, and schedule in a single data structure. Think of it as a complete photograph of your system.
+`snapshot` is a `SystemSnapshot`, the object that represents your whole home at a point in time. It contains every room, indoor unit, outdoor unit, sensor, comfort setting, and schedule in a single data structure. Think of it as a complete photograph of your system.
 
 `snapshot.rooms` gives you only the leaf-level room spaces (not floor-level groupings). Each room has a `state` (what the sensors are reading right now) and `controls` (what the system is set to do).
 
 ---
 
-## Step 3 — Control a space
+## Step 3: Control a space
 
 Now let's set a room to cooling mode. We'll look up the Living Room by name and tell it to cool:
 
@@ -135,7 +135,7 @@ A few things to notice: `set_space()` accepts the `Space` object directly (not j
 
 ---
 
-## Step 4 — Stream a live update
+## Step 4: Stream a live update
 
 The final step is subscribing to real-time updates. Instead of polling, the library opens a persistent gRPC stream that the server uses to push changes as they happen.
 
@@ -182,7 +182,7 @@ asyncio.run(main())
 
 Run it. Within a few seconds you'll see update lines appearing as the server pushes the current state of your rooms. If you change something in the Quilt app while the script is running, you'll see the update arrive in real time.
 
-Notice the `snapshot.apply_space(space)` call inside the callback. Stream events are *sparse* — they only carry the fields that changed. Calling `apply_space` merges the diff into the full snapshot so you always have a complete picture of each room. Without that merge, zero-valued proto3 defaults would overwrite real data.
+Notice the `snapshot.apply_space(space)` call inside the callback. Stream events are *sparse*: they only carry the fields that changed. Calling `apply_space` merges the diff into the full snapshot so you always have a complete picture of each room. Without that merge, zero-valued proto3 defaults would overwrite real data.
 
 ---
 
@@ -190,10 +190,10 @@ Notice the `snapshot.apply_space(space)` call inside the callback. Stream events
 
 You've covered the four fundamental operations of the library:
 
-1. **`login()`** — authenticates with Cognito using an OTP, then caches tokens in `FileStore` for future runs. Subsequent calls reuse the cached token silently.
-2. **`get_snapshot()`** — fetches the complete state of your Quilt installation in a single RPC call, returning a `SystemSnapshot` with all entities.
-3. **`set_space()`** — sends a control command to change a room's HVAC mode and setpoints. The server returns the updated state.
-4. **`client.stream()`** — opens a bidirectional gRPC stream, registers callbacks, and delivers real-time change events as they happen.
+1. **`login()`**: Authenticates with Cognito using an OTP, then caches tokens in `FileStore` for future runs. Later calls reuse the cached token silently.
+2. **`get_snapshot()`**: Fetches the complete state of your Quilt installation in a single RPC call and returns a `SystemSnapshot` with all entities.
+3. **`set_space()`**: Sends a control command to change a room's HVAC mode and setpoints. The server returns the updated state.
+4. **`client.stream()`**: Opens a bidirectional gRPC stream, registers callbacks, and delivers real-time change events as they happen.
 
 Everything else in the library builds on these four patterns.
 
@@ -201,7 +201,7 @@ Everything else in the library builds on these four patterns.
 
 ## Where to go next
 
-- **[How-to guides](../how-to/authenticate.md)** — step-by-step recipes for specific tasks: custom token stores, controlling indoor units, scheduling, daemon patterns, and more.
-- **[QuiltClient reference](../reference/client.md)** — complete API documentation for every method, parameter, and return type.
-- **[Architecture](../explanation/architecture.md)** — a discussion of why the library is structured the way it is and what each layer does.
-- **[Snapshot and stream data model](../explanation/snapshot-and-stream.md)** — a deeper look at `SystemSnapshot`, sparse diffs, and why `apply_space()` matters.
+- **[How-to guides](../how-to/authenticate.md):** Step-by-step recipes for specific tasks such as custom token stores, indoor-unit control, scheduling, and daemon patterns.
+- **[QuiltClient reference](../reference/client.md):** Complete API documentation for every method, parameter, and return type.
+- **[Architecture](../explanation/architecture.md):** A discussion of why the library is structured the way it is and what each layer does.
+- **[Snapshot and stream data model](../explanation/snapshot-and-stream.md):** A closer look at `SystemSnapshot`, sparse diffs, and why `apply_space()` matters.

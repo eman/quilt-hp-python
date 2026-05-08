@@ -6,12 +6,12 @@ This page explains the gRPC design decisions, the five proto services, why the s
 
 ## Why gRPC for this API
 
-Quilt's mobile applications (iOS and Android) communicate with the cloud backend over gRPC. The wire protocol was reconstructed from the mobile apps and documented in `proto/cleaned/`. Using gRPC means the library speaks the same protocol as the official apps — the most stable and feature-complete interface available.
+Quilt's mobile applications (iOS and Android) communicate with the cloud backend over gRPC. The wire protocol was reconstructed from the mobile apps and documented in `proto/cleaned/`. Using gRPC lets the library speak the same protocol as the official apps, which is the most stable and complete interface available.
 
 There are three properties of gRPC that make it particularly well-suited here:
 
 1. **Bidirectional streaming.** The `NotifierService.Subscribe` RPC is a persistent bidirectional stream. The server pushes change events as they happen; the client manages subscriptions in the same connection. This is not easily expressible in REST.
-2. **Strong typing.** Proto definitions are a contract. Adding a new field to a proto message does not break existing clients — proto3 is forward-compatible. REST APIs typically need versioned endpoints or loose JSON schemas to achieve the same stability.
+2. **Strong typing.** Proto definitions are a contract. Adding a new field to a proto message does not break existing clients because proto3 is forward-compatible. REST APIs typically need versioned endpoints or loose JSON schemas to achieve the same stability.
 3. **Efficient wire format.** Protobuf is a compact binary format. For high-frequency telemetry (temperature readings every few seconds from multiple rooms) this matters for bandwidth and parsing latency.
 
 ---
@@ -20,19 +20,19 @@ There are three properties of gRPC that make it particularly well-suited here:
 
 The Quilt API is split across five proto files, each defining one or more services:
 
-**`quilt_hds.proto` — `HomeDatastoreService`**
+**`quilt_hds.proto`: `HomeDatastoreService`**
 The central service. All HDS (Home Datastore) entities live here: spaces, indoor units, outdoor units, controllers, sensors, comfort settings, and schedules. This is where all HVAC control RPCs are defined. The library wraps eleven methods: `GetHomeDatastoreSystem`, `UpdateSpace`, `UpdateIndoorUnit`, `UpdateComfortSetting`, and the CRUD methods for schedule days, schedule weeks, and location (for schedule pausing).
 
-**`quilt_services.proto` — `SystemInformationService`, `UserService`, and others**
-Contains system-level queries (`ListSystems`, `GetEnergyMetrics`) and user management (`GetLoggedInUser`, `UpdateLoggedInUser`, `GetUserAttributes`, `PatchUserAttributes`). Also defines `InvitationService`, `PartnerService`, `SystemUserService`, and `MobileAppService` — these are defined in the proto files but not currently wrapped by the library.
+**`quilt_services.proto`: `SystemInformationService`, `UserService`, and others**
+Contains system-level queries (`ListSystems`, `GetEnergyMetrics`) and user management (`GetLoggedInUser`, `UpdateLoggedInUser`, `GetUserAttributes`, `PatchUserAttributes`). It also defines `InvitationService`, `PartnerService`, `SystemUserService`, and `MobileAppService`. Those services are in the proto files but are not currently wrapped by the library.
 
-**`quilt_notifier.proto` — `NotifierService`**
+**`quilt_notifier.proto`: `NotifierService`**
 A single RPC: `Subscribe(stream SubscribeRequest) returns (stream SubscribeResponse)`. This is the only streaming RPC in the library. The client sends subscription management messages (add/remove topics); the server sends change notifications.
 
-**`quilt_system.proto` — `SystemService`**
+**`quilt_system.proto`: `SystemService`**
 System-level RPCs. Not currently wrapped by the library.
 
-**`quilt_device_pairing.proto` — `DevicePairingService`**
+**`quilt_device_pairing.proto`: `DevicePairingService`**
 Device pairing RPCs. Not currently wrapped by the library.
 
 For the complete method matrix, see [gRPC services matrix](../reference/grpc-services-matrix.md).
@@ -45,7 +45,7 @@ Generated protobuf stubs (`*_pb2.py`, `*_pb2_grpc.py`, `*_pb2.pyi`) are committe
 
 **Simpler installation.** `pip install quilt-hp-python` works in any Python environment without needing `protoc`, `grpcio-tools`, or any proto-related build dependencies. A user installing the library to write an automation script should not need to care about proto compilation.
 
-**Reproducibility.** The exact generated code is pinned in git. Different versions of `grpcio-tools.protoc` generate subtly different code (import style, comment format, type stub content). Vendoring eliminates that variability — the code in the repo is the code that was tested.
+**Reproducibility.** The exact generated code is pinned in git. Different versions of `grpcio-tools.protoc` generate subtly different code (import style, comment format, type stub content). Vendoring eliminates that variability. The code in the repo is the code that was tested.
 
 **Auditable diffs.** When proto definitions change, the diff in the pull request shows exactly what changed in the generated code. A reviewer can see whether a new field was added to the right message, whether the import rewriting was applied correctly, and whether the Python models were updated accordingly.
 
@@ -88,8 +88,8 @@ GRPC_CHANNEL_OPTIONS = [
 ]
 ```
 
-NAT devices and load balancers silently drop idle TCP connections after a timeout — typically 60 to 300 seconds. Without keepalives, the `NotifierStream` (which maintains a persistent connection for hours) would appear alive to the application while the underlying TCP connection had been silently dropped. The stream would stop receiving events with no error, no reconnect, and no indication that anything was wrong.
+NAT devices and load balancers silently drop idle TCP connections after a timeout, typically 60 to 300 seconds. Without keepalives, the `NotifierStream` (which maintains a persistent connection for hours) would appear alive to the application while the underlying TCP connection had been silently dropped. The stream would stop receiving events with no error, no reconnect, and no indication that anything was wrong.
 
-Sending a keepalive ping every 30 seconds prevents the NAT entry from timing out. `keepalive_permit_without_calls = 1` is necessary because gRPC by default does not send keepalives when no calls are in-flight — but the notification stream is always in-flight from the client's perspective, even when it is not sending messages. Setting `http2.max_pings_without_data = 0` removes the gRPC default cap that would otherwise stop sending pings after a few unanswered attempts.
+Sending a keepalive ping every 30 seconds prevents the NAT entry from timing out. `keepalive_permit_without_calls = 1` is necessary because gRPC does not send keepalives by default when no calls are in flight. The notification stream is always in flight from the client's perspective, even when it is not sending messages. Setting `http2.max_pings_without_data = 0` removes the gRPC default cap that would otherwise stop sending pings after a few unanswered attempts.
 
 These settings are defined in `const.py` as `GRPC_CHANNEL_OPTIONS` and are applied to every channel created by `create_channel()` in `transport.py`.

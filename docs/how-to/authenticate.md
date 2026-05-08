@@ -1,6 +1,6 @@
 # Authenticate and manage tokens
 
-This page covers authentication patterns for the `quilt_hp` library. For background on why the token resolution works this way, see [Authentication and token lifecycle](../explanation/authentication.md).
+Use this guide for common authentication patterns in the `quilt_hp` library. For background on why the token resolution works this way, see [Authentication and token lifecycle](../explanation/authentication.md).
 
 ---
 
@@ -49,7 +49,7 @@ To avoid the OTP prompt on every run:
        # Tokens are now saved; next run will not prompt
    ```
 
-2. On subsequent runs, call `login()` with the same store. If the cached access token is still valid it is reused immediately. If it is expired but the refresh token is valid, a silent refresh is performed — no OTP required.
+2. On subsequent runs, call `login()` with the same store. If the cached access token is still valid it is reused immediately. If it is expired but the refresh token is valid, the library performs a silent refresh. No OTP is required.
 
 3. To clear cached tokens:
 
@@ -186,6 +186,6 @@ To observe token refresh events (for logging or metrics):
    )
    ```
 
-Hooks are called in addition to (not instead of) the refresh policy. If a hook raises, the exception propagates — keep hooks lightweight and non-raising.
+Hooks are called in addition to the refresh policy, not instead of it. If a hook raises, the exception propagates, so keep hooks lightweight and avoid raising from them.
 
 For the complete hook and policy protocol definitions, see [Token management reference](../reference/token-management.md).

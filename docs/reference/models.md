@@ -32,7 +32,7 @@ service = HomeDatastoreService(channel)
 | `delete_schedule_week(schedule_week_id)` | Deletes a schedule week by ID. |
 | `set_schedule_execution(location_id, paused)` | Pauses or resumes all schedules for a location. |
 
-**Caveat on updates**: The `UpdateSpace` request uses a `Space` proto field mask. All fields in the settings submessage must be populated — the server interprets absent fields as "clear to default". `QuiltClient.set_space()` handles this by reading the current snapshot and echoing existing values for any fields you don't explicitly change.
+**Caveat on updates**: The `UpdateSpace` request uses a `Space` proto field mask. All fields in the settings submessage must be populated because the server treats absent fields as "clear to default." `QuiltClient.set_space()` handles this by reading the current snapshot and echoing existing values for any fields you do not explicitly change.
 
 ### `SystemInformationService`
 
@@ -78,7 +78,7 @@ stream = NotifierStream(
 
 See [Streaming protocol behavior](../explanation/streaming-protocol.md) for the full state machine, event types, and reconnect behavior.
 
-Key event registration methods:
+Event registration methods:
 
 ```python
 stream.on_space_update(callback)       # Callable[[Space], Awaitable | None]

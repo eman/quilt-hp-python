@@ -8,7 +8,7 @@
 
 `SystemSnapshot` is an in-memory model of a complete Quilt installation at a point in time. A single `GetHomeDatastoreSystem` RPC returns the entire state of one system: all spaces, indoor units, outdoor units, controllers, sensors, comfort settings, and schedules, in one flat response.
 
-This is intentional. Quilt's cloud backend is designed to serve a full snapshot on demand. The alternative — separate RPCs for each entity type — would require a client to coordinate multiple concurrent requests and assemble a consistent view. A single snapshot RPC is simpler, faster, and gives clients a strongly consistent starting point.
+This is intentional. Quilt's cloud backend is designed to serve a full snapshot on demand. The alternative, separate RPCs for each entity type, would require a client to coordinate multiple concurrent requests and assemble a consistent view. A single snapshot RPC is simpler, faster, and gives clients a strongly consistent starting point.
 
 `SystemSnapshot.from_proto()` does more than field-by-field translation. It cross-references comfort settings to resolve `active_comfort_setting_type` on spaces, and it resolves hardware lookup maps so outdoor units and controllers include hardware info (model SKU, serial number, firmware). This enrichment cannot be done from a sparse stream diff, which is one reason the snapshot is the authoritative starting point.
 
@@ -32,7 +32,7 @@ await stream.run_forever()
 
 This pattern is more efficient than polling for two reasons:
 
-1. `get_snapshot()` is a heavyweight call — it transfers the entire system state. Polling it every few seconds would generate unnecessary traffic and adds latency.
+1. `get_snapshot()` is a heavyweight call because it transfers the entire system state. Polling it every few seconds would generate unnecessary traffic and adds latency.
 2. Stream events arrive within milliseconds of a state change, while a poll would miss anything that happened between polls.
 
 The snapshot is not just a performance optimisation; it is the source of truth for fields that are never sent in stream diffs. This is because…
@@ -48,7 +48,7 @@ This means a raw space from a stream event will have:
 - `controls.heat_setpoint_c == 0.0` (not the real setpoint)
 - `settings.name == ""` (not the real name)
 
-The server sends only what changed. The `UNSPECIFIED` values are not errors — they are the proto3 default for absent fields.
+The server sends only what changed. The `UNSPECIFIED` values are not errors; they are the proto3 default for absent fields.
 
 This is the fundamental reason why you must always call `snapshot.apply_space(space)` rather than using the raw stream space directly.
 
@@ -67,7 +67,7 @@ For `apply_space()`, the logic is approximately:
 
 The `UNSPECIFIED` sentinel detection is necessary because proto3 has no way to distinguish "field was explicitly set to its default value" from "field was absent". The library uses domain knowledge: a real space always has a non-UNSPECIFIED hvac_mode, so `UNSPECIFIED` reliably signals absence.
 
-Step 4 — `enrich_space()` — is also important. Stream diffs do not carry comfort-setting metadata (the full `ComfortSetting` object). Without enrichment, `space.is_away` and `space.is_off` would not work correctly on stream-updated spaces because those properties depend on the `active_comfort_setting_type` resolved from the snapshot's comfort-setting list.
+Step 4, `enrich_space()`, is also important. Stream diffs do not carry comfort-setting metadata (the full `ComfortSetting` object). Without enrichment, `space.is_away` and `space.is_off` would not work correctly on stream-updated spaces because those properties depend on the `active_comfort_setting_type` resolved from the snapshot's comfort-setting list.
 
 ---
 

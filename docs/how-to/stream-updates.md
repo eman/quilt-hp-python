@@ -1,6 +1,6 @@
 # Stream real-time updates
 
-This page covers how to subscribe to and process live HVAC events from the Quilt streaming API. For background on how the stream works, see [The streaming protocol](../explanation/streaming-protocol.md).
+Use this guide to subscribe to and process live HVAC events from the Quilt streaming API. For background on how the stream works, see [The streaming protocol](../explanation/streaming-protocol.md).
 
 ---
 
@@ -34,7 +34,7 @@ async with client.stream(snapshot.stream_topics()) as stream:
 
 ## Merge stream updates into a snapshot
 
-Stream events carry only the fields that changed — a sparse diff. Always merge into the snapshot to preserve unchanged fields:
+Stream events carry only the fields that changed. Each event is a sparse diff. Always merge into the snapshot to preserve unchanged fields:
 
 ```python
 snapshot = await client.get_snapshot()
@@ -115,7 +115,7 @@ async with client.stream(snapshot.stream_topics()) as stream:
 
 ## Handle stream errors and reconnect
 
-The stream reconnects automatically with exponential back-off (1 s, 2 s, 4 s, … up to 60 s cap). To configure the reconnect budget:
+The stream reconnects automatically with exponential back-off (1 s, 2 s, 4 s, … up to a 60 s cap). Use these options to configure the reconnect budget:
 
 ```python
 # Unlimited reconnects (default: -1)
