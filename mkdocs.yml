@@ -1,5 +1,6 @@
 site_name: quilt-hp-python
 site_description: Async Python client, CLI, and TUI for Quilt HVAC systems
+site_url: https://eman.github.io/quilt-hp-python/
 repo_url: https://github.com/eman/quilt-hp-python
 repo_name: eman/quilt-hp-python
 theme:
