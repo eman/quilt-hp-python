@@ -68,10 +68,18 @@ async with QuiltClient("you@example.com", token_store=store) as client:
 
 **`NotifierStream`** is the real-time update channel. Register callbacks on it with `on_space_update()`, `on_indoor_unit_update()`, etc. and the callbacks are fired whenever the server pushes a change. The stream reconnects automatically with exponential back-off.
 
+## Documentation structure
+
+The documentation follows the [Diátaxis](https://diataxis.fr/) framework, organised into four quadrants:
+
+- **Tutorial** — a hands-on learning journey for newcomers. Start here if you've never used the library before.
+- **How-to guides** — step-by-step recipes for specific tasks. Use these when you know what you want to do and need to know how.
+- **Reference** — dry, accurate, complete API documentation. Use these when you need to look up a parameter or return type.
+- **Explanation** — background, context, and design rationale. Read these when you want to understand *why* something works the way it does.
+
 ## Documentation sections
 
-- **[Architecture](architecture/index.md)** — layered design, snapshot vs. stream data model, channel lifecycle.
-- **[Protocol](protocol/index.md)** — gRPC transport, Cognito auth flow, protobuf artifacts, streaming wire format.
-- **[Python API](python-api/index.md)** — usage patterns, complete API reference, token management, examples.
-- **[Integrations](integrations/index.md)** — Home Assistant, automation daemons, CLI scripting, TUI apps.
-- **[Contributing](contributing/index.md)** — development setup, quality gates, docs and protocol update process.
+- **[Tutorial: Get started](tutorial/get-started.md)** — build a working script that logs in, reads rooms, controls a space, and streams live updates.
+- **How-to guides** — [Authenticate and manage tokens](how-to/authenticate.md) · [Control spaces and indoor units](how-to/control-spaces.md) · [Stream real-time updates](how-to/stream-updates.md) · [Build a Home Assistant component](how-to/home-assistant.md) · [Build an automation daemon](how-to/automation-daemon.md) · [Automate with the CLI](how-to/cli-scripting.md) · and more.
+- **[Reference: QuiltClient](reference/client.md)** — complete API reference for every method, parameter, and return type.
+- **[Explanation: Architecture](explanation/architecture.md)** — why the library is layered the way it is, the async-first constraint, and the injection design.
