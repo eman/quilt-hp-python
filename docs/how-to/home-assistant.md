@@ -281,12 +281,88 @@ async def async_setup_entry(hass, entry):
 
 ---
 
-## OTP authentication with HA
+## Step 6: Handle OTP authentication via a config flow
 
-Because HA has no interactive terminal, perform the initial OTP login outside HA using the `quilt-hp` CLI:
+Home Assistant has no interactive terminal, so OTP must be collected through a config flow. Implement a two-step flow: the user enters their email, HA triggers the OTP send, then the user enters the code.
 
-```bash
-quilt-hp login
+```python
+import voluptuous as vol
+from homeassistant import config_entries
+from quilt_hp import QuiltClient
+from quilt_hp.tokens import CachedTokens
+
+DOMAIN = "quilt_hp"
+
+
+class QuiltConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
+    """Two-step config flow: email → OTP → done."""
+
+    VERSION = 1
+
+    def __init__(self) -> None:
+        self._email: str = ""
+        self._client: QuiltClient | None = None
+
+    async def async_step_user(self, user_input=None):
+        """Step 1: collect email and trigger OTP send."""
+        errors = {}
+        if user_input is not None:
+            self._email = user_input["email"]
+            self._client = QuiltClient(self._email)
+            try:
+                # Passing no otp_callback triggers the OTP email without
+                # waiting for the code — the library sends the challenge and
+                # raises QuiltAuthError if the send itself fails.
+                await self._client.login(otp_callback=self._send_otp)
+            except Exception:
+                errors["base"] = "cannot_connect"
+            else:
+                return await self.async_step_otp()
+
+        return self.async_show_form(
+            step_id="user",
+            data_schema=vol.Schema({vol.Required("email"): str}),
+            errors=errors,
+        )
+
+    async def _send_otp(self, email: str) -> str:
+        """Called by QuiltClient.login() to collect the OTP.
+
+        Store the email so async_step_otp can finish the flow;
+        raise an exception to pause login until the user submits the form.
+        """
+        # The actual OTP will come from the form in async_step_otp.
+        # Raise to interrupt login — we'll resume with the code.
+        raise _AwaitingOTP
+
+    async def async_step_otp(self, user_input=None):
+        """Step 2: collect OTP and complete login."""
+        errors = {}
+        if user_input is not None:
+            otp = user_input["otp"]
+            try:
+                # Re-run login supplying the code directly this time.
+                await self._client.login(otp_callback=lambda _: otp)
+            except Exception:
+                errors["base"] = "invalid_auth"
+            else:
+                return self.async_create_entry(
+                    title=self._email,
+                    data={"email": self._email},
+                )
+
+        return self.async_show_form(
+            step_id="otp",
+            data_schema=vol.Schema({vol.Required("otp"): str}),
+            errors=errors,
+            description_placeholders={"email": self._email},
+        )
+
+
+class _AwaitingOTP(Exception):
+    """Sentinel raised to interrupt the login coroutine while awaiting user input."""
 ```
 
-The `HATokenStore` loads those cached tokens on first setup. If re-authentication is needed later, surface an OTP prompt through a HA config flow.
+The config flow stores only the email in `entry.data`. Tokens are persisted in `HATokenStore` after the first successful login and reused on subsequent HA restarts without prompting again.
+
+When a refresh token expires, surface re-authentication by calling `self.hass.config_entries.async_start_reauth(entry)` from the coordinator's error handler.

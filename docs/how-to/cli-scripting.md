@@ -1,6 +1,6 @@
 # Automate with the CLI
 
-The `quilt-hp` CLI exposes the same operations as the Python API through subcommands that print JSON, making it easy to pipe output into `jq`, use in shell scripts, or call from CI pipelines.
+The `quilt` CLI exposes the same operations as the Python API through subcommands that print JSON, making it easy to pipe output into `jq`, use in shell scripts, or call from CI pipelines.
 
 ---
 
@@ -9,7 +9,7 @@ The `quilt-hp` CLI exposes the same operations as the Python API through subcomm
 To log in and cache tokens:
 
 ```bash
-quilt-hp login
+quilt login
 ```
 
 The CLI prompts for your Quilt account email and OTP. Tokens are stored in `~/.config/quilt-hp/tokens.json` with permissions `0o600`. All subsequent commands read from this cache without prompting.
@@ -17,7 +17,7 @@ The CLI prompts for your Quilt account email and OTP. Tokens are stored in `~/.c
 To log out and clear the token cache:
 
 ```bash
-quilt-hp logout
+quilt logout
 ```
 
 To avoid specifying `--email` on every command, set the environment variable:
@@ -31,20 +31,20 @@ export QUILT_EMAIL="you@example.com"
 ## Get a system snapshot as JSON
 
 ```bash
-quilt-hp snapshot
+quilt snapshot
 ```
 
 Pipe to `jq` for filtering:
 
 ```bash
 # All room names and current temperatures
-quilt-hp snapshot | jq '.rooms[] | {name, temp: .state.current_temp_c}'
+quilt snapshot | jq '.rooms[] | {name, temp: .state.current_temp_c}'
 
 # Rooms currently in COOL mode
-quilt-hp snapshot | jq '[.rooms[] | select(.controls.mode == "cool")]'
+quilt snapshot | jq '[.rooms[] | select(.controls.mode == "cool")]'
 
 # All indoor units that are offline
-quilt-hp snapshot | jq '[.indoor_units[] | select(.state.is_online == false)]'
+quilt snapshot | jq '[.indoor_units[] | select(.state.is_online == false)]'
 ```
 
 ---
@@ -53,13 +53,13 @@ quilt-hp snapshot | jq '[.indoor_units[] | select(.state.is_online == false)]'
 
 ```bash
 # Set a space to COOL mode at 22°C
-quilt-hp set-space "Living Room" --mode cool --cool-setpoint 22
+quilt set-space "Living Room" --mode cool --cool-setpoint 22
 
 # Set to AUTO with a setpoint range
-quilt-hp set-space "Bedroom" --mode auto --heat-setpoint 19 --cool-setpoint 24
+quilt set-space "Bedroom" --mode auto --heat-setpoint 19 --cool-setpoint 24
 
 # Turn off a space
-quilt-hp set-space "Guest Room" --mode standby
+quilt set-space "Guest Room" --mode standby
 ```
 
 ---
@@ -72,11 +72,11 @@ set -euo pipefail
 
 SETPOINT="${1:-22}"
 
-quilt-hp snapshot \
+quilt snapshot \
   | jq -r '.rooms[] | .name' \
   | while read -r room; do
       echo "Setting '$room' to ${SETPOINT}°C…"
-      quilt-hp set-space "$room" --mode cool --cool-setpoint "$SETPOINT"
+      quilt set-space "$room" --mode cool --cool-setpoint "$SETPOINT"
     done
 ```
 
@@ -92,7 +92,7 @@ import json
 import subprocess
 
 result = subprocess.run(
-    ["quilt-hp", "snapshot", "--output", "json"],
+    ["quilt", "snapshot", "--output", "json"],
     capture_output=True,
     text=True,
     check=True,
@@ -114,7 +114,7 @@ for room in data["rooms"]:
 Put all rooms in STANDBY at midnight:
 
 ```cron
-0 0 * * * QUILT_EMAIL=you@example.com /usr/local/bin/quilt-hp set-all-spaces --mode standby
+0 0 * * * QUILT_EMAIL=you@example.com /usr/local/bin/quilt set-all-spaces --mode standby
 ```
 
 Or use a script that reads the snapshot to avoid a CLI call per room:
@@ -123,8 +123,8 @@ Or use a script that reads the snapshot to avoid a CLI call per room:
 #!/usr/bin/env bash
 # /usr/local/bin/quilt-standby
 set -euo pipefail
-quilt-hp snapshot | jq -r '.rooms[] | .id' | while read -r id; do
-    quilt-hp set-space "$id" --mode standby
+quilt snapshot | jq -r '.rooms[] | .id' | while read -r id; do
+    quilt set-space "$id" --mode standby
 done
 ```
 
@@ -138,7 +138,7 @@ done
 OUTFILE="/var/lib/node_exporter/quilt.prom"
 TMPFILE="${OUTFILE}.tmp"
 
-quilt-hp snapshot --output json | python3 - << 'PYEOF' > "$TMPFILE"
+quilt snapshot --output json | python3 - << 'PYEOF' > "$TMPFILE"
 import sys, json
 data = json.load(sys.stdin)
 for room in data["rooms"]:
@@ -158,13 +158,13 @@ mv "$TMPFILE" "$OUTFILE"
 
 ```bash
 # Last 7 days
-quilt-hp energy --days 7
+quilt energy --days 7
 
 # Specific date range
-quilt-hp energy --start 2024-01-01 --end 2024-01-31
+quilt energy --start 2024-01-01 --end 2024-01-31
 
 # As JSON, summed per space
-quilt-hp energy --days 7 --output json \
+quilt energy --days 7 --output json \
   | jq '[.[] | {space: .space_id, kwh: ([.buckets[].energy_kwh] | add)}]'
 ```
 
@@ -175,7 +175,7 @@ quilt-hp energy --days 7 --output json \
 | Code | Meaning |
 |------|---------|
 | 0 | Success |
-| 1 | Authentication error (re-run `quilt-hp login`) |
+| 1 | Authentication error (re-run `quilt login`) |
 | 2 | Space or resource not found |
 | 3 | Network or gRPC error |
 | 4 | Invalid arguments |
