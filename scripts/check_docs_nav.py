@@ -10,6 +10,17 @@ import yaml
 
 
 ROOT = Path(__file__).resolve().parent.parent
+
+
+def _make_loader() -> type[yaml.SafeLoader]:
+    """Return a SafeLoader that silently ignores !!python/name: tags (used by mkdocs-material)."""
+    loader = yaml.SafeLoader
+
+    def _ignore_python_tag(loader: yaml.SafeLoader, tag_suffix: str, node: yaml.Node) -> str:
+        return loader.construct_scalar(node)  # type: ignore[arg-type]
+
+    loader.add_multi_constructor("tag:yaml.org,2002:python/", _ignore_python_tag)
+    return loader
 DOCS_DIR = ROOT / "docs"
 MKDOCS_CONFIG = ROOT / "mkdocs.yml"
 
@@ -32,7 +43,7 @@ def _collect_nav_doc_paths(node: Any) -> set[Path]:
 
 
 def main() -> int:
-    config = yaml.safe_load(MKDOCS_CONFIG.read_text(encoding="utf-8"))
+    config = yaml.load(MKDOCS_CONFIG.read_text(encoding="utf-8"), Loader=_make_loader())
     nav_paths = _collect_nav_doc_paths(config.get("nav", []))
 
     missing_in_docs = sorted(path for path in nav_paths if not (DOCS_DIR / path).is_file())

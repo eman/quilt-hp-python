@@ -42,7 +42,7 @@ A Space is a zone within a Quilt installation — typically a room. Spaces are h
 
 ## IndoorUnit
 
-An IndoorUnit is a wall-mounted mini-split head unit. Each IDU belongs to exactly one Space and one OutdoorUnit. IDUs contain a QuiltSmartModule (the connectivity hardware) and have multiple sub-messages covering controls, state, settings, performance metrics, presence detection, and fault conditions.
+An IndoorUnit is a wall-mounted mini-split head unit (7⅞ in tall × 38¼ in wide × 8³⁄₁₆ in deep — one of the slimmest heads on the market). Each IDU is rated at 9,000 BTU and operates between 27–48 dBA. It belongs to exactly one Space and one OutdoorUnit. IDUs contain a QuiltSmartModule (the connectivity and radar hardware) and have multiple sub-messages covering controls, state, settings, performance metrics, presence detection, and fault conditions.
 
 **Python model**: `quilt_hp.models.indoor_unit.IndoorUnit`
 
@@ -95,23 +95,70 @@ LED state can be expressed two ways depending on whether the `mobile_led_schedul
 
 ## OutdoorUnit
 
-The outdoor compressor unit. Each IDU is associated with one OutdoorUnit. Hardware information (model SKU, serial number, firmware) comes from the `outdoor_unit_hardware` lookup map in the snapshot proto — it is not in the main `outdoor_units` list. `SystemSnapshot.from_proto()` resolves this by building a hardware map.
+The variable-speed compressor unit that provides heating and cooling capacity to all connected IDUs. Quilt sells two configurations: a 2-zone model (`QO1-M2Z18-NC-NA`, up to 18,000 BTU/h heating) and a 3-zone model (`QO1-M3Z27-NC-NA`, larger capacity). Both use R32 refrigerant and can operate down to -13°F while maintaining ~90% capacity. Hardware information (model SKU, serial number, firmware) comes from the `outdoor_unit_hardware` lookup map in the snapshot proto — it is not embedded in the main `outdoor_units` list. `SystemSnapshot.from_proto()` resolves this by building a hardware map.
 
 **Python model**: `quilt_hp.models.outdoor_unit.OutdoorUnit`
+
+| Field | Type | Meaning |
+| --- | --- | --- |
+| `id` | `str` | Unique object ID |
+| `space_id` | `str` | Associated space (home-level space) |
+| `model_sku` | `str \| None` | Hardware model number (e.g. `QO1-M2Z18-NC-NA`) |
+| `serial_number` | `str \| None` | Unit serial number |
+| `firmware_version` | `str \| None` | Current firmware version string |
+| `firmware_update_info_id` | `str \| None` | ID of pending firmware update entity, if any |
+| `performance_data.compressor_frequency_hz` | `float \| None` | Live compressor speed in Hz |
+| `performance_data.ambient_temperature_c` | `float \| None` | Outdoor ambient temperature |
+| `performance_data.coil_temperature_c` | `float \| None` | Refrigerant coil temperature |
 
 ---
 
 ## Controller
 
-The Quilt Dial — the wall-mounted thermostat/controller device. Each Controller is associated with one or more IDUs and a Space. It reports Wi-Fi connectivity information, remote sensor control mode, and hardware info.
+The Quilt Dial — a compact circular thermostat (58 mm diameter) that can be wall-mounted or placed on a tabletop. It has a high-res OLED touchscreen, a rotary dial, and built-in sensors for ambient temperature, motion, and proximity. Each Controller is associated with one Space and reports its own ambient temperature independently of the IDU. The Dial is also the primary local control surface for room-by-room and whole-home adjustments.
 
 **Python model**: `quilt_hp.models.controller.Controller`
+
+| Field | Type | Meaning |
+| --- | --- | --- |
+| `id` | `str` | Unique object ID |
+| `space_id` | `str` | Space this Dial controls |
+| `name` | `str` | Display name |
+| `ambient_temperature_c` | `float` | Temperature measured by the Dial's built-in sensor |
+| `raw_thermistor_c` | `float` | Raw uncalibrated thermistor reading |
+| `remote_sensor_mode` | `HvacControllerType` | How the Dial's temperature reading influences the space setpoint |
+| `model_sku` | `str \| None` | Hardware model identifier |
+| `serial_number` | `str \| None` | Unit serial number |
+| `software_update_info_id` | `str \| None` | Pending software update entity ID |
+| `firmware_update_info_id` | `str \| None` | Pending firmware update entity ID |
+
+---
+
+## QuiltSmartModule (QSM)
+
+The intelligent compute and sensor module embedded inside each Indoor Unit. It runs the on-device occupancy logic, hosts the millimeter-wave radar presence sensor, and handles over-the-air firmware updates. The QSM exposes raw sensor readings that the server-side occupancy algorithm uses to decide when a room transitions between occupied and unoccupied states.
+
+**Python model**: `quilt_hp.models.qsm.QuiltSmartModule`
+
+| Field | Type | Meaning |
+| --- | --- | --- |
+| `id` | `str` | Unique object ID |
+| `software_update_info_id` | `str \| None` | Pending software update entity ID |
+| `firmware_update_info_id` | `str \| None` | Pending firmware update entity ID |
+| `sensors.phase_detected_raw` | `float \| None` | Raw phase-detection reading from the radar (motion indication) |
+| `sensors.target_detected_raw` | `float \| None` | Raw target-detection reading (presence indication, detects stationary people) |
+| `sensors.als_illuminance_raw` | `float \| None` | Raw ambient light sensor reading |
+| `sensors.accel_x_raw` | `float \| None` | Accelerometer X axis (used to detect unit orientation/mounting) |
+| `sensors.accel_y_raw` | `float \| None` | Accelerometer Y axis |
+| `sensors.accel_z_raw` | `float \| None` | Accelerometer Z axis |
+
+The radar distinguishes between `phase_detected` (movement) and `target_detected` (presence including stationary humans up to 15 ft / 4.6 m away). This is what enables Auto-Away to correctly detect a person sitting still reading a book — unlike PIR-based sensors that only respond to movement.
 
 ---
 
 ## RemoteSensor and ControllerRemoteSensor
 
-Wireless temperature/humidity sensors. `RemoteSensor` is a standalone sensor; `ControllerRemoteSensor` is the temperature sensor embedded in the Dial itself.
+Wireless temperature/humidity sensors. `RemoteSensor` is a standalone sensor attached to an IDU; `ControllerRemoteSensor` is the temperature/humidity sensor embedded in the Dial itself.
 
 Both report:
 - `ambient_temperature_c`
