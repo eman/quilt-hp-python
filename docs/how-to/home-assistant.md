@@ -283,7 +283,7 @@ async def async_setup_entry(hass, entry):
 
 ## Step 6: Handle OTP authentication via a config flow
 
-Home Assistant has no interactive terminal, so OTP must be collected through a config flow. Implement a two-step flow: the user enters their email, HA triggers the OTP send, then the user enters the code.
+Implement a two-step flow: the user enters their email, HA triggers the OTP send, then the user enters the code.
 
 ```python
 import voluptuous as vol
