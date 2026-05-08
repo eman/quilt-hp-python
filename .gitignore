@@ -35,7 +35,8 @@ Thumbs.db
 !proto/cleaned/
 !proto/cleaned/*.proto
 
-# Credentials — must never be committed
+# Local API reference files — not for version control
+/reference
 tokens.json
 *.pem
 *.key
@@ -43,4 +44,4 @@ tokens.json
 *.p12
 .env
 .env.*
-reference
+
