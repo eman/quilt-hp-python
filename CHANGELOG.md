@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.3] - 2026-05-08
+
+### Fixed
+- Regenerated gRPC stubs with `grpcio-tools==1.78.0` so the library works
+  inside Home Assistant, which hard-pins `grpcio==1.78.0` in its package
+  constraints. Previously the stubs were generated with 1.80.0 and raised
+  `RuntimeError` at import time on older grpcio versions.
+
 ## [0.1.2] - 2026-05-08
 
 ## [0.1.1] - 2026-05-08
