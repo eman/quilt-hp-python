@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.4] - 2026-05-08
+
+### Fixed
+- `boto3.client()` was called synchronously inside async functions, causing a
+  blocking HTTP request to the EC2 instance metadata service (IMDS) at
+  `169.254.169.254` during credential resolution. This manifested as an
+  `HTTPClientError` in Home Assistant's async event loop. The client is now
+  created via `loop.run_in_executor()` like the subsequent API calls.
+
 ## [0.1.3] - 2026-05-08
 
 ### Fixed

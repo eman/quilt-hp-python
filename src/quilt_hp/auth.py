@@ -70,7 +70,7 @@ def _make_cognito_client() -> _CognitoClient:
 async def _do_otp_login(email: str, otp_callback: OtpCallback) -> CognitoAuthResult:
     """Full OTP flow. Returns Cognito AuthenticationResult dict."""
     loop = asyncio.get_running_loop()
-    cognito = _make_cognito_client()
+    cognito = await loop.run_in_executor(None, _make_cognito_client)
 
     # Step 1: Initiate CUSTOM_AUTH
     try:
@@ -126,7 +126,7 @@ async def _do_otp_login(email: str, otp_callback: OtpCallback) -> CognitoAuthRes
 async def _do_refresh(refresh_token: str) -> CognitoAuthResult:
     """Use a refresh token to get a new IdToken."""
     loop = asyncio.get_running_loop()
-    cognito = _make_cognito_client()
+    cognito = await loop.run_in_executor(None, _make_cognito_client)
     try:
         resp = await loop.run_in_executor(
             None,
