@@ -69,7 +69,7 @@ Raised when a requested resource does not exist (gRPC `NOT_FOUND`).
 ### `__version__`
 
 ```python
-__version__: str  # e.g. "0.1.1"
+__version__: str  # e.g. "0.1.2"
 ```
 
 ---
