@@ -972,3 +972,149 @@ def test_system_snapshot_space_by_name() -> None:
     assert snap.space_by_name("living room").id == "s1"
     assert snap.space_by_name("OFFICE").id == "s2"
     assert snap.space_by_name("Bedroom") is None
+
+
+# ─── SystemSnapshot.comfort_settings_for_space / away_comfort_setting ────────
+
+
+def _make_snap_with_comfort_settings() -> SystemSnapshot:
+    """Build a minimal snapshot with two spaces and comfort settings."""
+    from quilt_hp._proto import quilt_hds_pb2 as hds
+
+    def _cs_proto(
+        cs_id: str,
+        space_id: str,
+        cs_type: ComfortSettingType,
+        heat: float = 21.0,
+        cool: float = 26.0,
+    ) -> SimpleNamespace:
+        return _ns(
+            header=_make_header(cs_id, system_id="sys-1"),
+            relationships=_ns(space_id=space_id),
+            attributes=_ns(
+                name=cs_type.name.title(),
+                type=cs_type,
+                hvac_mode=HVACMode.HEAT,
+                heating_temperature_setpoint_c=heat,
+                cooling_temperature_setpoint_c=cool,
+                fan_speed_mode=1,
+                fan_speed_percent=0.0,
+                louver_mode=0,
+                louver_fixed_position=0.0,
+            ),
+        )
+
+    proto = _ns(
+        spaces=[
+            _make_space_proto("s1", "Living Room", parent_space_id="root"),
+            _make_space_proto("s2", "Office", parent_space_id="root"),
+        ],
+        indoor_units=[],
+        outdoor_units=[],
+        outdoor_unit_hardware=[],
+        controller_hardware=[],
+        controllers=[],
+        quilt_smart_modules=[],
+        comfort_settings=[
+            _cs_proto("cs-s1-active", "s1", ComfortSettingType.ACTIVE, heat=21.0, cool=26.0),
+            _cs_proto("cs-s1-away", "s1", ComfortSettingType.AWAY, heat=15.5, cool=28.0),
+            _cs_proto("cs-s1-sleep", "s1", ComfortSettingType.SLEEP, heat=19.0, cool=25.0),
+            _cs_proto("cs-s2-active", "s2", ComfortSettingType.ACTIVE, heat=20.0, cool=25.0),
+            _cs_proto("cs-s2-away", "s2", ComfortSettingType.AWAY, heat=14.0, cool=29.0),
+        ],
+        schedule_weeks=[],
+        schedule_days=[],
+        remote_sensors=[],
+        controller_remote_sensors=[],
+        software_update_infos=[],
+        locations=[
+            _ns(
+                header=_make_header("loc-1"),
+                attributes=_ns(name="Home", tz_identifier="America/Los_Angeles"),
+                controls=_ns(schedule_execution=hds.SCHEDULE_EXECUTION_RUNNING),
+            )
+        ],
+    )
+    return SystemSnapshot.from_proto(proto)
+
+
+def test_comfort_settings_for_space_by_object() -> None:
+    snap = _make_snap_with_comfort_settings()
+    s1 = snap.space_by_name("Living Room")
+    assert s1 is not None
+    cs_list = snap.comfort_settings_for_space(s1)
+    assert len(cs_list) == 3
+    assert all(cs.space_id == s1.id for cs in cs_list)
+
+
+def test_comfort_settings_for_space_by_id() -> None:
+    snap = _make_snap_with_comfort_settings()
+    s2 = snap.space_by_name("Office")
+    assert s2 is not None
+    cs_list = snap.comfort_settings_for_space(s2.id)
+    assert len(cs_list) == 2
+    types = {cs.type for cs in cs_list}
+    assert ComfortSettingType.ACTIVE in types
+    assert ComfortSettingType.AWAY in types
+
+
+def test_comfort_settings_for_space_unknown_id_returns_empty() -> None:
+    snap = _make_snap_with_comfort_settings()
+    assert snap.comfort_settings_for_space("no-such-id") == []
+
+
+def test_away_comfort_setting_found() -> None:
+    """away_comfort_setting returns the AWAY preset with correct setpoints."""
+    snap = _make_snap_with_comfort_settings()
+    s1 = snap.space_by_name("Living Room")
+    assert s1 is not None
+
+    away = snap.away_comfort_setting(s1)
+    assert away is not None
+    assert away.type == ComfortSettingType.AWAY
+    assert away.heating_setpoint_c == pytest.approx(15.5)
+    assert away.cooling_setpoint_c == pytest.approx(28.0)
+
+
+def test_away_comfort_setting_by_space_id() -> None:
+    snap = _make_snap_with_comfort_settings()
+    s2 = snap.space_by_name("Office")
+    assert s2 is not None
+
+    away = snap.away_comfort_setting(s2.id)
+    assert away is not None
+    assert away.heating_setpoint_c == pytest.approx(14.0)
+    assert away.cooling_setpoint_c == pytest.approx(29.0)
+
+
+def test_away_comfort_setting_not_found_returns_none() -> None:
+    snap = _make_snap_with_comfort_settings()
+    assert snap.away_comfort_setting("no-such-space") is None
+
+
+def test_away_setpoints_reflected_in_controls_when_away() -> None:
+    """When a space is in away mode its controls reflect the away setpoints."""
+    snap = _make_snap_with_comfort_settings()
+    s1 = snap.space_by_name("Living Room")
+    assert s1 is not None
+
+    away = snap.away_comfort_setting(s1)
+    assert away is not None
+
+    # Simulate the server switching the space to AWAY: comfort_setting_id
+    # points to the AWAY preset and the server copies its setpoints into controls.
+    from dataclasses import replace
+
+    away_controls = replace(
+        s1.controls,
+        comfort_setting_id=away.id,
+        heating_setpoint_c=away.heating_setpoint_c,
+        cooling_setpoint_c=away.cooling_setpoint_c,
+    )
+    s1_away = replace(
+        s1, controls=away_controls, active_comfort_setting_type=ComfortSettingType.AWAY
+    )
+
+    assert s1_away.is_away is True
+    assert s1_away.controls.heating_setpoint_c == pytest.approx(away.heating_setpoint_c)
+    assert s1_away.controls.cooling_setpoint_c == pytest.approx(away.cooling_setpoint_c)

@@ -32,7 +32,16 @@ class SpaceSettings:
 
 @dataclass(slots=True)
 class SpaceControls:
-    """Current HVAC control settings for a space."""
+    """Current HVAC control settings for a space.
+
+    ``heating_setpoint_c`` and ``cooling_setpoint_c`` always reflect the
+    *active* comfort preset's setpoints — which change when the system
+    switches between presets (Active → Away → Sleep, etc.).  When a room is
+    in away mode (``space.is_away is True``), these fields hold the Away
+    preset's setpoints, not the normal occupancy setpoints.  Use
+    ``SystemSnapshot.away_comfort_setting(space)`` to read or modify the Away
+    preset's setpoints without the room needing to be in away mode.
+    """
 
     hvac_mode: HVACMode
     temperature_setpoint_c: float
@@ -115,6 +124,12 @@ class Space:
 
         Determined by active comfort setting type AWAY. The room
         will re-activate automatically when someone enters.
+
+        When ``is_away`` is True, ``controls.heating_setpoint_c`` and
+        ``controls.cooling_setpoint_c`` reflect the Away comfort preset's
+        setpoints — not the user's normal occupancy setpoints.  To read or
+        update the Away preset setpoints (regardless of current occupancy
+        state), use ``SystemSnapshot.away_comfort_setting(space)``.
 
         Falls back to comparing controls vs state hvac values when no comfort
         setting type is available (e.g. raw stream updates).
