@@ -136,7 +136,7 @@ ignore_missing_imports = true
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-addopts = "-ra -q --cov=quilt_hp --cov-report=term-missing --cov-fail-under=80"
+addopts = "-ra -q --cov=quilt_hp --cov-report=term-missing --cov-fail-under=80 -p no:homeassistant"
 asyncio_mode = "auto"
 
 

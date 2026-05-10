@@ -19,7 +19,8 @@ HA event loop
     ├── QuiltClient (gRPC channel + token store)
     ├── SystemSnapshot  ← full state in-memory
     └── NotifierStream  ← real-time diffs → async_set_updated_data()
-        └── on_space_update, on_indoor_unit_update
+        └── on_space_update, on_indoor_unit_update,
+            on_controller_update, on_qsm_update
 ```
 
 ---
@@ -74,6 +75,108 @@ For the `TokenStore` protocol definition, see [Token management reference](../re
 
 ---
 
+## Device and entity modeling
+
+Before writing entity classes, you need a clear mental model of which API objects become HA *devices* and which become *entities* under those devices.
+
+### Why Spaces are not HA devices
+
+A `Space` is a logical zone (room) in the Quilt data model. It carries the writable HVAC state — mode, setpoints, occupancy timeouts — but it has no serial number, no hardware model identifier, and no physical form. Home Assistant's device registry is designed for physical hardware that can be identified by manufacturer, model, and serial number.
+
+The Quilt mobile app does not differentiate between a room and its indoor unit: controlling the room and controlling the head unit are the same action. Use `snapshot.rooms` (which filters to leaf spaces only — those with a `parent_space_id`) when setting up entities. Never create entities for floor-level or home-level parent spaces.
+
+### IDU and QSM share one HA device
+
+The `QuiltSmartModule` (QSM) is embedded inside the `IndoorUnit` enclosure — users never see it as a separate piece of hardware. Because the Quilt app presents them as one unit and the QSM has no user-visible serial number, map them to a **single HA device** identified by the IDU's hardware identifiers.
+
+Use `snapshot.qsm_for_idu(idu)` to resolve the QSM for a given IDU when you need radar or ambient-light sensor data.
+
+```python
+from homeassistant.helpers.entity import DeviceInfo
+
+DOMAIN = "quilt_hp"
+
+def idu_device_info(idu, snapshot) -> DeviceInfo:
+    """Build HA DeviceInfo for an IDU (and its embedded QSM)."""
+    space = next(
+        s for s in snapshot.rooms if s.id == idu.space_id
+    )
+    return DeviceInfo(
+        identifiers={(DOMAIN, idu.id)},
+        name=space.name,          # room name, e.g. "Living Room"
+        manufacturer="Quilt",
+        model=idu.settings.name or "Indoor Unit",
+        serial_number=None,       # serial_number not currently exposed via API
+    )
+```
+
+The `climate` entity for the room belongs to this device. It reads setpoint and mode from `Space.controls` and writes via `client.set_space()`, but it is registered as a child of the IDU device because the IDU is the physical hardware.
+
+### Controller (Quilt Dial) as a separate linked device
+
+The Quilt Dial (`Controller`) is physically separate from the IDU — it is a standalone circular thermostat with its own Wi-Fi radio, temperature sensor, and display. It is associated with the same `space_id` as the IDU it works with, but it has its own serial number and model SKU.
+
+Create a **separate HA device** for each Dial, linked to the IDU device for the same space using `via_device`:
+
+```python
+def controller_device_info(ctrl, snapshot) -> DeviceInfo:
+    """Build HA DeviceInfo for a Quilt Dial (Controller)."""
+    # Find the IDU in the same space so we can set via_device.
+    idu = next(
+        (u for u in snapshot.indoor_units if u.space_id == ctrl.space_id),
+        None,
+    )
+    return DeviceInfo(
+        identifiers={(DOMAIN, ctrl.id)},
+        name=ctrl.name or "Quilt Dial",
+        manufacturer="Quilt",
+        model=ctrl.model_sku or "Dial",
+        serial_number=ctrl.serial_number,
+        via_device=(DOMAIN, idu.id) if idu else None,
+    )
+```
+
+`via_device` tells HA that the Dial is physically associated with (and accessed through) the IDU device, which correctly groups them in the HA UI by room.
+
+### Entity-to-object mapping
+
+| HA platform | Entity name example | Source model | Key fields | Writable? |
+|-------------|---------------------|--------------|------------|-----------|
+| `climate` | Living Room | `Space.controls` + `IndoorUnit.controls` | `hvac_mode`, `heating_setpoint_c`, `cooling_setpoint_c`, `fan_speed` | Yes — `client.set_space()` / `client.set_indoor_unit()` |
+| `sensor` (temperature) | Living Room Temperature | `IndoorUnit.state` | `ambient_temperature_c` | No |
+| `sensor` (humidity) | Living Room Humidity | `IndoorUnit.state` | `ambient_humidity_percent` | No |
+| `binary_sensor` (presence) | Living Room Presence | `IndoorUnit.effective_occupancy_state` | `occupancy_state != 0` | No |
+| `light` | Living Room Light | `IndoorUnit.controls` | `led_state`, `led_brightness`, `led_color_code` | Yes — `client.set_indoor_unit()` |
+| `select` (fan speed) | Living Room Fan Speed | `IndoorUnit.controls` | `fan_speed` | Yes — `client.set_indoor_unit()` |
+| `select` (louver) | Living Room Louver | `IndoorUnit.controls` | `louver_mode` | Yes — `client.set_indoor_unit()` |
+| `sensor` (Dial temperature) | Living Room Dial Temperature | `Controller` | `ambient_temperature_c` | No |
+
+> **Presence note**: Use `idu.effective_occupancy_state` rather than reading `idu.occupancy` directly. The property returns `None` when the IDU is offline, avoiding stale occupancy data being presented as current.
+
+### Resolving IDUs and Controllers for a space
+
+A space always has at most one IDU in a typical Quilt installation. Use these patterns when setting up platforms:
+
+```python
+# All rooms (leaf spaces only — no floor/home-level spaces)
+rooms = snapshot.rooms
+
+# Map space_id → IndoorUnit (for the common single-IDU-per-room case)
+idu_by_space: dict[str, IndoorUnit] = {
+    idu.space_id: idu for idu in snapshot.indoor_units
+}
+
+# Map space_id → Controller (Dial), if one is installed in that room
+ctrl_by_space: dict[str, Controller] = {
+    ctrl.space_id: ctrl for ctrl in snapshot.controllers
+}
+
+# Resolve the QSM embedded in an IDU
+qsm = snapshot.qsm_for_idu(idu)  # returns QuiltSmartModule | None
+```
+
+---
+
 ## Step 2: Build the coordinator
 
 ```python
@@ -82,9 +185,11 @@ import logging
 from datetime import timedelta
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 from quilt_hp import QuiltClient
-from quilt_hp.models.system import SystemSnapshot
-from quilt_hp.models.space import Space
+from quilt_hp.models.controller import Controller
 from quilt_hp.models.indoor_unit import IndoorUnit
+from quilt_hp.models.qsm import QuiltSmartModule
+from quilt_hp.models.space import Space
+from quilt_hp.models.system import SystemSnapshot
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -110,24 +215,40 @@ class QuiltCoordinator(DataUpdateCoordinator[SystemSnapshot]):
     async def _start_stream(self, snapshot: SystemSnapshot) -> None:
         topics = snapshot.stream_topics()
         self._stream = self._client.stream(topics, max_reconnects=-1)
+        # Space updates drive climate entity state (mode, setpoints, occupancy).
         self._stream.on_space_update(self._on_space_update)
+        # IDU updates drive temperature/humidity sensors, fan speed, LED, and
+        # presence binary sensor.
         self._stream.on_indoor_unit_update(self._on_idu_update)
+        # Controller updates drive Dial temperature sensor entities.
+        self._stream.on_controller_update(self._on_controller_update)
+        # QSM updates provide raw radar and ALS diagnostic sensor data.
+        self._stream.on_qsm_update(self._on_qsm_update)
         self._stream.on_disconnected(lambda: _LOGGER.warning("Quilt stream disconnected"))
         await self._stream.start()
 
     def _on_space_update(self, space: Space) -> None:
         if self.data is not None:
-            self.data.spaces[space.id] = space
+            self.data.apply_space(space)
             self.async_set_updated_data(self.data)
 
     def _on_idu_update(self, idu: IndoorUnit) -> None:
         if self.data is not None:
-            self.data.indoor_units[idu.id] = idu
+            self.data.apply_indoor_unit(idu)
+            self.async_set_updated_data(self.data)
+
+    def _on_controller_update(self, ctrl: Controller) -> None:
+        if self.data is not None:
+            self.data.apply_controller(ctrl)
+            self.async_set_updated_data(self.data)
+
+    def _on_qsm_update(self, qsm: QuiltSmartModule) -> None:
+        if self.data is not None:
+            self.data.apply_qsm(qsm)
             self.async_set_updated_data(self.data)
 
     async def _async_update_data(self) -> SystemSnapshot:
         try:
-            self._client.invalidate_snapshot()
             return await self._client.get_snapshot()
         except Exception as err:
             raise UpdateFailed(f"Error fetching Quilt snapshot: {err}") from err
@@ -142,6 +263,8 @@ class QuiltCoordinator(DataUpdateCoordinator[SystemSnapshot]):
 
 ## Step 3: Create the climate entity
 
+The climate entity reads mode and setpoints from the `Space` but is registered under the IDU device. The `device_info` property links it to the physical hardware in the HA device registry.
+
 ```python
 from homeassistant.components.climate import (
     ClimateEntity,
@@ -149,7 +272,10 @@ from homeassistant.components.climate import (
     HVACMode as HAHVACMode,
 )
 from homeassistant.const import UnitOfTemperature
+from homeassistant.helpers.entity import DeviceInfo
 from quilt_hp.models.enums import HVACMode as QHVACMode
+
+DOMAIN = "quilt_hp"
 
 _MODE_MAP: dict[QHVACMode, HAHVACMode] = {
     QHVACMode.STANDBY: HAHVACMode.OFF,
@@ -170,13 +296,23 @@ class QuiltClimateEntity(ClimateEntity):
     )
     _attr_hvac_modes = list(_MODE_MAP.values())
 
-    def __init__(self, coordinator, space_id: str) -> None:
+    def __init__(self, coordinator, space_id: str, idu_id: str) -> None:
         self._coordinator = coordinator
         self._space_id = space_id
+        self._idu_id = idu_id
 
     @property
     def space(self):
-        return self._coordinator.data.spaces[self._space_id]
+        return next(s for s in self._coordinator.data.spaces if s.id == self._space_id)
+
+    @property
+    def device_info(self) -> DeviceInfo:
+        return DeviceInfo(
+            identifiers={(DOMAIN, self._idu_id)},
+            name=self.space.name,
+            manufacturer="Quilt",
+            model="Indoor Unit",
+        )
 
     @property
     def name(self) -> str:
@@ -184,32 +320,34 @@ class QuiltClimateEntity(ClimateEntity):
 
     @property
     def unique_id(self) -> str:
-        return f"quilt_space_{self._space_id}"
+        # Keyed on space_id because the climate entity represents the room,
+        # not the physical IDU.
+        return f"quilt_climate_{self._space_id}"
 
     @property
     def hvac_mode(self) -> HAHVACMode:
-        return _MODE_MAP.get(self.space.controls.mode, HAHVACMode.OFF)
+        return _MODE_MAP.get(self.space.controls.hvac_mode, HAHVACMode.OFF)
 
     @property
     def current_temperature(self) -> float | None:
-        return self.space.state.current_temp_c
+        return self.space.state.ambient_temperature_c
 
     @property
     def target_temperature(self) -> float | None:
-        mode = self.space.controls.mode
+        mode = self.space.controls.hvac_mode
         if mode == QHVACMode.COOL:
-            return self.space.controls.cool_setpoint_c
+            return self.space.controls.cooling_setpoint_c
         if mode == QHVACMode.HEAT:
-            return self.space.controls.heat_setpoint_c
+            return self.space.controls.heating_setpoint_c
         return None
 
     @property
     def target_temperature_high(self) -> float | None:
-        return self.space.controls.cool_setpoint_c
+        return self.space.controls.cooling_setpoint_c
 
     @property
     def target_temperature_low(self) -> float | None:
-        return self.space.controls.heat_setpoint_c
+        return self.space.controls.heating_setpoint_c
 
     async def async_set_hvac_mode(self, hvac_mode: HAHVACMode) -> None:
         mode = _HA_TO_QUILT[hvac_mode]
@@ -228,9 +366,14 @@ class QuiltClimateEntity(ClimateEntity):
 
 ## Step 4: Create a temperature sensor entity
 
+The IDU temperature sensor entity is also registered under the IDU device using the same `device_info` identifiers:
+
 ```python
 from homeassistant.components.sensor import SensorEntity, SensorDeviceClass
 from homeassistant.const import UnitOfTemperature
+from homeassistant.helpers.entity import DeviceInfo
+
+DOMAIN = "quilt_hp"
 
 
 class QuiltIndoorTempSensor(SensorEntity):
@@ -243,11 +386,26 @@ class QuiltIndoorTempSensor(SensorEntity):
 
     @property
     def idu(self):
-        return self._coordinator.data.indoor_units[self._idu_id]
+        return next(u for u in self._coordinator.data.indoor_units if u.id == self._idu_id)
+
+    @property
+    def device_info(self) -> DeviceInfo:
+        space = next(
+            (s for s in self._coordinator.data.spaces if s.id == self.idu.space_id), None
+        )
+        return DeviceInfo(
+            identifiers={(DOMAIN, self._idu_id)},
+            name=space.name if space else self._idu_id,
+            manufacturer="Quilt",
+            model="Indoor Unit",
+        )
 
     @property
     def name(self) -> str:
-        return f"IDU {self._idu_id} temperature"
+        space = next(
+            (s for s in self._coordinator.data.spaces if s.id == self.idu.space_id), None
+        )
+        return f"{space.name} Temperature" if space else f"IDU {self._idu_id} Temperature"
 
     @property
     def unique_id(self) -> str:
@@ -255,11 +413,69 @@ class QuiltIndoorTempSensor(SensorEntity):
 
     @property
     def native_value(self) -> float | None:
-        return self.idu.state.actual_temp_c
+        return self.idu.state.ambient_temperature_c
 
     @property
     def available(self) -> bool:
-        return self.idu.state.is_online
+        return self.idu.is_online
+```
+
+### Dial temperature sensor
+
+Create a parallel sensor class for the `Controller` (Quilt Dial). It is registered under a **separate device** linked to the IDU device via `via_device`:
+
+```python
+from homeassistant.helpers.entity import DeviceInfo
+
+DOMAIN = "quilt_hp"
+
+
+class QuiltDialTempSensor(SensorEntity):
+    _attr_device_class = SensorDeviceClass.TEMPERATURE
+    _attr_native_unit_of_measurement = UnitOfTemperature.CELSIUS
+
+    def __init__(self, coordinator, controller_id: str) -> None:
+        self._coordinator = coordinator
+        self._controller_id = controller_id
+
+    @property
+    def controller(self):
+        return next(
+            c for c in self._coordinator.data.controllers if c.id == self._controller_id
+        )
+
+    @property
+    def device_info(self) -> DeviceInfo:
+        ctrl = self.controller
+        # Find the IDU in the same space so we can set via_device.
+        idu = next(
+            (u for u in self._coordinator.data.indoor_units if u.space_id == ctrl.space_id),
+            None,
+        )
+        return DeviceInfo(
+            identifiers={(DOMAIN, self._controller_id)},
+            name=ctrl.name or "Quilt Dial",
+            manufacturer="Quilt",
+            model=ctrl.model_sku or "Dial",
+            serial_number=ctrl.serial_number,
+            via_device=(DOMAIN, idu.id) if idu else None,
+        )
+
+    @property
+    def name(self) -> str:
+        return f"{self.controller.name or 'Quilt Dial'} Temperature"
+
+    @property
+    def unique_id(self) -> str:
+        return f"quilt_dial_temp_{self._controller_id}"
+
+    @property
+    def native_value(self) -> float | None:
+        return self.controller.ambient_temperature_c
+
+    @property
+    def available(self) -> bool:
+        return self.controller.is_online
 ```
 
 ---

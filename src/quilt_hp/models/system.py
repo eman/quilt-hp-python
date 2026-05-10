@@ -95,6 +95,44 @@ class SystemSnapshot:
                 return s
         return None
 
+    def comfort_settings_for_space(self, space: Space | str) -> list[ComfortSetting]:
+        """Return all comfort presets for a space, ordered by their list position.
+
+        Args:
+            space: A ``Space`` object or space ID string.
+
+        Each space has up to five presets (Active, Sleep, Away, Standby,
+        Custom).  This is the full set; filter by ``cs.type`` to find a
+        specific one.
+        """
+        space_id = space if isinstance(space, str) else space.id
+        return [cs for cs in self.comfort_settings if cs.space_id == space_id]
+
+    def away_comfort_setting(self, space: Space | str) -> ComfortSetting | None:
+        """Return the Away comfort preset for a space, or None if absent.
+
+        Args:
+            space: A ``Space`` object or space ID string.
+
+        The Away preset defines the setpoints used when occupancy automation
+        switches a room to away mode (``space.is_away is True``).  Its
+        ``heating_setpoint_c`` and ``cooling_setpoint_c`` are the away
+        setpoints.  Update them with::
+
+            away_cs = snapshot.away_comfort_setting(space)
+            if away_cs:
+                await client.update_comfort_setting(
+                    away_cs,
+                    heat_setpoint_c=16.0,
+                    cool_setpoint_c=28.0,
+                )
+        """
+        space_id = space if isinstance(space, str) else space.id
+        for cs in self.comfort_settings:
+            if cs.space_id == space_id and cs.type == ComfortSettingType.AWAY:
+                return cs
+        return None
+
     def enrich_space(self, space: Space) -> Space:
         """Resolve active_comfort_setting_type on a stream-updated Space.
 
