@@ -7,6 +7,7 @@ import pytest
 
 from quilt_hp import transport
 from quilt_hp.const import Environment
+from quilt_hp.exceptions import QuiltAuthError
 
 
 class _FakeRpcError(grpc.aio.AioRpcError):
@@ -108,6 +109,34 @@ async def test_auth_interceptor_non_retry_paths() -> None:
 
     with pytest.raises(_FakeRpcError):
         await interceptor.intercept_unary_unary(_failing, details, "req")
+
+
+@pytest.mark.asyncio
+async def test_auth_interceptor_raises_auth_error_when_retry_also_fails() -> None:
+    """If the token refresh doesn't help (e.g. refresh token expired), raise QuiltAuthError."""
+    refreshed: list[str] = []
+
+    async def _refresh(_context: transport.TokenRefreshContext) -> None:
+        refreshed.append("yes")
+
+    interceptor = transport._AuthInterceptor(lambda: "Bearer abc", refresh_callback=_refresh)
+    details = grpc.aio.ClientCallDetails(
+        method="/svc/method",
+        timeout=1,
+        metadata=None,
+        credentials=None,
+        wait_for_ready=False,
+    )
+
+    async def _always_unauthenticated(
+        _call_details: grpc.aio.ClientCallDetails, _request: object
+    ) -> object:
+        raise _FakeRpcError(grpc.StatusCode.UNAUTHENTICATED, "Jwt is expired")
+
+    with pytest.raises(QuiltAuthError, match="re-login required"):
+        await interceptor.intercept_unary_unary(_always_unauthenticated, details, "req")
+
+    assert refreshed == ["yes"], "refresh callback should have been called exactly once"
 
 
 def test_create_channel_and_provider_resolution(monkeypatch: pytest.MonkeyPatch) -> None:
