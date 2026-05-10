@@ -96,10 +96,10 @@ from homeassistant.helpers.entity import DeviceInfo
 
 DOMAIN = "quilt_hp"
 
-def idu_device_info(idu) -> DeviceInfo:
+def idu_device_info(idu, snapshot) -> DeviceInfo:
     """Build HA DeviceInfo for an IDU (and its embedded QSM)."""
     space = next(
-        s for s in coordinator.data.rooms if s.id == idu.space_id
+        s for s in snapshot.rooms if s.id == idu.space_id
     )
     return DeviceInfo(
         identifiers={(DOMAIN, idu.id)},
@@ -142,7 +142,7 @@ def controller_device_info(ctrl, snapshot) -> DeviceInfo:
 
 | HA platform | Entity name example | Source model | Key fields | Writable? |
 |-------------|---------------------|--------------|------------|-----------|
-| `climate` | Living Room | `Space.controls` + `IndoorUnit.controls` | `hvac_mode`, `heat/cool_setpoint_c`, `fan_speed` | Yes — `client.set_space()` / `client.set_indoor_unit()` |
+| `climate` | Living Room | `Space.controls` + `IndoorUnit.controls` | `hvac_mode`, `heating_setpoint_c`, `cooling_setpoint_c`, `fan_speed` | Yes — `client.set_space()` / `client.set_indoor_unit()` |
 | `sensor` (temperature) | Living Room Temperature | `IndoorUnit.state` | `ambient_temperature_c` | No |
 | `sensor` (humidity) | Living Room Humidity | `IndoorUnit.state` | `ambient_humidity_percent` | No |
 | `binary_sensor` (presence) | Living Room Presence | `IndoorUnit.effective_occupancy_state` | `occupancy_state != 0` | No |
