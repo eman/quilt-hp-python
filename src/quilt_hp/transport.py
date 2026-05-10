@@ -15,6 +15,7 @@ from quilt_hp.const import (
     Environment,
     grpc_host,
 )
+from quilt_hp.exceptions import QuiltAuthError
 from quilt_hp.tokens import CurrentTokenProvider, TokenRefreshContext, TokenRefreshReason
 
 type RefreshCallback = (
@@ -87,7 +88,13 @@ class _AuthInterceptor(
         client_call_details: grpc.aio.ClientCallDetails,
         *args: object,
     ) -> object:
-        """Refresh the token and retry the call once."""
+        """Refresh the token and retry the call once.
+
+        Raises:
+            QuiltAuthError: If the retry still receives UNAUTHENTICATED after
+                the token refresh, indicating the refresh token is also expired
+                or the credentials are otherwise invalid.
+        """
         if self._refresh_callback is not None:
             await _invoke_refresh_callback(
                 self._refresh_callback,
@@ -96,7 +103,14 @@ class _AuthInterceptor(
                     source="transport",
                 ),
             )
-        return await continuation(self._patch(client_call_details), *args)
+        try:
+            return await continuation(self._patch(client_call_details), *args)
+        except grpc.aio.AioRpcError as exc:
+            if exc.code() == grpc.StatusCode.UNAUTHENTICATED:
+                raise QuiltAuthError(
+                    "Token refresh did not restore authentication; re-login required"
+                ) from exc
+            raise
 
     async def intercept_unary_unary(
         self,
