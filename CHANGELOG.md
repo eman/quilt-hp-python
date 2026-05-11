@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.1] - 2026-05-10
+
+### Fixed
+- Restored CI/release quality-gate stability by applying required `ruff format`
+  updates in model files.
+
 ## [0.2.0] - 2026-05-10
 
 ## [0.1.4] - 2026-05-08
