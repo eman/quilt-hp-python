@@ -48,6 +48,25 @@ COGNITO_CLIENT_ID = "6lef74vtc8p7pgu47nmqubd9vn"
 # App version sent with every gRPC call
 APP_VERSION = "1.0.25"
 
+# Common placeholder / sentinel values seen in app and wire data.
+EMPTY_COMFORT_SETTING_ID_SENTINEL: str = ""
+UNSPECIFIED_HEAT_SETPOINT_SENTINEL_C: float = 0.0
+UNSPECIFIED_COOL_SETPOINT_SENTINEL_C: float = 0.0
+LOUVER_FIXED_POSITION_SENTINEL: float = 0.0
+UNSET_MAX_FAN_SPEED_RPM_SENTINEL: float = 0.0
+ABSENT_FAN_SPEED_MODE_SENTINEL: int = 0
+PROTO_TIMESTAMP_UNSET_SECONDS: int = 0
+UNKNOWN_SCHEDULE_SORT_ORDER_SENTINEL: int = 2_147_483_647
+
+# Sentinel setpoint values used by the STANDBY comfort setting type.
+# When a space is in STANDBY, heat/cool setpoints are meaningless (the unit
+# is off).  The app fills them with these extreme out-of-range values rather
+# than omitting the fields.  Any UI should treat these as "no real setpoint"
+# and suppress display of the numeric values.
+# Source: ComfortSettings.kt — ComfortSettingType.STANDBY default attributes.
+STANDBY_HEAT_SENTINEL_C: float = 8.0
+STANDBY_COOL_SENTINEL_C: float = 40.0
+
 # gRPC keepalive settings
 GRPC_CHANNEL_OPTIONS: list[tuple[str, int]] = [
     ("grpc.keepalive_time_ms", 30_000),

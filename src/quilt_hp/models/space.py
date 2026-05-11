@@ -2,9 +2,15 @@
 
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass, field
 from typing import Any, cast
 
+from quilt_hp.const import (
+    EMPTY_COMFORT_SETTING_ID_SENTINEL,
+    STANDBY_COOL_SENTINEL_C,
+    STANDBY_HEAT_SENTINEL_C,
+)
 from quilt_hp.models.enums import (
     BoostMode,
     ComfortSettingOverride,
@@ -41,6 +47,17 @@ class SpaceControls:
     preset's setpoints, not the normal occupancy setpoints.  Use
     ``SystemSnapshot.away_comfort_setting(space)`` to read or modify the Away
     preset's setpoints without the room needing to be in away mode.
+
+    When ``hvac_mode`` is ``STANDBY``, the server fills the setpoint fields
+    with sentinel values (``STANDBY_HEAT_SENTINEL_C = 8.0 °C``,
+    ``STANDBY_COOL_SENTINEL_C = 40.0 °C``) rather than omitting them.
+    These are **not** real temperature targets.  Check
+    ``has_standby_sentinel_setpoints`` before displaying setpoint values.
+
+    ``comfort_setting_id`` uses an empty-string sentinel for "no active comfort
+    preset bound to this space" (manual control / direct override mode).
+    Use ``has_linked_comfort_setting`` and ``comfort_setting_id_or_none`` for
+    UI-safe handling.
     """
 
     hvac_mode: HVACMode
@@ -72,6 +89,31 @@ class SpaceControls:
         return fmt(best) if best else "--"
 
     @property
+    def has_standby_sentinel_setpoints(self) -> bool:
+        """True when setpoints carry STANDBY sentinel values (8 °C / 40 °C).
+
+        The server stores ``STANDBY_HEAT_SENTINEL_C`` (8.0 °C) and
+        ``STANDBY_COOL_SENTINEL_C`` (40.0 °C) in the setpoint fields whenever
+        the active comfort preset is of type STANDBY.  These are placeholder
+        values, not real temperature targets.  UIs should suppress numeric
+        setpoint display when this returns True.
+        """
+        return (
+            self.heating_setpoint_c == STANDBY_HEAT_SENTINEL_C
+            and self.cooling_setpoint_c == STANDBY_COOL_SENTINEL_C
+        )
+
+    @property
+    def has_linked_comfort_setting(self) -> bool:
+        """True when ``comfort_setting_id`` points to a real comfort setting."""
+        return self.comfort_setting_id != EMPTY_COMFORT_SETTING_ID_SENTINEL
+
+    @property
+    def comfort_setting_id_or_none(self) -> str | None:
+        """Comfort-setting ID, or None when the empty-string sentinel is present."""
+        return self.comfort_setting_id if self.has_linked_comfort_setting else None
+
+    @property
     def display_setpoint(self) -> str:
         """Human-readable setpoint string in °C.
 
@@ -88,6 +130,16 @@ class SpaceState:
     hvac_state: HVACState
     setpoint_c: float | None
     comfort_setting_id: str
+
+    @property
+    def has_missing_ambient_temperature(self) -> bool:
+        """True when ambient temperature is missing (None or NaN sentinel)."""
+        return self.ambient_temperature_c is None or math.isnan(self.ambient_temperature_c)
+
+    @property
+    def has_missing_setpoint(self) -> bool:
+        """True when setpoint is missing (None or NaN sentinel)."""
+        return self.setpoint_c is None or math.isnan(self.setpoint_c)
 
 
 @dataclass(slots=True)

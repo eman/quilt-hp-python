@@ -5,6 +5,11 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import UTC, datetime
 
+from quilt_hp.const import (
+    ABSENT_FAN_SPEED_MODE_SENTINEL,
+    LOUVER_FIXED_POSITION_SENTINEL,
+    PROTO_TIMESTAMP_UNSET_SECONDS,
+)
 from quilt_hp.models.enums import (
     FallbackControlCommand,
     FanSpeed,
@@ -35,6 +40,7 @@ class IndoorUnitControls:
     # 2=SETPOINT). Needed because FanSpeed.from_wire(0, 0.0) and
     # from_wire(1, 0.0) both return FanSpeed.AUTO.
     fan_speed_mode_raw: int = 0
+    fan_speed_percent_raw: float = 0.0
 
     @property
     def light_on(self) -> bool:
@@ -53,6 +59,19 @@ class IndoorUnitControls:
             return False
         # UNSPECIFIED: legacy brightness-based detection
         return self.led_color_code != 0 and self.led_brightness > 0.0
+
+    @property
+    def fan_speed_is_placeholder(self) -> bool:
+        """True when fan speed fields are absent (proto3 default sentinel mode=0)."""
+        return self.fan_speed_mode_raw == ABSENT_FAN_SPEED_MODE_SENTINEL
+
+    @property
+    def louver_position_is_placeholder(self) -> bool:
+        """True when fixed position is a non-applicable 0.0 placeholder."""
+        return (
+            self.louver_mode != LouverMode.FIXED
+            and self.louver_fixed_position == LOUVER_FIXED_POSITION_SENTINEL
+        )
 
 
 @dataclass(slots=True)
@@ -369,12 +388,13 @@ def _idu_from_proto(proto: object) -> IndoorUnit:
             presence_fence_forward_m=st.presence_fence_forward_m,
             radar_sensor_distance_from_floor_m=st.radar_sensor_distance_from_floor_m,
         ),
-        controls=IndoorUnitControls(
-            fan_speed=FanSpeed.from_wire(c.fan_speed_mode, c.fan_speed_percent),
-            fan_speed_mode_raw=c.fan_speed_mode,
-            louver_mode=LouverMode(c.louver_mode) if c.louver_mode else LouverMode.UNSPECIFIED,
-            louver_fixed_position=c.louver_fixed_position,
-            led_color_code=c.led_color_code,
+            controls=IndoorUnitControls(
+                fan_speed=FanSpeed.from_wire(c.fan_speed_mode, c.fan_speed_percent),
+                fan_speed_mode_raw=c.fan_speed_mode,
+                fan_speed_percent_raw=c.fan_speed_percent,
+                louver_mode=LouverMode(c.louver_mode) if c.louver_mode else LouverMode.UNSPECIFIED,
+                louver_fixed_position=c.louver_fixed_position,
+                led_color_code=c.led_color_code,
             led_brightness=c.led_color_brightness_percent,
             led_animation=LedAnimation(c.led_animation),
             led_state=LightState(c.led_state),
@@ -395,7 +415,7 @@ def _idu_from_proto(proto: object) -> IndoorUnit:
             louver_angle_up_down_degrees=s.louver_angle_up_down_degrees,
             updated_at=(
                 datetime.fromtimestamp(s.updated_ts.seconds, tz=UTC)
-                if s.updated_ts and s.updated_ts.seconds
+                if s.updated_ts and s.updated_ts.seconds != PROTO_TIMESTAMP_UNSET_SECONDS
                 else None
             ),
         ),
