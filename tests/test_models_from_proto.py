@@ -1072,6 +1072,102 @@ def test_system_snapshot_space_by_name() -> None:
     assert snap.space_by_name("Bedroom") is None
 
 
+def test_system_snapshot_hardware_map_deserializes_model_sku_with_prefixed_ids() -> None:
+    """Hardware lookups handle raw IDs and path-prefixed IDs in either direction."""
+    proto = _ns(
+        spaces=[],
+        indoor_units=[],
+        outdoor_units=[
+            _ns(
+                header=_make_header("odu-1"),
+                relationships=_ns(
+                    space_id="space-1",
+                    hardware_id="outdoor_unit_hardware/odu-hw-1",
+                    firmware_update_info_id="",
+                ),
+                state=_ns(hvac_state=0),
+            )
+        ],
+        outdoor_unit_hardware=[
+            _ns(
+                header=_make_header("odu-hw-1"),
+                attributes=_ns(
+                    model_sku="ODU-SKU-1",
+                    serial_number="ODU-SERIAL-1",
+                    firmware_version="1.2.3",
+                ),
+            )
+        ],
+        controller_hardware=[
+            _ns(
+                header=_make_header("controller_hardware/ctrl-hw-1"),
+                attributes=_ns(
+                    model_sku="CTRL-SKU-1",
+                    serial_number="CTRL-SERIAL-1",
+                    firmware_version="9.8.7",
+                ),
+            )
+        ],
+        controllers=[
+            _ns(
+                header=_make_header("ctrl-1"),
+                relationships=_ns(
+                    space_id="space-1",
+                    hardware_id="ctrl-hw-1",
+                    software_update_info_id="",
+                    firmware_update_info_id="",
+                ),
+                settings=_ns(name="Dial"),
+                state=_ns(
+                    updated_ts=_ns(seconds=0),
+                    ambient_temperature_c=0.0,
+                    temperature_f3=0.0,
+                    temperature_f4=0.0,
+                    temperature_f5=0.0,
+                ),
+                hosted_wifi_state=_ns(
+                    ssid="",
+                    ipv4_address="",
+                    signal_level_dbm=0,
+                    frequency_mhz=0,
+                    updated_ts=_ns(seconds=0),
+                ),
+                ap_wifi_state=_ns(
+                    ssid="",
+                    ipv4_address="",
+                    signal_level_dbm=0,
+                    frequency_mhz=0,
+                    updated_ts=_ns(seconds=0),
+                ),
+                p2p_wifi_state=_ns(
+                    ssid="",
+                    ipv4_address="",
+                    signal_level_dbm=0,
+                    frequency_mhz=0,
+                    updated_ts=_ns(seconds=0),
+                ),
+                controls=_ns(remote_sensor_control_mode=0),
+            )
+        ],
+        quilt_smart_modules=[],
+        comfort_settings=[],
+        schedule_weeks=[],
+        schedule_days=[],
+        remote_sensors=[],
+        controller_remote_sensors=[],
+        software_update_infos=[],
+        locations=[],
+    )
+
+    snap = SystemSnapshot.from_proto(proto)
+    assert snap.outdoor_units[0].model_sku == "ODU-SKU-1"
+    assert snap.outdoor_units[0].serial_number == "ODU-SERIAL-1"
+    assert snap.outdoor_units[0].firmware_version == "1.2.3"
+    assert snap.controllers[0].model_sku == "CTRL-SKU-1"
+    assert snap.controllers[0].serial_number == "CTRL-SERIAL-1"
+    assert snap.controllers[0].firmware_version == "9.8.7"
+
+
 # ─── SystemSnapshot.comfort_settings_for_space / away_comfort_setting ────────
 
 
