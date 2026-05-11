@@ -90,8 +90,10 @@ class ScheduleWeekDay:
     @property
     def weekday_sort_order(self) -> int:
         """Sort key; unknown weekday values map to a tail sentinel."""
-        return self.weekday if self.weekday in _WEEKDAY_NAMES and self.weekday != 0 else (
-            UNKNOWN_SCHEDULE_SORT_ORDER_SENTINEL
+        return (
+            self.weekday
+            if self.weekday in _WEEKDAY_NAMES and self.weekday != 0
+            else (UNKNOWN_SCHEDULE_SORT_ORDER_SENTINEL)
         )
 
 
