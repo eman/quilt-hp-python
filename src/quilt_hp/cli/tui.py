@@ -633,7 +633,7 @@ class DashboardScreen(Screen):
             (c for c in self._snapshot.controllers if c.space_id == space_id),
             None,
         )
-        odu = self._snapshot.outdoor_units[0] if self._snapshot.outdoor_units else None
+        odu = self._snapshot.odu_for_idu(idu) if idu else None
         qsm = self._snapshot.qsm_for_idu(idu) if idu else None
         self.app.push_screen(
             RoomScreen(
@@ -2652,7 +2652,9 @@ class QuiltApp(App[None]):
         if self._snapshot:
             odu = self._snapshot.apply_outdoor_unit(odu)
         screen = self.screen
-        if isinstance(screen, (DashboardScreen, RoomScreen, SystemScreen)):
+        if isinstance(screen, (DashboardScreen, SystemScreen)) or (
+            isinstance(screen, RoomScreen) and screen._odu and screen._odu.id == odu.id
+        ):
             screen.update_odu(odu)
 
     def _dispatch_ctrl(self, ctrl: Controller) -> None:

@@ -416,6 +416,12 @@ class SystemSnapshot:
         self.controller_remote_sensors.append(crs)
         return crs
 
+    def odu_for_idu(self, idu: IndoorUnit) -> OutdoorUnit | None:
+        """Return the OutdoorUnit connected to the given IDU, or None."""
+        if not idu.outdoor_unit_id:
+            return None
+        return next((u for u in self.outdoor_units if u.id == idu.outdoor_unit_id), None)
+
     def qsm_for_idu(self, idu: IndoorUnit) -> QuiltSmartModule | None:
         """Return the QSM embedded in the given IDU, or None."""
         if not idu.qsm_id:

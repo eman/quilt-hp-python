@@ -1216,3 +1216,106 @@ def test_away_setpoints_reflected_in_controls_when_away() -> None:
     assert s1_away.is_away is True
     assert s1_away.controls.heating_setpoint_c == pytest.approx(away.heating_setpoint_c)
     assert s1_away.controls.cooling_setpoint_c == pytest.approx(away.cooling_setpoint_c)
+
+
+# ─── SystemSnapshot.odu_for_idu ───────────────────────────────────────────────
+
+
+def _make_odu_proto(odu_id: str, space_id: str = "space-1") -> SimpleNamespace:
+    return _ns(
+        header=_make_header(odu_id),
+        relationships=_ns(space_id=space_id, hardware_id="", firmware_update_info_id=""),
+        state=_ns(hvac_state=0),
+        performance_data=_ns(
+            ambient_temperature_c=0.0,
+            compressor_frequency_hz=0.0,
+            energy_measurement_j=0.0,
+        ),
+    )
+
+
+def _make_snap_with_multiple_odus() -> SystemSnapshot:
+    from quilt_hp._proto import quilt_hds_pb2 as hds
+
+    loc = _ns(
+        header=_make_header("loc-1"),
+        attributes=_ns(name="", tz_identifier="UTC"),
+        controls=_ns(schedule_execution=hds.SCHEDULE_EXECUTION_RUNNING),
+    )
+
+    def _idu(idu_id: str, space_id: str, odu_id: str) -> SimpleNamespace:
+        proto = _make_idu_proto(idu_id, space_id)
+        proto.relationships = _ns(
+            space_id=space_id,
+            outdoor_unit_id=odu_id,
+            hardware_id="hw-1",
+            quilt_smart_module_id="",
+            firmware_update_info_id="",
+        )
+        return proto
+
+    return SystemSnapshot.from_proto(
+        _ns(
+            spaces=[
+                _make_space_proto("s1", "Room 1", parent_space_id="root"),
+                _make_space_proto("s2", "Room 2", parent_space_id="root"),
+                _make_space_proto("s3", "Room 3", parent_space_id="root"),
+            ],
+            indoor_units=[
+                _idu("idu-1", "s1", "odu-1"),
+                _idu("idu-2", "s2", "odu-2"),
+                _idu("idu-3", "s3", "odu-1"),  # shares odu-1 with room 1
+            ],
+            outdoor_units=[
+                _make_odu_proto("odu-1"),
+                _make_odu_proto("odu-2"),
+                _make_odu_proto("odu-3"),  # present but not linked to any IDU
+            ],
+            outdoor_unit_hardware=[],
+            controller_hardware=[],
+            controllers=[],
+            quilt_smart_modules=[],
+            comfort_settings=[],
+            schedule_weeks=[],
+            schedule_days=[],
+            remote_sensors=[],
+            controller_remote_sensors=[],
+            software_update_infos=[],
+            locations=[loc],
+        )
+    )
+
+
+def test_odu_for_idu_returns_correct_odu() -> None:
+    snap = _make_snap_with_multiple_odus()
+    idu1 = next(u for u in snap.indoor_units if u.id == "idu-1")
+    idu2 = next(u for u in snap.indoor_units if u.id == "idu-2")
+    idu3 = next(u for u in snap.indoor_units if u.id == "idu-3")
+
+    assert snap.odu_for_idu(idu1) is not None
+    assert snap.odu_for_idu(idu1).id == "odu-1"  # type: ignore[union-attr]
+
+    assert snap.odu_for_idu(idu2) is not None
+    assert snap.odu_for_idu(idu2).id == "odu-2"  # type: ignore[union-attr]
+
+    assert snap.odu_for_idu(idu3) is not None
+    assert snap.odu_for_idu(idu3).id == "odu-1"  # type: ignore[union-attr]
+
+
+def test_odu_for_idu_no_outdoor_unit_id_returns_none() -> None:
+    snap = _make_snap_with_multiple_odus()
+    idu1 = next(u for u in snap.indoor_units if u.id == "idu-1")
+    from dataclasses import replace
+
+    idu_no_odu = replace(idu1, outdoor_unit_id=None)
+    assert snap.odu_for_idu(idu_no_odu) is None
+
+
+def test_odu_for_idu_unlinked_odu_not_returned() -> None:
+    """ODU-3 exists in the snapshot but is not linked to any IDU."""
+    snap = _make_snap_with_multiple_odus()
+    assert len(snap.outdoor_units) == 3
+    assert all(
+        u.id != "odu-3"
+        for u in (snap.odu_for_idu(idu) for idu in snap.indoor_units if idu is not None)
+    )
