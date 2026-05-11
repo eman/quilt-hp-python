@@ -37,7 +37,11 @@ class OutdoorUnit:
     def from_proto(cls, proto: object, hw_map: dict[str, object] | None = None) -> OutdoorUnit:
         """Construct from a protobuf OutdoorUnit message."""
         hw_id = proto.relationships.hardware_id  # type: ignore[attr-defined]
-        hw = hw_map.get(hw_id) if hw_map else None
+        hw = None
+        if hw_map:
+            hw = hw_map.get(hw_id)
+            if hw is None and hw_id:
+                hw = hw_map.get(hw_id.rsplit("/", 1)[-1])
 
         pd = None
         if hasattr(proto, "performance_data"):
@@ -61,9 +65,9 @@ class OutdoorUnit:
             system_id=proto.header.system_id,  # type: ignore[attr-defined]
             space_id=proto.relationships.space_id,  # type: ignore[attr-defined]
             hvac_state=proto.state.hvac_state,  # type: ignore[attr-defined]
-            model_sku=hw.attributes.model_sku if hw else None,  # type: ignore[attr-defined]
-            serial_number=hw.attributes.serial_number if hw else None,  # type: ignore[attr-defined]
-            firmware_version=hw.attributes.firmware_version if hw else None,  # type: ignore[attr-defined]
+            model_sku=(hw.attributes.model_sku or None) if hw else None,  # type: ignore[attr-defined]
+            serial_number=(hw.attributes.serial_number or None) if hw else None,  # type: ignore[attr-defined]
+            firmware_version=(hw.attributes.firmware_version or None) if hw else None,  # type: ignore[attr-defined]
             firmware_update_info_id=(
                 proto.relationships.firmware_update_info_id or None  # type: ignore[attr-defined]
             ),

@@ -104,6 +104,8 @@ class Controller:
         if hw_map:
             hw_id = p.relationships.hardware_id
             hw = hw_map.get(hw_id)
+            if hw is None and hw_id:
+                hw = hw_map.get(hw_id.rsplit("/", 1)[-1])
             if hw is not None:
                 a = cast("Any", hw).attributes
                 serial = a.serial_number or None

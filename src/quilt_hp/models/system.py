@@ -457,8 +457,19 @@ class SystemSnapshot:
     def from_proto(cls, proto: object) -> SystemSnapshot:
         """Construct from a protobuf HomeDatastoreSystem message."""
         p = cast("Any", proto)
-        odu_hw_map = {h.header.object_id: h for h in p.outdoor_unit_hardware}
-        ctrl_hw_map = {h.header.object_id: h for h in p.controller_hardware}
+
+        def _build_hw_map(items: object) -> dict[str, object]:
+            hw_map: dict[str, object] = {}
+            for hw in cast("Any", items):
+                hw_id = cast("Any", hw).header.object_id
+                if not hw_id:
+                    continue
+                hw_map[hw_id] = hw
+                hw_map[hw_id.rsplit("/", 1)[-1]] = hw
+            return hw_map
+
+        odu_hw_map = _build_hw_map(p.outdoor_unit_hardware)
+        ctrl_hw_map = _build_hw_map(p.controller_hardware)
 
         locations = [Location.from_proto(loc) for loc in p.locations]
         tz = locations[0].timezone if locations else None
