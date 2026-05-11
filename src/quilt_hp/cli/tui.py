@@ -606,7 +606,7 @@ class DashboardScreen(Screen):
         self.app._persist()
 
     def action_system(self) -> None:
-        self.app.push_screen(SystemScreen(self._snapshot, self._client))
+        self.app.push_screen(SystemScreen(self._snapshot, self._client, use_f=self.use_f))
 
     def action_select_room(self) -> None:
         lv = self.query_one(ListView)
@@ -2239,10 +2239,13 @@ class SystemScreen(Screen):
         self,
         snapshot: SystemSnapshot,
         client: QuiltClient,
+        *,
+        use_f: bool = False,
     ) -> None:
         super().__init__()
         self._snapshot = snapshot
         self._client = client
+        self.use_f = use_f
 
     def compose(self) -> ComposeResult:
         yield Header(show_clock=True)
@@ -2283,7 +2286,6 @@ class SystemScreen(Screen):
         yield Footer()
 
     def on_mount(self) -> None:
-        self.use_f = False
         self._populate()
 
     def _populate(self) -> None:
@@ -2486,6 +2488,11 @@ class SystemScreen(Screen):
         self._populate()
 
     def action_toggle_units(self) -> None:
+        self.use_f = not self.use_f
+        self._populate()
+        self.app._persist()
+
+    def action_toggle_schedule(self) -> None:
         loc = self._snapshot.primary_location
         if loc is None:
             self.notify("No location found", severity="error")
