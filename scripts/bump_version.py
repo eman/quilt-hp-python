@@ -10,18 +10,28 @@ Usage:
 
 import argparse
 import re
-import sys
 from datetime import date
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 
-# Files where the bare version string (e.g. "0.1.0") should be replaced.
-VERSIONED_FILES = [
-    ROOT / "pyproject.toml",
-    ROOT / "src/quilt_hp/__init__.py",
-    ROOT / "docs/reference/client.md",
-    ROOT / "tests/test_cli_surfaces_extra.py",
+VERSION_TARGETS = [
+    (
+        ROOT / "pyproject.toml",
+        re.compile(r'(?P<pre>^version\s*=\s*")(?P<version>\d+\.\d+\.\d+)(?P<post>")', re.MULTILINE),
+    ),
+    (
+        ROOT / "src/quilt_hp/__init__.py",
+        re.compile(r'(?P<pre>^__version__\s*=\s*")(?P<version>\d+\.\d+\.\d+)(?P<post>")', re.MULTILINE),
+    ),
+    (
+        ROOT / "docs/reference/client.md",
+        re.compile(r'(?P<pre>__version__:\s*str\s*#\s*e\.g\.\s*")(?P<version>\d+\.\d+\.\d+)(?P<post>")'),
+    ),
+    (
+        ROOT / "tests/test_cli_surfaces_extra.py",
+        re.compile(r'(?P<pre>result\.stdout\.strip\(\)\s*==\s*")(?P<version>\d+\.\d+\.\d+)(?P<post>")'),
+    ),
 ]
 
 CHANGELOG = ROOT / "CHANGELOG.md"
@@ -44,14 +54,15 @@ def next_semver(version: str, part: str) -> str:
     return f"{major}.{minor}.{patch + 1}"
 
 
-def update_files(old: str, new: str) -> None:
-    for path in VERSIONED_FILES:
+def update_files(new: str) -> None:
+    replacement = rf"\g<pre>{new}\g<post>"
+    for path, pattern in VERSION_TARGETS:
         text = path.read_text(encoding="utf-8")
-        count = text.count(old)
+        updated, count = pattern.subn(replacement, text)
         if count == 0:
             print(f"  SKIP     {path.relative_to(ROOT)}  (version string not found)")
             continue
-        path.write_text(text.replace(old, new), encoding="utf-8")
+        path.write_text(updated, encoding="utf-8")
         print(f"  updated  {path.relative_to(ROOT)}  ({count} occurrence{'s' if count > 1 else ''})")
 
 
@@ -106,9 +117,9 @@ def main() -> None:
         raise SystemExit(f"ERROR: New version is the same as current ({old})")
 
     print(f"Bumping {old} → {new}\n")
-    update_files(old, new)
+    update_files(new)
     update_changelog(old, new)
-    print(f"\nNext steps:")
+    print("\nNext steps:")
     print(f"  1. Fill in the ## [{new}] section in CHANGELOG.md")
     print(f"  2. git add -A && git commit -m 'chore: bump version to {new}'")
     print(f"  3. git tag v{new} && git push origin main v{new}")
