@@ -38,6 +38,24 @@ A Space is a zone within a Quilt installation, typically a room. Spaces are hier
 
 **Temperature setpoint routing**: The wire `temperature_setpoint_c` field is the "mode-relevant" setpoint. It is the heating setpoint when mode is HEAT and the cooling setpoint otherwise. Both `heating_temperature_setpoint_c` and `cooling_temperature_setpoint_c` are always sent.
 
+### Sentinel and placeholder values (UI handling)
+
+The Quilt apps use several placeholder values to represent "not set", "ignored in this mode", or missing data. Treat these as metadata, not literal user targets.
+
+| Sentinel | Where it appears | Python handling |
+| --- | --- | --- |
+| `heating=8.0`, `cooling=40.0` | `SpaceControls`/`ComfortSetting` for STANDBY | `SpaceControls.has_standby_sentinel_setpoints`, `ComfortSetting.has_standby_sentinel_setpoints` |
+| `heating=0.0`, `cooling=0.0` | `ComfortSettingType.UNSPECIFIED` placeholder | `ComfortSetting.has_unspecified_setpoint_sentinels`, `ComfortSetting.has_placeholder_setpoints` |
+| `comfort_setting_id=""` | Manual/direct-control mode (no preset bound) | `SpaceControls.has_linked_comfort_setting`, `SpaceControls.comfort_setting_id_or_none` |
+| `louver_fixed_position=0.0` with non-`FIXED` mode | Louver position ignored for AUTO/SWEEP/CLOSED | `IndoorUnitControls.louver_position_is_placeholder`, `ComfortSetting.louver_position_is_placeholder` |
+| `fan_speed_mode=0` | Proto3 default = fan fields absent / unknown in sparse diff | `IndoorUnitControls.fan_speed_is_placeholder` |
+| `fanSpeedMaxRpm=0.0` | Indoor-unit hardware spec missing/unpopulated (KMP model) | Reserved constant: `UNSET_MAX_FAN_SPEED_RPM_SENTINEL` |
+| `NaN` in temperatures/energy | Missing or invalid measurement samples | `SpaceState.has_missing_ambient_temperature`, `SpaceState.has_missing_setpoint`, `EnergyBucket.has_missing_energy_value` |
+| timestamp seconds `0` | Proto timestamp unset (no check-in yet) | Parsed as `None` for model datetimes (`updated_at`, `wifi_last_seen`) |
+| unknown schedule weekday | Invalid/unknown day in ordering logic | `ScheduleWeekDay.weekday_sort_order` maps to tail sentinel |
+
+For display code, prefer the `*_or_none` helpers and sentinel predicates over direct field formatting.
+
 ---
 
 ## IndoorUnit

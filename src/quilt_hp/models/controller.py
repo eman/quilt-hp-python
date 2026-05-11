@@ -6,6 +6,7 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Any, cast
 
+from quilt_hp.const import PROTO_TIMESTAMP_UNSET_SECONDS
 from quilt_hp.models.enums import RemoteSensorControlMode
 from quilt_hp.models.qsm import WifiInfo
 
@@ -86,11 +87,11 @@ class Controller:
         w = p.hosted_wifi_state
         ts = p.state.updated_ts
         updated_at: datetime | None = None
-        if ts.seconds != 0:
+        if ts.seconds != PROTO_TIMESTAMP_UNSET_SECONDS:
             updated_at = datetime.fromtimestamp(ts.seconds, tz=UTC)
 
         wifi_last_seen: datetime | None = None
-        if w.updated_ts.seconds != 0:
+        if w.updated_ts.seconds != PROTO_TIMESTAMP_UNSET_SECONDS:
             wifi_last_seen = datetime.fromtimestamp(w.updated_ts.seconds, tz=UTC)
 
         def _wifi(wstate: object) -> WifiInfo | None:

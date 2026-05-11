@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+from quilt_hp.const import EMPTY_COMFORT_SETTING_ID_SENTINEL, UNKNOWN_SCHEDULE_SORT_ORDER_SENTINEL
+
 _WEEKDAY_NAMES = {
     0: "?",
     1: "Mon",
@@ -31,6 +33,16 @@ class ScheduleEvent:
     def start_time(self) -> str:
         """Format start_s as HH:MM."""
         return f"{self.start_s // 3600:02d}:{(self.start_s % 3600) // 60:02d}"
+
+    @property
+    def has_linked_comfort_setting(self) -> bool:
+        """True when this event references a comfort setting by ID."""
+        return self.comfort_setting_id != EMPTY_COMFORT_SETTING_ID_SENTINEL
+
+    @property
+    def comfort_setting_id_or_none(self) -> str | None:
+        """Comfort-setting ID, or None when event uses explicit setpoints."""
+        return self.comfort_setting_id if self.has_linked_comfort_setting else None
 
 
 @dataclass(slots=True)
@@ -74,6 +86,13 @@ class ScheduleWeekDay:
     @property
     def weekday_name(self) -> str:
         return _WEEKDAY_NAMES.get(self.weekday, str(self.weekday))
+
+    @property
+    def weekday_sort_order(self) -> int:
+        """Sort key; unknown weekday values map to a tail sentinel."""
+        return self.weekday if self.weekday in _WEEKDAY_NAMES and self.weekday != 0 else (
+            UNKNOWN_SCHEDULE_SORT_ORDER_SENTINEL
+        )
 
 
 @dataclass(slots=True)

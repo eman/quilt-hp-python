@@ -2,11 +2,20 @@
 
 from __future__ import annotations
 
+import math
 import time
+from datetime import UTC, datetime
 from types import SimpleNamespace
 
+from quilt_hp.const import (
+    EMPTY_COMFORT_SETTING_ID_SENTINEL,
+    STANDBY_COOL_SENTINEL_C,
+    STANDBY_HEAT_SENTINEL_C,
+    UNKNOWN_SCHEDULE_SORT_ORDER_SENTINEL,
+)
 from quilt_hp.models.comfort import ComfortSetting
 from quilt_hp.models.controller import Controller
+from quilt_hp.models.energy import EnergyBucket, SpaceEnergyMetrics
 from quilt_hp.models.enums import (
     ComfortSettingType,
     FanSpeed,
@@ -255,6 +264,38 @@ def test_display_setpoint_standby() -> None:
     assert c.display_setpoint == "--"
 
 
+def test_space_controls_comfort_setting_id_sentinel() -> None:
+    c = SpaceControls(
+        hvac_mode=HVACMode.COOL,
+        temperature_setpoint_c=24.0,
+        cooling_setpoint_c=24.0,
+        heating_setpoint_c=20.0,
+        comfort_setting_id=EMPTY_COMFORT_SETTING_ID_SENTINEL,
+        comfort_setting_override=0,
+    )
+    assert c.has_linked_comfort_setting is False
+    assert c.comfort_setting_id_or_none is None
+
+
+def test_space_controls_standby_sentinel_pair() -> None:
+    c = SpaceControls(
+        hvac_mode=HVACMode.STANDBY,
+        temperature_setpoint_c=STANDBY_COOL_SENTINEL_C,
+        cooling_setpoint_c=STANDBY_COOL_SENTINEL_C,
+        heating_setpoint_c=STANDBY_HEAT_SENTINEL_C,
+        comfort_setting_id=EMPTY_COMFORT_SETTING_ID_SENTINEL,
+        comfort_setting_override=0,
+    )
+    assert c.has_standby_sentinel_setpoints is True
+
+
+def test_space_state_missing_temperature_nan() -> None:
+    proto = _make_space_proto()
+    proto.state.ambient_temperature_c = math.nan
+    space = Space.from_proto(proto)
+    assert space.state.has_missing_ambient_temperature is True
+
+
 # ─── IndoorUnit ─────────────────────────────────────────────────────────────
 
 
@@ -402,6 +443,16 @@ def test_idu_fan_speed_mode_raw_absent() -> None:
     idu = IndoorUnit.from_proto(proto)
     assert idu.controls.fan_speed == FanSpeed.AUTO  # same decoded value…
     assert idu.controls.fan_speed_mode_raw == 0  # …but raw correctly shows absent
+    assert idu.controls.fan_speed_is_placeholder is True
+    assert idu.controls.fan_speed_percent_raw == 0.0
+
+
+def test_idu_louver_position_placeholder() -> None:
+    proto = _make_idu_proto()
+    proto.controls.louver_mode = LouverMode.AUTO
+    proto.controls.louver_fixed_position = 0.0
+    idu = IndoorUnit.from_proto(proto)
+    assert idu.controls.louver_position_is_placeholder is True
 
 
 def test_idu_led_light_on() -> None:
@@ -537,6 +588,30 @@ def test_comfort_setting_from_proto() -> None:
     assert cs.hvac_mode == HVACMode.HEAT
     assert cs.heating_setpoint_c == 21.0
     assert cs.fan_speed == FanSpeed.AUTO
+
+
+def test_comfort_setting_standby_and_placeholder_sentinels() -> None:
+    proto = _make_cs_proto("cs-standby")
+    proto.attributes.type = ComfortSettingType.STANDBY
+    proto.attributes.hvac_mode = HVACMode.STANDBY
+    proto.attributes.heating_temperature_setpoint_c = STANDBY_HEAT_SENTINEL_C
+    proto.attributes.cooling_temperature_setpoint_c = STANDBY_COOL_SENTINEL_C
+    proto.attributes.louver_mode = LouverMode.AUTO
+    proto.attributes.louver_fixed_position = 0.0
+    cs = ComfortSetting.from_proto(proto)
+    assert cs.has_standby_sentinel_setpoints is True
+    assert cs.has_placeholder_setpoints is True
+    assert cs.louver_position_is_placeholder is True
+
+
+def test_comfort_setting_unspecified_zero_setpoint_sentinels() -> None:
+    proto = _make_cs_proto("cs-unspecified")
+    proto.attributes.type = ComfortSettingType.UNSPECIFIED
+    proto.attributes.heating_temperature_setpoint_c = 0.0
+    proto.attributes.cooling_temperature_setpoint_c = 0.0
+    cs = ComfortSetting.from_proto(proto)
+    assert cs.has_unspecified_setpoint_sentinels is True
+    assert cs.has_placeholder_setpoints is True
 
 
 # ─── Controller ─────────────────────────────────────────────────────────────
@@ -797,6 +872,8 @@ def test_schedule_event_start_time() -> None:
         precondition=False,
     )
     assert ev.start_time == "07:30"
+    assert ev.has_linked_comfort_setting is False
+    assert ev.comfort_setting_id_or_none is None
 
 
 def test_schedule_week_from_proto() -> None:
@@ -815,6 +892,27 @@ def test_schedule_week_from_proto() -> None:
     assert [d.weekday for d in week.days] == [1, 3, 5]
     assert week.days[0].day_id == "day-mon"
     assert week.days[0].weekday_name == "Mon"
+
+
+def test_schedule_weekday_unknown_sort_order_sentinel() -> None:
+    proto = _ns(
+        header=_make_header("week-unknown"),
+        relationships=_ns(space_id="space-1"),
+        days=[_ns(weekday=0, day_id="day-unknown")],
+    )
+    week = ScheduleWeek.from_proto(proto)
+    assert week.days[0].weekday_sort_order == UNKNOWN_SCHEDULE_SORT_ORDER_SENTINEL
+
+
+def test_energy_bucket_nan_sentinel_handling() -> None:
+    now = datetime.now(UTC)
+    bucket_ok = EnergyBucket(start_time=now, energy_kwh=1.25, status=1)
+    bucket_nan = EnergyBucket(start_time=now, energy_kwh=math.nan, status=1)
+    metrics = SpaceEnergyMetrics(space_id="space-1", buckets=[bucket_ok, bucket_nan])
+    assert bucket_nan.has_missing_energy_value is True
+    assert bucket_nan.energy_kwh_or_none is None
+    assert metrics.missing_bucket_count == 1
+    assert metrics.total_kwh == 1.25
 
 
 # ─── Location ────────────────────────────────────────────────────────────────

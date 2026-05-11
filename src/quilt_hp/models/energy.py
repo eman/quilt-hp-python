@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
@@ -17,6 +18,16 @@ class EnergyBucket:
     energy_kwh: float
     status: int  # 0=UNSPECIFIED, 1=COMPLETE, 2=INCOMPLETE
 
+    @property
+    def has_missing_energy_value(self) -> bool:
+        """True when energy_kwh is NaN (wire sentinel for missing/error data)."""
+        return math.isnan(self.energy_kwh)
+
+    @property
+    def energy_kwh_or_none(self) -> float | None:
+        """Energy value, or None when this bucket carries a NaN sentinel."""
+        return None if self.has_missing_energy_value else self.energy_kwh
+
 
 @dataclass(slots=True)
 class SpaceEnergyMetrics:
@@ -27,5 +38,10 @@ class SpaceEnergyMetrics:
 
     @property
     def total_kwh(self) -> float:
-        """Sum of all bucket energy values."""
-        return sum(b.energy_kwh for b in self.buckets)
+        """Sum of valid bucket values, ignoring NaN sentinel buckets."""
+        return sum(b.energy_kwh for b in self.buckets if not b.has_missing_energy_value)
+
+    @property
+    def missing_bucket_count(self) -> int:
+        """Number of energy buckets carrying NaN sentinel values."""
+        return sum(1 for b in self.buckets if b.has_missing_energy_value)
