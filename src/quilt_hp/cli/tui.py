@@ -687,13 +687,13 @@ class RoomScreen(Screen):
         Binding("]", "away_timeout_inc", "Away+5m", show=False),
         Binding("{", "return_timeout_dec", "Return-1m", show=False),
         Binding("}", "return_timeout_inc", "Return+1m", show=False),
-        # Presence fence adjustment (Ctrl+arrow keys or letters on Status tab)
-        Binding("F", "fence_fwd_inc", "Fence Depth+", show=False),
-        Binding("G", "fence_fwd_dec", "Fence Depth-", show=False),
-        Binding("X", "fence_lr_inc", "Fence L/R+", show=False),
-        Binding("Z", "fence_lr_dec", "Fence L/R-", show=False),
-        Binding("R", "radar_height_inc", "Radar H+", show=False),
-        Binding("T", "radar_height_dec", "Radar H-", show=False),
+        # Presence fence adjustment (status tab)
+        Binding("ctrl+up", "fence_fwd_inc", "Fence Depth+", show=False),
+        Binding("ctrl+down", "fence_fwd_dec", "Fence Depth-", show=False),
+        Binding("ctrl+right", "fence_lr_inc", "Fence L/R+", show=False),
+        Binding("ctrl+left", "fence_lr_dec", "Fence L/R-", show=False),
+        Binding("alt+r", "radar_height_inc", "Radar H+", show=False),
+        Binding("alt+t", "radar_height_dec", "Radar H-", show=False),
     ]
 
     use_f: reactive[bool] = reactive(False)
