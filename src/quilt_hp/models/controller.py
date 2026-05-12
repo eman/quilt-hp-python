@@ -13,6 +13,27 @@ from quilt_hp.models.qsm import WifiInfo
 _ONLINE_THRESHOLD_S = 5 * 60  # 5 minutes, matching KMP IS_ONLINE_THRESHOLD_MINUTES
 
 
+def _lookup_hw(hw_map: dict[str, object], hardware_id: str | None) -> object | None:
+    if not hardware_id:
+        return None
+    raw = hardware_id.strip()
+    if not raw:
+        return None
+    keys = (
+        raw,
+        raw.rsplit("/", 1)[-1],
+        raw.rsplit(":", 1)[-1],
+        raw.casefold(),
+        raw.rsplit("/", 1)[-1].casefold(),
+        raw.rsplit(":", 1)[-1].casefold(),
+    )
+    for key in keys:
+        hw = hw_map.get(key)
+        if hw is not None:
+            return hw
+    return None
+
+
 @dataclass(slots=True)
 class Controller:
     """A Quilt controller (Dial thermostat)."""
@@ -102,10 +123,7 @@ class Controller:
         model_sku: str | None = None
         fw_ver: str | None = None
         if hw_map:
-            hw_id = p.relationships.hardware_id
-            hw = hw_map.get(hw_id)
-            if hw is None and hw_id:
-                hw = hw_map.get(hw_id.rsplit("/", 1)[-1])
+            hw = _lookup_hw(hw_map, p.relationships.hardware_id)
             if hw is not None:
                 a = cast("Any", hw).attributes
                 serial = a.serial_number or None
