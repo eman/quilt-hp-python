@@ -973,9 +973,9 @@ def test_energy_bucket_nan_sentinel_handling() -> None:
     assert metrics.total_kwh == 1.25
 
 
-def test_energy_bucket_none_does_not_raise() -> None:
+def test_energy_bucket_none_is_missing() -> None:
     bucket = EnergyBucket(start_time=datetime.now(UTC), energy_kwh=None, status=0)  # type: ignore[arg-type]
-    assert bucket.has_missing_energy_value is False
+    assert bucket.has_missing_energy_value is True
     assert bucket.energy_kwh_or_none is None
 
 

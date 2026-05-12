@@ -22,8 +22,8 @@ class EnergyBucket:
 
     @property
     def has_missing_energy_value(self) -> bool:
-        """True when energy_kwh is NaN (wire sentinel for missing/error data)."""
-        return isinstance(self.energy_kwh, float) and math.isnan(self.energy_kwh)
+        """True when energy_kwh is missing: either not a float or NaN sentinel."""
+        return not isinstance(self.energy_kwh, float) or math.isnan(self.energy_kwh)
 
     @property
     def is_valid(self) -> bool:
@@ -32,7 +32,7 @@ class EnergyBucket:
 
     @property
     def energy_kwh_or_none(self) -> float | None:
-        """Energy value, or None when this bucket carries a NaN sentinel."""
+        """Energy value, or None when this bucket is missing or NaN."""
         return None if self.has_missing_energy_value else self.energy_kwh
 
 
