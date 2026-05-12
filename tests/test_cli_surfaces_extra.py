@@ -7,6 +7,7 @@ from unittest.mock import patch
 from typer.testing import CliRunner
 
 from quilt_hp.cli import main as cli_main
+from quilt_hp.exceptions import QuiltAuthError, QuiltError
 from quilt_hp.models.enums import HVACMode
 
 runner = CliRunner()
@@ -195,3 +196,33 @@ def test_energy_day_branch_uses_space_fallback_name() -> None:
 
     assert result.exit_code == 0
     assert "DAY" in result.stdout
+
+
+def test_info_command_handles_auth_errors() -> None:
+    class _AuthErrorClient(_FakeClient):
+        async def login(self) -> None:
+            raise QuiltAuthError("bad credentials")
+
+    with (
+        patch.object(cli_main, "_resolve", return_value=("user@example.com", None)),
+        patch.object(cli_main, "QuiltClient", _AuthErrorClient),
+    ):
+        result = runner.invoke(cli_main.app, ["info"])
+
+    assert result.exit_code == 1
+    assert "Authentication failed: bad credentials" in result.stdout
+
+
+def test_info_command_handles_quilt_errors() -> None:
+    class _QuiltErrorClient(_FakeClient):
+        async def get_snapshot(self) -> SimpleNamespace:
+            raise QuiltError("snapshot unavailable")
+
+    with (
+        patch.object(cli_main, "_resolve", return_value=("user@example.com", None)),
+        patch.object(cli_main, "QuiltClient", _QuiltErrorClient),
+    ):
+        result = runner.invoke(cli_main.app, ["info"])
+
+    assert result.exit_code == 1
+    assert "Error: snapshot unavailable" in result.stdout

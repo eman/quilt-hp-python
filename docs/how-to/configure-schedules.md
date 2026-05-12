@@ -13,19 +13,31 @@ To create a day program with timed comfort-setting transitions:
 ```python
 from quilt_hp.models.schedule import ScheduleEvent
 
-# Get a comfort setting ID from the snapshot
+# Get comfort settings for one room from the snapshot
 snapshot = await client.get_snapshot()
 space = snapshot.space_by_name("Bedroom")
-active_cs = next(
-    cs for cs in snapshot.comfort_settings.values() if cs.name == "Active"
-)
-sleep_cs = next(
-    cs for cs in snapshot.comfort_settings.values() if cs.name == "Sleep"
-)
+assert space is not None
+space_settings = snapshot.comfort_settings_for_space(space)
+active_cs = next(cs for cs in space_settings if cs.name == "Active")
+sleep_cs = next(cs for cs in space_settings if cs.name == "Sleep")
 
 events = [
-    ScheduleEvent(time_of_day_s=7 * 3600, comfort_setting_id=active_cs.id),   # 07:00 → Active
-    ScheduleEvent(time_of_day_s=22 * 3600, comfort_setting_id=sleep_cs.id),   # 22:00 → Sleep
+    ScheduleEvent(
+        start_s=7 * 3600,
+        comfort_setting_id=active_cs.id,
+        hvac_mode=active_cs.hvac_mode,
+        heating_setpoint_c=active_cs.heating_setpoint_c,
+        cooling_setpoint_c=active_cs.cooling_setpoint_c,
+        precondition=False,
+    ),
+    ScheduleEvent(
+        start_s=22 * 3600,
+        comfort_setting_id=sleep_cs.id,
+        hvac_mode=sleep_cs.hvac_mode,
+        heating_setpoint_c=sleep_cs.heating_setpoint_c,
+        cooling_setpoint_c=sleep_cs.cooling_setpoint_c,
+        precondition=False,
+    ),
 ]
 
 day = await client.create_schedule_day(
@@ -36,7 +48,7 @@ day = await client.create_schedule_day(
 print(f"Created schedule day: {day.id} ({len(day.events)} events)")
 ```
 
-`time_of_day_s` is the number of seconds from midnight (e.g., `7 * 3600` = 07:00).
+`start_s` is the number of seconds from midnight (e.g., `7 * 3600` = 07:00).
 
 ---
 
@@ -47,17 +59,17 @@ To create a schedule week and assign day programs to each weekday:
 ```python
 from quilt_hp.models.schedule import ScheduleWeekDay
 
-# day_of_week: 0 = Monday, 6 = Sunday
+# weekday: 1 = Monday, 7 = Sunday
 week = await client.create_schedule_week(
     space_id=space.id,
     days=[
-        ScheduleWeekDay(day_of_week=0, schedule_day_id=weekday_program.id),  # Mon
-        ScheduleWeekDay(day_of_week=1, schedule_day_id=weekday_program.id),  # Tue
-        ScheduleWeekDay(day_of_week=2, schedule_day_id=weekday_program.id),  # Wed
-        ScheduleWeekDay(day_of_week=3, schedule_day_id=weekday_program.id),  # Thu
-        ScheduleWeekDay(day_of_week=4, schedule_day_id=weekday_program.id),  # Fri
-        ScheduleWeekDay(day_of_week=5, schedule_day_id=weekend_program.id),  # Sat
-        ScheduleWeekDay(day_of_week=6, schedule_day_id=weekend_program.id),  # Sun
+        ScheduleWeekDay(weekday=1, day_id=weekday_program.id),  # Mon
+        ScheduleWeekDay(weekday=2, day_id=weekday_program.id),  # Tue
+        ScheduleWeekDay(weekday=3, day_id=weekday_program.id),  # Wed
+        ScheduleWeekDay(weekday=4, day_id=weekday_program.id),  # Thu
+        ScheduleWeekDay(weekday=5, day_id=weekday_program.id),  # Fri
+        ScheduleWeekDay(weekday=6, day_id=weekend_program.id),  # Sat
+        ScheduleWeekDay(weekday=7, day_id=weekend_program.id),  # Sun
     ],
 )
 print(f"Created schedule week: {week.id}")
@@ -74,7 +86,7 @@ updated_week = await client.update_schedule_week(
     schedule_week_id=week.id,
     space_id=space.id,
     days=[
-        ScheduleWeekDay(day_of_week=0, schedule_day_id=new_monday_program.id),
+        ScheduleWeekDay(weekday=1, day_id=new_monday_program.id),
         # ... include all 7 days; omitted days are cleared
     ],
 )
@@ -114,4 +126,4 @@ To resume:
 await client.set_schedule_execution(paused=False)
 ```
 
-This is a global switch. It affects all schedule weeks across all spaces in the system. The current pause state is available as `snapshot.schedule_paused`.
+This is a global switch. It affects all schedule weeks across all spaces in the system. The current pause state is available as `snapshot.primary_location.schedule_paused` when a location is present.

@@ -11,6 +11,7 @@ import asyncio
 import contextlib
 import inspect
 import logging
+import time
 from collections.abc import AsyncIterator, Awaitable, Callable, Sequence
 from dataclasses import dataclass, field
 from typing import Any, Protocol, cast
@@ -54,6 +55,9 @@ class _NotifierServiceStub(Protocol):
 
 
 RefreshCallback = Callable[[], Awaitable[None]] | Callable[[TokenRefreshContext], Awaitable[None]]
+
+type _EventKey = tuple[str, str]
+type _AnyCallback = Callable[[Any], Awaitable[None] | None]
 
 
 async def _invoke_refresh_callback(
@@ -139,6 +143,14 @@ class StreamEvent:
     raw_bytes: bytes | None = None
 
 
+@dataclass(slots=True)
+class _PendingDispatch:
+    value: Any
+    callbacks: tuple[_AnyCallback, ...]
+    error_message: str
+    task: asyncio.Task[None]
+
+
 @dataclass
 class NotifierStream:
     """Async manager for the NotifierService bidirectional stream.
@@ -167,6 +179,9 @@ class NotifierStream:
         reconnect_delay_s: Initial back-off delay in seconds before the first
             reconnect. Doubles on each subsequent attempt, capped at 60 s.
             Default: ``1.0``.
+        debounce_s: Quiet period in seconds for coalescing updates by entity
+            type and ID before dispatching the latest event. Default: ``0.0``
+            (dispatch immediately).
     """
 
     _channel: grpc.aio.Channel
@@ -175,6 +190,7 @@ class NotifierStream:
     _authenticate: RefreshCallback | None = None
     _max_reconnects: int = -1
     _reconnect_delay_s: float = 1.0
+    _debounce_s: float = 0.0
 
     _space_callbacks: list[SpaceCallback] = field(default_factory=list, init=False)
     _idu_callbacks: list[IndoorUnitCallback] = field(default_factory=list, init=False)
@@ -186,9 +202,19 @@ class NotifierStream:
     _sui_callbacks: list[SoftwareUpdateInfoCallback] = field(default_factory=list, init=False)
     _error_callbacks: list[ErrorCallback] = field(default_factory=list, init=False)
     _request_queue: asyncio.Queue[notifier.SubscribeRequest] = field(init=False)
+    _subscription_lock: asyncio.Lock = field(init=False)
+    _lifecycle_lock: asyncio.Lock = field(init=False)
+    _pending_dispatch_lock: asyncio.Lock = field(init=False)
+    _stop_event: asyncio.Event = field(init=False)
     _running: bool = field(default=False, init=False)
     _task: asyncio.Task[None] | None = field(default=None, init=False)
+    _active_call: Any | None = field(default=None, init=False)
+    _pending_dispatches: dict[_EventKey, _PendingDispatch] = field(
+        default_factory=dict, init=False
+    )
     _error: Exception | None = field(default=None, init=False)
+    _last_event_at: float | None = field(default=None, init=False)
+    _stream_state: str = field(default="idle", init=False)
 
     def __post_init__(self) -> None:
         factory = cast(
@@ -197,6 +223,10 @@ class NotifierStream:
         )
         self._stub: _NotifierServiceStub = factory(self._channel)
         self._request_queue = asyncio.Queue()
+        self._subscription_lock = asyncio.Lock()
+        self._lifecycle_lock = asyncio.Lock()
+        self._pending_dispatch_lock = asyncio.Lock()
+        self._stop_event = asyncio.Event()
 
     # --- Public constructor (friendlier than dataclass __init__) ---
 
@@ -210,6 +240,7 @@ class NotifierStream:
         authenticate: RefreshCallback | None = None,
         max_reconnects: int = -1,
         reconnect_delay_s: float = 1.0,
+        debounce_s: float = 0.0,
     ) -> NotifierStream:
         """Create a NotifierStream with named parameters."""
         return cls(
@@ -219,6 +250,7 @@ class NotifierStream:
             _authenticate=authenticate,
             _max_reconnects=max_reconnects,
             _reconnect_delay_s=reconnect_delay_s,
+            _debounce_s=debounce_s,
         )
 
     # --- Callback registration ---
@@ -264,29 +296,48 @@ class NotifierStream:
         """The last fatal stream error, or None if the stream is healthy."""
         return self._error
 
+    @property
+    def is_connected(self) -> bool:
+        """Whether the stream currently has an active connection."""
+        return self._stream_state == "connected"
+
+    @property
+    def last_event_at(self) -> float | None:
+        """Monotonic timestamp of the last received non-heartbeat event."""
+        return self._last_event_at
+
+    @property
+    def stream_state(self) -> str:
+        """Current stream lifecycle state."""
+        return self._stream_state
+
     # --- Subscription management ---
 
     async def subscribe(self, topics: list[str]) -> None:
         """Add more topics to the subscription (after stream is started)."""
-        self._topics.extend(topics)
-        await self._request_queue.put(_make_subscribe_request(topics))
+        async with self._subscription_lock:
+            self._topics.extend(topics)
+            await self._request_queue.put(_make_subscribe_request(topics))
 
     async def unsubscribe(self, topics: list[str]) -> None:
         """Remove topics from the subscription."""
-        for t in topics:
-            if t in self._topics:
-                self._topics.remove(t)
         req = notifier.SubscribeRequest(
             remove=notifier.TopicsMessage(
                 subscriptions=[notifier.Subscription(topic=t) for t in topics]
             )
         )
-        await self._request_queue.put(req)
+        async with self._subscription_lock:
+            for t in topics:
+                if t in self._topics:
+                    self._topics.remove(t)
+            await self._request_queue.put(req)
 
     # --- Internal stream machinery ---
 
     async def _request_iterator(
         self,
+        topics: list[str],
+        request_queue: asyncio.Queue[notifier.SubscribeRequest],
     ) -> AsyncIterator[notifier.SubscribeRequest]:
         """Yield SubscribeRequests from initial subscription, then queue.
 
@@ -294,10 +345,10 @@ class NotifierStream:
         without re-sending the topic list; gRPC channel keepalives (configured
         in GRPC_CHANNEL_OPTIONS) handle the underlying TCP connection.
         """
-        yield _make_subscribe_request(self._topics)
+        yield _make_subscribe_request(topics)
         while self._running:
             try:
-                req = await asyncio.wait_for(self._request_queue.get(), timeout=30.0)
+                req = await asyncio.wait_for(request_queue.get(), timeout=30.0)
                 yield req
             except TimeoutError:
                 continue  # keepalive handled by gRPC channel options
@@ -390,70 +441,157 @@ class NotifierStream:
 
         return event
 
+    async def _invoke_callbacks[T](
+        self,
+        callbacks: Sequence[Callable[[T], Awaitable[None] | None]],
+        arg: T,
+        error_message: str,
+    ) -> None:
+        for callback in callbacks:
+            try:
+                await _dispatch(callback, arg)
+            except Exception:
+                logger.exception(error_message)
+
+    async def _dispatch_debounced(self, key: _EventKey) -> None:
+        try:
+            await asyncio.sleep(self._debounce_s)
+            async with self._pending_dispatch_lock:
+                pending = self._pending_dispatches.get(key)
+                if pending is None or pending.task is not asyncio.current_task():
+                    return
+                self._pending_dispatches.pop(key, None)
+            await self._invoke_callbacks(pending.callbacks, pending.value, pending.error_message)
+        except asyncio.CancelledError:
+            raise
+
+    async def _queue_debounced_dispatch[T](
+        self,
+        entity_type: str,
+        entity: T,
+        callbacks: Sequence[Callable[[T], Awaitable[None] | None]],
+        error_message: str,
+    ) -> None:
+        key = (entity_type, str(getattr(cast("Any", entity), "id", "")))
+        callback_snapshot = tuple(cast("Sequence[_AnyCallback]", callbacks))
+        async with self._pending_dispatch_lock:
+            existing = self._pending_dispatches.get(key)
+            if existing is not None:
+                existing.task.cancel()
+            task = asyncio.create_task(self._dispatch_debounced(key))
+            self._pending_dispatches[key] = _PendingDispatch(
+                value=entity,
+                callbacks=callback_snapshot,
+                error_message=error_message,
+                task=task,
+            )
+
+    async def _cancel_pending_dispatches(self) -> None:
+        async with self._pending_dispatch_lock:
+            pending = list(self._pending_dispatches.values())
+            self._pending_dispatches.clear()
+        for item in pending:
+            item.task.cancel()
+        if pending:
+            await asyncio.gather(*(item.task for item in pending), return_exceptions=True)
+
+    async def _dispatch_entity[T](
+        self,
+        entity_type: str,
+        entity: T,
+        callbacks: Sequence[Callable[[T], Awaitable[None] | None]],
+        error_message: str,
+    ) -> None:
+        if self._debounce_s <= 0:
+            await self._invoke_callbacks(callbacks, entity, error_message)
+            return
+        await self._queue_debounced_dispatch(entity_type, entity, callbacks, error_message)
+
+    async def _dispatch_parsed_event(self, parsed: StreamEvent) -> None:
+        if parsed.space is not None:
+            await self._dispatch_entity(
+                "space", parsed.space, self._space_callbacks, "Error in space callback"
+            )
+        if parsed.indoor_unit is not None:
+            await self._dispatch_entity(
+                "indoor_unit",
+                parsed.indoor_unit,
+                self._idu_callbacks,
+                "Error in indoor unit callback",
+            )
+        if parsed.outdoor_unit is not None:
+            await self._dispatch_entity(
+                "outdoor_unit",
+                parsed.outdoor_unit,
+                self._odu_callbacks,
+                "Error in outdoor unit callback",
+            )
+        if parsed.controller is not None:
+            await self._dispatch_entity(
+                "controller",
+                parsed.controller,
+                self._ctrl_callbacks,
+                "Error in controller callback",
+            )
+        if parsed.qsm is not None:
+            await self._dispatch_entity(
+                "qsm", parsed.qsm, self._qsm_callbacks, "Error in QSM callback"
+            )
+        if parsed.remote_sensor is not None:
+            await self._dispatch_entity(
+                "remote_sensor",
+                parsed.remote_sensor,
+                self._rs_callbacks,
+                "Error in remote sensor callback",
+            )
+        if parsed.controller_remote_sensor is not None:
+            await self._dispatch_entity(
+                "controller_remote_sensor",
+                parsed.controller_remote_sensor,
+                self._crs_callbacks,
+                "Error in controller remote sensor callback",
+            )
+        if parsed.software_update_info is not None:
+            await self._dispatch_entity(
+                "software_update_info",
+                parsed.software_update_info,
+                self._sui_callbacks,
+                "Error in software update info callback",
+            )
+
     async def _run_one_stream(self) -> None:
         """Run a single stream connection until it ends or errors."""
         metadata = self._metadata_provider() if self._metadata_provider else None
-        call = self._stub.Subscribe(
-            self._request_iterator(),
-            metadata=metadata,
-        )
-        async for response in call:
-            for ctrl in response.control_events:
-                event_name = notifier.ControlEventType.Name(ctrl.type)
-                logger.debug("Control event: %s topics=%s", event_name, list(ctrl.topics))
+        async with self._subscription_lock:
+            # Snapshot topics and queue together so reconnect queue swaps and
+            # subscribe/unsubscribe calls cannot interleave between them.
+            topics = list(self._topics)
+            request_queue = self._request_queue
+            call = self._stub.Subscribe(
+                self._request_iterator(topics, request_queue),
+                metadata=metadata,
+            )
+            self._active_call = call
+        self._stream_state = "connected"
+        try:
+            async for response in call:
+                saw_event = False
+                for ctrl in response.control_events:
+                    saw_event = True
+                    event_name = notifier.ControlEventType.Name(ctrl.type)
+                    logger.debug("Control event: %s topics=%s", event_name, list(ctrl.topics))
 
-            for evt in response.notifier_events:
-                parsed = self._parse_event(evt)
-                if parsed is None:
-                    continue
-                if parsed.space is not None:
-                    for space_cb in self._space_callbacks:
-                        try:
-                            await _dispatch(space_cb, parsed.space)
-                        except Exception:
-                            logger.exception("Error in space callback")
-                if parsed.indoor_unit is not None:
-                    for idu_cb in self._idu_callbacks:
-                        try:
-                            await _dispatch(idu_cb, parsed.indoor_unit)
-                        except Exception:
-                            logger.exception("Error in indoor unit callback")
-                if parsed.outdoor_unit is not None:
-                    for odu_cb in self._odu_callbacks:
-                        try:
-                            await _dispatch(odu_cb, parsed.outdoor_unit)
-                        except Exception:
-                            logger.exception("Error in outdoor unit callback")
-                if parsed.controller is not None:
-                    for ctrl_cb in self._ctrl_callbacks:
-                        try:
-                            await _dispatch(ctrl_cb, parsed.controller)
-                        except Exception:
-                            logger.exception("Error in controller callback")
-                if parsed.qsm is not None:
-                    for qsm_cb in self._qsm_callbacks:
-                        try:
-                            await _dispatch(qsm_cb, parsed.qsm)
-                        except Exception:
-                            logger.exception("Error in QSM callback")
-                if parsed.remote_sensor is not None:
-                    for rs_cb in self._rs_callbacks:
-                        try:
-                            await _dispatch(rs_cb, parsed.remote_sensor)
-                        except Exception:
-                            logger.exception("Error in remote sensor callback")
-                if parsed.controller_remote_sensor is not None:
-                    for crs_cb in self._crs_callbacks:
-                        try:
-                            await _dispatch(crs_cb, parsed.controller_remote_sensor)
-                        except Exception:
-                            logger.exception("Error in controller remote sensor callback")
-                if parsed.software_update_info is not None:
-                    for sui_cb in self._sui_callbacks:
-                        try:
-                            await _dispatch(sui_cb, parsed.software_update_info)
-                        except Exception:
-                            logger.exception("Error in software update info callback")
+                for evt in response.notifier_events:
+                    parsed = self._parse_event(evt)
+                    if parsed is None:
+                        continue
+                    saw_event = True
+                    await self._dispatch_parsed_event(parsed)
+                if saw_event:
+                    self._last_event_at = time.monotonic()
+        finally:
+            if self._active_call is call:
+                self._active_call = None
 
     async def _run_stream_with_reconnect(self) -> None:
         """Run the stream with automatic reconnect and exponential back-off."""
@@ -473,6 +611,7 @@ class NotifierStream:
                 can_retry = self._max_reconnects < 0 or attempt < self._max_reconnects
 
                 if is_unauth and self._authenticate is not None and can_retry:
+                    self._stream_state = "reconnecting"
                     logger.warning(
                         "Stream got UNAUTHENTICATED; refreshing token (attempt %d)",
                         attempt + 1,
@@ -487,8 +626,10 @@ class NotifierStream:
                     except Exception:
                         logger.exception("Token refresh failed; giving up stream")
                         self._error = exc
+                        self._stream_state = "error"
                         break
                 elif can_retry:
+                    self._stream_state = "reconnecting"
                     logger.warning(
                         "Stream error %s: %s; reconnecting in %.1fs (attempt %d)",
                         exc.code(),
@@ -503,13 +644,25 @@ class NotifierStream:
                         exc.details(),
                     )
                     self._error = QuiltStreamError(f"Stream error: {exc.code()} - {exc.details()}")
+                    self._stream_state = "error"
                     break
 
-                await asyncio.sleep(delay)
+                if await self._wait_for_stop(delay):
+                    break
                 delay = min(delay * 2, 60.0)
                 attempt += 1
-                # Reset request queue so the next connection re-subscribes.
-                self._request_queue = asyncio.Queue()
+                async with self._subscription_lock:
+                    logger.info(
+                        "Resetting subscription queue before reconnect; "
+                        "tracked topics will be re-subscribed on the next stream"
+                    )
+                    # _topics is the source of truth. The next request iterator
+                    # snapshots the current topics and sends them as its first
+                    # request, so discarding any stale queued requests is safe.
+                    self._request_queue = asyncio.Queue()
+
+        if self._error is None and self._stream_state != "stopped":
+            self._stream_state = "stopped"
 
         if self._error is not None:
             for cb in self._error_callbacks:
@@ -521,20 +674,55 @@ class NotifierStream:
                 # Propagate to the task so the caller can observe it
                 raise self._error
 
+    async def _wait_for_stop(self, delay: float) -> bool:
+        sleep_task = asyncio.create_task(asyncio.sleep(delay))
+        stop_task = asyncio.create_task(self._stop_event.wait())
+        done, pending = await asyncio.wait(
+            {sleep_task, stop_task}, return_when=asyncio.FIRST_COMPLETED
+        )
+        for task in pending:
+            task.cancel()
+        if pending:
+            await asyncio.gather(*pending, return_exceptions=True)
+        return stop_task in done
+
+    async def _run_until_stopped(self) -> None:
+        try:
+            await self._run_stream_with_reconnect()
+        finally:
+            await self._cancel_pending_dispatches()
+            async with self._lifecycle_lock:
+                self._running = False
+                self._active_call = None
+                if self._task is asyncio.current_task():
+                    self._task = None
+                if self._error is None and self._stream_state != "error":
+                    self._stream_state = "stopped"
+
     # --- Lifecycle ---
 
     async def run_forever(self) -> None:
         """Run the stream inline (blocking) until cancelled or fatal error."""
-        self._running = True
-        await self._run_stream_with_reconnect()
+        async with self._lifecycle_lock:
+            if self._running:
+                return
+            self._running = True
+            self._error = None
+            self._stream_state = "idle"
+            self._stop_event.clear()
+        await self._run_until_stopped()
 
     async def start(self) -> None:
         """Start the stream listener as a background task."""
-        if self._running:
-            return
-        self._running = True
-        self._task = asyncio.create_task(self._run_stream_with_reconnect())
-        self._task.add_done_callback(self._on_task_done)
+        async with self._lifecycle_lock:
+            if self._running:
+                return
+            self._running = True
+            self._error = None
+            self._stream_state = "idle"
+            self._stop_event.clear()
+            self._task = asyncio.create_task(self._run_until_stopped())
+            self._task.add_done_callback(self._on_task_done)
 
     def _on_task_done(self, task: asyncio.Task[None]) -> None:
         """Log unhandled task exceptions so they aren't silently swallowed."""
@@ -546,12 +734,24 @@ class NotifierStream:
 
     async def stop(self) -> None:
         """Stop the stream listener."""
-        self._running = False
-        if self._task is not None:
-            self._task.cancel()
-            with contextlib.suppress(asyncio.CancelledError, QuiltStreamError):
-                await self._task
+        async with self._lifecycle_lock:
+            self._running = False
+            self._stream_state = "stopped"
+            self._stop_event.set()
+            task = self._task
             self._task = None
+            active_call = self._active_call
+
+        cancel = getattr(active_call, "cancel", None)
+        if callable(cancel):
+            cancel()
+
+        if task is not None:
+            task.cancel()
+            with contextlib.suppress(asyncio.CancelledError, QuiltStreamError):
+                await task
+
+        await self._cancel_pending_dispatches()
 
     async def __aenter__(self) -> NotifierStream:
         await self.start()

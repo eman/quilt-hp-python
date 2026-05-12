@@ -250,6 +250,17 @@ class HvacControllerType(IntEnum):
         return self.name
 
 
+class MetricBucketStatus(IntEnum):
+    """Energy-metric bucket completeness state."""
+
+    UNSPECIFIED = 0
+    COMPLETE = 1
+    INCOMPLETE = 2
+
+    def __str__(self) -> str:
+        return self.name
+
+
 class BoostMode(IntEnum):
     """Boost (turbo) mode override for a space."""
 

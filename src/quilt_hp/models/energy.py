@@ -6,6 +6,8 @@ import math
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
+from quilt_hp.models.enums import MetricBucketStatus
+
 if TYPE_CHECKING:
     from datetime import datetime
 
@@ -16,16 +18,21 @@ class EnergyBucket:
 
     start_time: datetime
     energy_kwh: float
-    status: int  # 0=UNSPECIFIED, 1=COMPLETE, 2=INCOMPLETE
+    status: MetricBucketStatus
 
     @property
     def has_missing_energy_value(self) -> bool:
-        """True when energy_kwh is NaN (wire sentinel for missing/error data)."""
-        return math.isnan(self.energy_kwh)
+        """True when energy_kwh is missing: either not a float or NaN sentinel."""
+        return not isinstance(self.energy_kwh, float) or math.isnan(self.energy_kwh)
+
+    @property
+    def is_valid(self) -> bool:
+        """True when this bucket carries a usable numeric energy value."""
+        return self.energy_kwh_or_none is not None
 
     @property
     def energy_kwh_or_none(self) -> float | None:
-        """Energy value, or None when this bucket carries a NaN sentinel."""
+        """Energy value, or None when this bucket is missing or NaN."""
         return None if self.has_missing_energy_value else self.energy_kwh
 
 

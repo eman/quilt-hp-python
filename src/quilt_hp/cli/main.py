@@ -5,8 +5,10 @@ from __future__ import annotations
 import asyncio
 import json
 import sys
-from collections.abc import Coroutine, Sequence
+from collections.abc import AsyncIterator, Callable, Coroutine, Sequence
+from contextlib import asynccontextmanager
 from enum import StrEnum
+from functools import wraps
 from typing import Any, Protocol, cast
 
 try:
@@ -20,6 +22,7 @@ from quilt_hp import __version__
 from quilt_hp.cli.settings import SettingsStore
 from quilt_hp.cli.store import FileStore
 from quilt_hp.client import QuiltClient
+from quilt_hp.exceptions import QuiltAuthError, QuiltError
 from quilt_hp.models.enums import HVACMode
 from quilt_hp.models.system import SystemSnapshot
 
@@ -59,8 +62,44 @@ def _app_callback(
     _ = version
 
 
+def _handle_errors[T](
+    func: Callable[..., Coroutine[Any, Any, T]],
+) -> Callable[..., Coroutine[Any, Any, T]]:
+    @wraps(func)
+    async def _wrapped(*args: Any, **kwargs: Any) -> T:
+        try:
+            return await func(*args, **kwargs)
+        except QuiltAuthError as exc:
+            console.print(f"[red]Authentication failed: {exc}[/red]")
+            raise typer.Exit(1) from None
+        except QuiltError as exc:
+            console.print(f"[red]Error: {exc}[/red]")
+            raise typer.Exit(1) from None
+
+    return _wrapped
+
+
 def _run[T](coro: Coroutine[Any, Any, T]) -> T:
-    return asyncio.run(coro)
+    @_handle_errors
+    async def _wrapped() -> T:
+        return await coro
+
+    return asyncio.run(_wrapped())
+
+
+@asynccontextmanager
+async def _logged_in_client(email: str, home: str | None) -> AsyncIterator[QuiltClient]:
+    async with QuiltClient(email, home=home, token_store=_store) as client:
+        await client.login()
+        yield client
+
+
+@asynccontextmanager
+async def _client_snapshot(
+    email: str, home: str | None
+) -> AsyncIterator[tuple[QuiltClient, SystemSnapshot]]:
+    async with _logged_in_client(email, home) as client:
+        yield client, await client.get_snapshot()
 
 
 def _resolve(email: str | None, home: str | None) -> tuple[str, str | None]:
@@ -364,8 +403,8 @@ def login(
                 await client.login()
                 console.print(f"[green]✓ Already logged in as {email}[/green]")
                 return
-            except Exception:
-                pass
+            except QuiltAuthError:
+                pass  # expected — cached tokens absent/expired, proceed to OTP
 
             # Cached tokens absent/expired — trigger OTP flow and prompt.
             async def _prompt_for_otp(challenge_email: str) -> str:
@@ -395,9 +434,7 @@ def info(
     email, home = _resolve(email, home)
 
     async def _info() -> None:
-        async with QuiltClient(email, home=home, token_store=_store) as client:
-            await client.login()
-            snap = await client.get_snapshot()
+        async with _client_snapshot(email, home) as (_, snap):
             _emit_output(output, _snapshot_payload(snap))
 
     _run(_info())
@@ -418,9 +455,8 @@ def devices(
     email, home = _resolve(email, home)
 
     async def _devices() -> None:
-        async with QuiltClient(email, home=home, token_store=_store) as client:
-            await client.login()
-            payload = _snapshot_payload(await client.get_snapshot())
+        async with _client_snapshot(email, home) as (_, snapshot):
+            payload = _snapshot_payload(snapshot)
             device_payload = {
                 "spaces": [{"id": s["id"], "name": s["name"]} for s in payload["spaces"]],
                 "indoor_units": [
@@ -477,9 +513,8 @@ def values(
     email, home = _resolve(email, home)
 
     async def _values() -> None:
-        async with QuiltClient(email, home=home, token_store=_store) as client:
-            await client.login()
-            payload = _snapshot_payload(await client.get_snapshot())
+        async with _client_snapshot(email, home) as (_, snapshot):
+            payload = _snapshot_payload(snapshot)
             value_payload = {
                 "spaces": [
                     {
@@ -599,8 +634,7 @@ def presets(
     email, home = _resolve(email, home)
 
     async def _presets() -> None:
-        async with QuiltClient(email, home=home, token_store=_store) as client:
-            await client.login()
+        async with _logged_in_client(email, home) as client:
             settings = await client.list_comfort_settings()
             if not settings:
                 console.print("No comfort settings found.")
@@ -628,10 +662,7 @@ def schedules(
     email, home = _resolve(email, home)
 
     async def _schedules() -> None:
-        async with QuiltClient(email, home=home, token_store=_store) as client:
-            await client.login()
-            snapshot = await client.get_snapshot()
-
+        async with _client_snapshot(email, home) as (_, snapshot):
             cs_by_id = {cs.id: cs for cs in snapshot.comfort_settings}
             day_by_id = {d.id: d for d in snapshot.schedule_days}
 
@@ -675,9 +706,7 @@ def energy(
         import zoneinfo
         from datetime import datetime, timedelta
 
-        async with QuiltClient(email, home=home, token_store=_store) as client:
-            await client.login()
-            snapshot = await client.get_snapshot()
+        async with _client_snapshot(email, home) as (client, snapshot):
             name_by_id = {s.id: s.name for s in snapshot.spaces}
 
             now = datetime.now(tz=zoneinfo.ZoneInfo(snapshot.timezone or "UTC"))
@@ -721,10 +750,7 @@ def set_space(
     email, home = _resolve(email, home)
 
     async def _set() -> None:
-        async with QuiltClient(email, home=home, token_store=_store) as client:
-            await client.login()
-            snap = await client.get_snapshot()
-
+        async with _client_snapshot(email, home) as (client, snap):
             space = next(
                 (s for s in snap.rooms if s.name.lower() == space_name.lower()),
                 None,
@@ -733,7 +759,15 @@ def set_space(
                 console.print(f"[red]Room {space_name!r} not found.[/red]")
                 raise typer.Exit(1)
 
-            hvac_mode = HVACMode[mode.upper()] if mode else None
+            if mode:
+                try:
+                    hvac_mode: HVACMode | None = HVACMode[mode.upper()]
+                except KeyError:
+                    valid = ", ".join(m.name.lower() for m in HVACMode if m.value)
+                    console.print(f"[red]Invalid mode {mode!r}. Valid: {valid}[/red]")
+                    raise typer.Exit(1) from None
+            else:
+                hvac_mode = None
 
             await client.set_space(
                 space.id,

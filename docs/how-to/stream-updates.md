@@ -23,7 +23,13 @@ def on_idu(idu: IndoorUnit) -> None:
 
 async with client.stream(snapshot.stream_topics()) as stream:
     stream.on_space_update(on_space)
-    stream.on_indoor_unit_update(on_idu)
+    stream.on_indoor_unit_update(lambda idu: print(snapshot.apply_indoor_unit(idu).id))
+    stream.on_outdoor_unit_update(snapshot.apply_outdoor_unit)
+    stream.on_controller_update(snapshot.apply_controller)
+    stream.on_qsm_update(snapshot.apply_qsm)
+    stream.on_remote_sensor_update(snapshot.apply_remote_sensor)
+    stream.on_controller_remote_sensor_update(snapshot.apply_controller_remote_sensor)
+    stream.on_software_update_info(lambda info: print(f"Update info: {info.id}"))
     stream.on_error(lambda e: print(f"Fatal error: {e}"))
     await asyncio.sleep(3600)  # run for 1 hour
 ```
@@ -54,24 +60,59 @@ For indoor units:
 ```python
 def on_idu(idu: IndoorUnit) -> None:
     merged = snapshot.apply_indoor_unit(idu)
-    print(f"{merged.id}: online={merged.state.is_online}")
+    print(f"{merged.id}: online={merged.is_online}")
 ```
 
 For background on why sparse diffs require merging, see [Snapshot and stream data model](../explanation/snapshot-and-stream.md).
 
 ---
 
-## Run the stream as a background task
+## Callback registration methods
+
+`NotifierStream` accepts both synchronous and async callbacks. Register whichever entity types you care about:
+
+| Method | Callback argument | Typical use |
+| --- | --- | --- |
+| `on_space_update()` | `Space` | Merge room diffs with `snapshot.apply_space()` |
+| `on_indoor_unit_update()` | `IndoorUnit` | Merge IDU diffs with `snapshot.apply_indoor_unit()` |
+| `on_outdoor_unit_update()` | `OutdoorUnit` | Merge ODU diffs with `snapshot.apply_outdoor_unit()` |
+| `on_controller_update()` | `Controller` | Merge Dial diffs with `snapshot.apply_controller()` |
+| `on_qsm_update()` | `QuiltSmartModule` | Merge QSM diffs with `snapshot.apply_qsm()` |
+| `on_remote_sensor_update()` | `RemoteSensor` | Merge standalone sensor diffs with `snapshot.apply_remote_sensor()` |
+| `on_controller_remote_sensor_update()` | `ControllerRemoteSensor` | Merge Dial sensor diffs with `snapshot.apply_controller_remote_sensor()` |
+| `on_software_update_info()` | `SoftwareUpdateInfo` | Observe firmware/software update records |
+| `on_error()` | `Exception` | Handle fatal stream failure after reconnects are exhausted |
+
+---
+
+## Lifecycle methods
+
+Use these methods to control the stream explicitly:
+
+| Method / property | What it does |
+| --- | --- |
+| `await stream.start()` | Starts the listener in the background |
+| `await stream.run_forever()` | Runs inline until cancelled or a fatal error stops it |
+| `await stream.stop()` | Cancels the background task and closes the stream |
+| `await stream.subscribe(topics)` | Adds topic subscriptions after startup |
+| `await stream.unsubscribe(topics)` | Removes topic subscriptions |
+| `stream.error` | Last fatal exception, or `None` while healthy |
+
+### Run the stream as a background task
 
 To run the stream while doing other work concurrently:
 
 ```python
-async with client.stream(snapshot.stream_topics()) as stream:
-    stream.on_space_update(on_space)
-    # Stream runs in the background — do other work here
+stream = client.stream(snapshot.stream_topics())
+stream.on_space_update(on_space)
+await stream.start()
+try:
     result = await do_something_else()
     await asyncio.sleep(3600)
-# Stream is stopped when the async with block exits
+finally:
+    await stream.stop()
+    if stream.error is not None:
+        print(f"Stream stopped with error: {stream.error}")
 ```
 
 Use this pattern in integrations (Home Assistant, automation daemons) where the stream is just one part of a larger async application.
@@ -115,7 +156,7 @@ async with client.stream(snapshot.stream_topics()) as stream:
 
 ## Handle stream errors and reconnect
 
-The stream reconnects automatically with exponential back-off (1 s, 2 s, 4 s, … up to a 60 s cap). Use these options to configure the reconnect budget:
+The stream reconnects automatically with exponential back-off (1 s, 2 s, 4 s, … up to a 60 s cap). Use `on_error()` or the `error` property to observe only fatal failures after the reconnect budget is exhausted. Configure the reconnect budget like this:
 
 ```python
 # Unlimited reconnects (default: -1)
@@ -132,14 +173,16 @@ stream = client.stream(
 )
 ```
 
-To observe connection lifecycle events:
+To observe fatal stream failures:
 
 ```python
-stream.on_connected(lambda: print("Stream connected"))
-stream.on_disconnected(lambda: print("Stream disconnected; will reconnect"))
 stream.on_error(lambda e: print(f"Fatal error (budget exhausted): {e}"))
+
+await stream.run_forever()
+if stream.error is not None:
+    print(f"Last fatal error: {stream.error}")
 ```
 
-`on_error` is called only when the reconnect budget is exhausted. Until then, disconnects and errors trigger automatic reconnection without invoking `on_error`.
+`on_error()` is called only when the reconnect budget is exhausted. Until then, disconnects and transient errors trigger automatic reconnection without surfacing a fatal error to your callback.
 
 For the full reconnect state machine, see [The streaming protocol](../explanation/streaming-protocol.md).
