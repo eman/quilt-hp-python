@@ -198,6 +198,24 @@ def _bar(level: float, width: int = 10) -> str:
     return "█" * filled + "░" * (width - filled)
 
 
+def _sku_or_none(model_sku: str | None) -> str | None:
+    """Return a displayable SKU value or None for empty/placeholder values."""
+    if not model_sku:
+        return None
+    sku = model_sku.strip()
+    return sku if sku and sku != "N/A" else None
+
+
+def _id_tokens(value: str | None) -> set[str]:
+    """Return raw and normalized ID tokens for tolerant ID comparisons."""
+    if not value:
+        return set()
+    raw = value.strip()
+    if not raw:
+        return set()
+    return {raw, raw.rsplit("/", 1)[-1]}
+
+
 def _occ_glyph(occ: OccupancyState | int | None) -> str:
     if occ is None:
         return "?"
@@ -529,6 +547,18 @@ class DashboardScreen(Screen):
             None,
         )
 
+    def _odu_for(self, space_id: str, idu: IndoorUnit | None) -> OutdoorUnit | None:
+        """Resolve room ODU from IDU link first, then by room relationship."""
+        if idu:
+            odu = self._snapshot.odu_for_idu(idu)
+            if odu is not None:
+                return odu
+        space_ids = _id_tokens(space_id)
+        return next(
+            (u for u in self._snapshot.outdoor_units if _id_tokens(u.space_id) & space_ids),
+            None,
+        )
+
     def on_mount(self) -> None:
         lv = self.query_one(ListView)
         for space in self._snapshot.rooms:
@@ -633,7 +663,7 @@ class DashboardScreen(Screen):
             (c for c in self._snapshot.controllers if c.space_id == space_id),
             None,
         )
-        odu = self._snapshot.odu_for_idu(idu) if idu else None
+        odu = self._odu_for(space_id, idu)
         qsm = self._snapshot.qsm_for_idu(idu) if idu else None
         self.app.push_screen(
             RoomScreen(
@@ -788,7 +818,9 @@ class RoomScreen(Screen):
             # Dial panel
             with Vertical(classes="panel dial-panel", id="dial-panel") as v:
                 v.border_title = "Dial (Thermostat)"
+                yield _KVStatic(id="dial-model")
                 yield _KVStatic(id="dial-serial")
+                yield _KVStatic(id="dial-fw")
                 yield _KVStatic(id="dial-ambient")
                 yield _KVStatic(id="dial-calib")
                 yield _KVStatic(id="dial-pcb")
@@ -1245,7 +1277,9 @@ class RoomScreen(Screen):
             return "  ·  ".join(parts) if parts else "--"
 
         if ctrl:
+            self._kv("dial-model", "Model", _sku_or_none(ctrl.model_sku) or "--")
             self._kv("dial-serial", "Serial", ctrl.serial_number or "--")
+            self._kv("dial-fw", "Firmware", ctrl.firmware_version or "--")
             self._kv(
                 "dial-ambient",
                 "Ambient",
@@ -1328,7 +1362,9 @@ class RoomScreen(Screen):
                 self._kv("dial-crs-signal", "  Signal", "--")
         else:
             for nid in (
+                "dial-model",
                 "dial-serial",
+                "dial-fw",
                 "dial-ambient",
                 "dial-calib",
                 "dial-pcb",
@@ -1615,8 +1651,7 @@ class RoomScreen(Screen):
             odu_state_str = hs.name if odu.hvac_state else "—"
             odu_state_style = _STATE_STYLE.get(hs, "dim") if odu.hvac_state else "dim"
             self._kv("p-odu-state", "ODU State", odu_state_str, odu_state_style)
-            model = odu.model_sku if odu.model_sku and odu.model_sku != "N/A" else None
-            self._kv("p-odu-model", "Model", model or "--")
+            self._kv("p-odu-model", "Model", _sku_or_none(odu.model_sku) or "--")
             self._kv("p-odu-serial", "Serial", odu.serial_number or "--")
             self._kv("p-odu-fw", "Firmware", odu.firmware_version or "--")
             if odu.performance_data:
@@ -1952,6 +1987,14 @@ class RoomScreen(Screen):
 
     def update_idu(self, idu: IndoorUnit) -> None:
         self._idu = idu
+        odu = self._snapshot.odu_for_idu(idu)
+        if odu is None:
+            space_ids = _id_tokens(self._space.id)
+            odu = next(
+                (u for u in self._snapshot.outdoor_units if _id_tokens(u.space_id) & space_ids),
+                None,
+            )
+        self._odu = odu
         self._populate_status()
         self._populate_perf()
 
@@ -2315,7 +2358,7 @@ class SystemScreen(Screen):
             state = hs.name if odu.hvac_state else "—"
             state_style = _STATE_STYLE.get(hs, "dim") if odu.hvac_state else "dim"
             odu_lines.append(f"[{state_style}]State: {state}[/{state_style}]")
-            model = odu.model_sku if odu.model_sku and odu.model_sku != "N/A" else None
+            model = _sku_or_none(odu.model_sku)
             if model:
                 odu_lines.append(f"Model:    {model}")
             if odu.serial_number:
@@ -2337,6 +2380,8 @@ class SystemScreen(Screen):
         if not ctrl_table.columns:
             ctrl_table.add_columns(
                 "Name",
+                "Model",
+                "Serial",
                 "Ambient",
                 "Raw Thermistor",
                 "PCB-A",
@@ -2349,6 +2394,8 @@ class SystemScreen(Screen):
         for ctrl in snap.controllers:
             ctrl_table.add_row(
                 ctrl.name or ctrl.id[:8],
+                _sku_or_none(ctrl.model_sku) or "--",
+                ctrl.serial_number or "--",
                 _tc(ctrl.calibrated_ambient_c, use_f),
                 _tc(ctrl.raw_thermistor_c, use_f),
                 _tc(ctrl.pcb_temperature_a_c, use_f),
@@ -2458,14 +2505,16 @@ class SystemScreen(Screen):
             room = next((s.name for s in snap.rooms if s.id == idu.space_id), idu.id[:8])
             _fw_row(f"IDU {room}", None, idu.firmware_update_info_id)
         for odu in snap.outdoor_units:
+            model = _sku_or_none(odu.model_sku)
             _fw_row(
-                f"ODU {odu.serial_number or odu.id[:8]}",
+                f"ODU {model or odu.serial_number or odu.id[:8]}",
                 None,
                 odu.firmware_update_info_id,
             )
         for ctrl in snap.controllers:
+            model = _sku_or_none(ctrl.model_sku)
             _fw_row(
-                f"Dial {ctrl.serial_number or ctrl.name or ctrl.id[:8]}",
+                f"Dial {model or ctrl.serial_number or ctrl.name or ctrl.id[:8]}",
                 ctrl.software_update_info_id,
                 ctrl.firmware_update_info_id,
             )

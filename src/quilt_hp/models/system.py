@@ -23,6 +23,21 @@ from quilt_hp.models.software_update import SoftwareUpdateInfo
 from quilt_hp.models.space import Space
 
 
+def _id_variants(value: str | None) -> set[str]:
+    """Return raw and normalized ID variants for matching resource IDs."""
+    if not value:
+        return set()
+    raw = value.strip()
+    if not raw:
+        return set()
+    tail_slash = raw.rsplit("/", 1)[-1]
+    tail_colon = raw.rsplit(":", 1)[-1]
+    variants = {raw, tail_slash, tail_colon, raw.casefold()}
+    variants.add(tail_slash.casefold())
+    variants.add(tail_colon.casefold())
+    return {v for v in variants if v}
+
+
 @dataclass(slots=True)
 class Location:
     """A Quilt location with global settings like schedule execution state."""
@@ -420,7 +435,11 @@ class SystemSnapshot:
         """Return the OutdoorUnit connected to the given IDU, or None."""
         if not idu.outdoor_unit_id:
             return None
-        return next((u for u in self.outdoor_units if u.id == idu.outdoor_unit_id), None)
+        target_ids = _id_variants(idu.outdoor_unit_id)
+        return next(
+            (u for u in self.outdoor_units if _id_variants(u.id) & target_ids),
+            None,
+        )
 
     def qsm_for_idu(self, idu: IndoorUnit) -> QuiltSmartModule | None:
         """Return the QSM embedded in the given IDU, or None."""
@@ -462,10 +481,11 @@ class SystemSnapshot:
             hw_map: dict[str, object] = {}
             for hw in cast("Any", items):
                 hw_id = cast("Any", hw).header.object_id
-                if not hw_id:
+                variants = _id_variants(hw_id)
+                if not variants:
                     continue
-                hw_map[hw_id] = hw
-                hw_map[hw_id.rsplit("/", 1)[-1]] = hw
+                for key in variants:
+                    hw_map[key] = hw
             return hw_map
 
         odu_hw_map = _build_hw_map(p.outdoor_unit_hardware)

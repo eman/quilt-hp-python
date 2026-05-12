@@ -5,6 +5,27 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 
+def _lookup_hw(hw_map: dict[str, object], hardware_id: str | None) -> object | None:
+    if not hardware_id:
+        return None
+    raw = hardware_id.strip()
+    if not raw:
+        return None
+    keys = (
+        raw,
+        raw.rsplit("/", 1)[-1],
+        raw.rsplit(":", 1)[-1],
+        raw.casefold(),
+        raw.rsplit("/", 1)[-1].casefold(),
+        raw.rsplit(":", 1)[-1].casefold(),
+    )
+    for key in keys:
+        hw = hw_map.get(key)
+        if hw is not None:
+            return hw
+    return None
+
+
 @dataclass(slots=True)
 class OutdoorUnitPerformanceData:
     """Raw ODU compressor telemetry."""
@@ -37,11 +58,7 @@ class OutdoorUnit:
     def from_proto(cls, proto: object, hw_map: dict[str, object] | None = None) -> OutdoorUnit:
         """Construct from a protobuf OutdoorUnit message."""
         hw_id = proto.relationships.hardware_id  # type: ignore[attr-defined]
-        hw = None
-        if hw_map:
-            hw = hw_map.get(hw_id)
-            if hw is None and hw_id:
-                hw = hw_map.get(hw_id.rsplit("/", 1)[-1])
+        hw = _lookup_hw(hw_map, hw_id) if hw_map else None
 
         pd = None
         if hasattr(proto, "performance_data"):

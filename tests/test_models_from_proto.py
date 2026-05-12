@@ -1168,6 +1168,99 @@ def test_system_snapshot_hardware_map_deserializes_model_sku_with_prefixed_ids()
     assert snap.controllers[0].firmware_version == "9.8.7"
 
 
+def test_system_snapshot_hardware_map_deserializes_model_sku_with_colon_and_case_variants() -> (
+    None
+):
+    proto = _ns(
+        spaces=[],
+        indoor_units=[],
+        outdoor_units=[
+            _ns(
+                header=_make_header("odu-1"),
+                relationships=_ns(
+                    space_id="space-1",
+                    hardware_id="OUTDOOR_UNIT_HARDWARE:ODU-HW-1",
+                    firmware_update_info_id="",
+                ),
+                state=_ns(hvac_state=0),
+            )
+        ],
+        outdoor_unit_hardware=[
+            _ns(
+                header=_make_header("outdoor_unit_hardware:odu-hw-1"),
+                attributes=_ns(
+                    model_sku="ODU-SKU-X",
+                    serial_number="ODU-SERIAL-X",
+                    firmware_version="1.2.9",
+                ),
+            )
+        ],
+        controller_hardware=[
+            _ns(
+                header=_make_header("controller_hardware:ctrl-hw-1"),
+                attributes=_ns(
+                    model_sku="CTRL-SKU-X",
+                    serial_number="CTRL-SERIAL-X",
+                    firmware_version="8.7.6",
+                ),
+            )
+        ],
+        controllers=[
+            _ns(
+                header=_make_header("ctrl-1"),
+                relationships=_ns(
+                    space_id="space-1",
+                    hardware_id="CONTROLLER_HARDWARE:CTRL-HW-1",
+                    software_update_info_id="",
+                    firmware_update_info_id="",
+                ),
+                settings=_ns(name="Dial"),
+                state=_ns(
+                    updated_ts=_ns(seconds=0),
+                    ambient_temperature_c=0.0,
+                    temperature_f3=0.0,
+                    temperature_f4=0.0,
+                    temperature_f5=0.0,
+                ),
+                hosted_wifi_state=_ns(
+                    ssid="",
+                    ipv4_address="",
+                    signal_level_dbm=0,
+                    frequency_mhz=0,
+                    updated_ts=_ns(seconds=0),
+                ),
+                ap_wifi_state=_ns(
+                    ssid="",
+                    ipv4_address="",
+                    signal_level_dbm=0,
+                    frequency_mhz=0,
+                    updated_ts=_ns(seconds=0),
+                ),
+                p2p_wifi_state=_ns(
+                    ssid="",
+                    ipv4_address="",
+                    signal_level_dbm=0,
+                    frequency_mhz=0,
+                    updated_ts=_ns(seconds=0),
+                ),
+                controls=_ns(remote_sensor_control_mode=0),
+            )
+        ],
+        quilt_smart_modules=[],
+        comfort_settings=[],
+        schedule_weeks=[],
+        schedule_days=[],
+        remote_sensors=[],
+        controller_remote_sensors=[],
+        software_update_infos=[],
+        locations=[],
+    )
+
+    snap = SystemSnapshot.from_proto(proto)
+    assert snap.outdoor_units[0].model_sku == "ODU-SKU-X"
+    assert snap.controllers[0].model_sku == "CTRL-SKU-X"
+
+
 # ─── SystemSnapshot.comfort_settings_for_space / away_comfort_setting ────────
 
 
@@ -1415,3 +1508,18 @@ def test_odu_for_idu_unlinked_odu_not_returned() -> None:
         u.id != "odu-3"
         for u in (snap.odu_for_idu(idu) for idu in snap.indoor_units if idu is not None)
     )
+
+
+def test_odu_for_idu_matches_prefixed_and_raw_ids() -> None:
+    from dataclasses import replace
+
+    snap = _make_snap_with_multiple_odus()
+    idu1 = next(u for u in snap.indoor_units if u.id == "idu-1")
+
+    idu_prefixed = replace(idu1, outdoor_unit_id="outdoor_unit/odu-1")
+    assert snap.odu_for_idu(idu_prefixed) is not None
+    assert snap.odu_for_idu(idu_prefixed).id == "odu-1"  # type: ignore[union-attr]
+
+    snap.outdoor_units[0] = replace(snap.outdoor_units[0], id="outdoor_unit/odu-1")
+    assert snap.odu_for_idu(idu1) is not None
+    assert snap.odu_for_idu(idu1).id == "outdoor_unit/odu-1"  # type: ignore[union-attr]
