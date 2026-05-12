@@ -112,7 +112,7 @@ async def __aenter__(self) -> QuiltClient: ...
 async def __aexit__(self, *_: object) -> None: ...
 ```
 
-`__aexit__` closes the gRPC channel. Always use `QuiltClient` as an async context manager.
+`__aexit__` calls `close()` to close the gRPC channel. Prefer the async context manager, or call `await close()` yourself when managing lifecycle manually.
 
 ---
 
@@ -143,6 +143,16 @@ async def refresh_token(self, context: TokenRefreshContext | None = None) -> Non
 
 Silently refreshes the auth token using the refresh token. Does not attempt OTP. Called automatically by the transport interceptor on `UNAUTHENTICATED`; rarely needed directly.
 
+### `get_current_token`
+
+```python
+def get_current_token(self) -> str
+```
+
+Returns the current JWT access token held by the client.
+
+**Raises:** `QuiltAuthError` if the client is not authenticated yet.
+
 ---
 
 ## System discovery
@@ -155,7 +165,7 @@ async def list_systems(self) -> list[SystemInfo]
 
 Lists all Quilt systems the authenticated user has access to.
 
-**Returns:** List of `SystemInfo` objects with `id`, `name`, `timezone`, `location_id`.
+**Returns:** List of `SystemInfo` objects with `id`, `name`, and `timezone`.
 
 **Raises:** `QuiltError` if the gRPC call fails.
 
@@ -204,6 +214,14 @@ def invalidate_snapshot(self) -> None
 ```
 
 Discards the cached snapshot. The next `get_snapshot()` call fetches fresh data from the server.
+
+### `close`
+
+```python
+async def close(self) -> None
+```
+
+Closes the underlying gRPC channel and clears the client's open channel reference. Safe to call multiple times.
 
 ---
 

@@ -13,8 +13,10 @@ Usage::
 
 from __future__ import annotations
 
+import logging
 import time
-from typing import TYPE_CHECKING, Self
+from collections.abc import Callable
+from typing import TYPE_CHECKING, Protocol, Self, TypeVar
 
 from quilt_hp.auth import OtpCallback, authenticate
 from quilt_hp.const import Environment
@@ -32,6 +34,8 @@ from quilt_hp.tokens import (
 )
 from quilt_hp.transport import auth_metadata, create_channel
 
+logger = logging.getLogger(__name__)
+
 if TYPE_CHECKING:
     from datetime import datetime
 
@@ -44,6 +48,13 @@ if TYPE_CHECKING:
     from quilt_hp.models.schedule import ScheduleDay, ScheduleEvent, ScheduleWeek, ScheduleWeekDay
     from quilt_hp.models.space import Space
     from quilt_hp.models.system import SystemInfo, SystemSnapshot
+
+
+class _HasId(Protocol):
+    id: str
+
+
+TResolved = TypeVar("TResolved", bound=_HasId)
 
 
 class QuiltClient:
@@ -102,6 +113,7 @@ class QuiltClient:
 
     def _ensure_channel(self) -> grpc.aio.Channel:
         if self._channel is None:
+            logger.debug("Creating client channel for %s", self._environment.value)
             self._channel = create_channel(
                 self,
                 self._environment,
@@ -111,6 +123,45 @@ class QuiltClient:
             self._sysinfo = SystemInformationService(self._channel)
             self._user_svc = UserService(self._channel)
         return self._channel
+
+    def _require_channel(self) -> grpc.aio.Channel:
+        if self._channel is None:
+            raise QuiltError("Client not connected. Call login() first.")
+        return self._channel
+
+    def _require_hds(self) -> HomeDatastoreService:
+        if self._hds is None:
+            raise QuiltError("Client not connected. Call login() first.")
+        return self._hds
+
+    def _require_sysinfo(self) -> SystemInformationService:
+        if self._sysinfo is None:
+            raise QuiltError("Client not connected. Call login() first.")
+        return self._sysinfo
+
+    def _require_user_service(self) -> UserService:
+        if self._user_svc is None:
+            raise QuiltError("Client not connected. Call login() first.")
+        return self._user_svc
+
+    async def _resolve_system_id(self, system_id: str | None = None) -> str:
+        return system_id or await self.get_system_id()
+
+    async def _resolve_snapshot_item(
+        self,
+        item: TResolved | str,
+        *,
+        items: Callable[[SystemSnapshot], list[TResolved]],
+        kind: str,
+    ) -> TResolved:
+        if not isinstance(item, str):
+            return item
+
+        snapshot = await self.get_snapshot()
+        for candidate in items(snapshot):
+            if candidate.id == item:
+                return candidate
+        raise QuiltError(f"{kind} {item!r} not found")
 
     # --- Auth ---
 
@@ -131,7 +182,13 @@ class QuiltClient:
             refresh_hooks=self._token_refresh_hooks,
             refresh_policy=self._token_refresh_policy,
         )
+        # Clear cached state so stale data from a prior session is never returned.
+        self._system_id = None
+        self._system_name = None
+        self._snapshot_cache = None
+        self._snapshot_cached_at = 0.0
         self._ensure_channel()
+        logger.info("Login succeeded")
 
     async def refresh_token(self, context: TokenRefreshContext | None = None) -> None:
         """Refresh the auth token without OTP when refresh token is valid."""
@@ -156,16 +213,16 @@ class QuiltClient:
 
     async def list_systems(self) -> list[SystemInfo]:
         """List all systems the user has access to."""
-        self._ensure_channel()
-        assert self._sysinfo is not None
-        return await self._sysinfo.list_systems()
+        return await self._require_sysinfo().list_systems()
 
     async def get_system_id(self, home: str | None = None) -> str:
         """Get primary system ID, cached after first call unless home changes."""
         target_home = home or self._home
+        logger.debug("Resolving system for home filter %r", target_home)
         if self._system_id is not None:
             # Bypass the cache only when a different home is requested.
             if not home or home == self._home:
+                logger.debug("Using cached system id %s", self._system_id)
                 return self._system_id
 
         systems = await self.list_systems()
@@ -184,6 +241,7 @@ class QuiltClient:
             self._system_id = systems[0].id
             self._system_name = systems[0].name
 
+        logger.info("Selected system %s (%s)", self._system_name, self._system_id)
         return self._system_id
 
     async def get_snapshot(self, system_id: str | None = None) -> SystemSnapshot:
@@ -194,17 +252,18 @@ class QuiltClient:
         Pass ``system_id`` to query a specific system (bypasses and does not
         populate the cache for the default system).
         """
-        self._ensure_channel()
-        assert self._hds is not None
-        sid = system_id or await self.get_system_id()
+        hds = self._require_hds()
+        sid = await self._resolve_system_id(system_id)
 
         # Only use cache for the default (unspecified) system_id
         if system_id is None and self._snapshot_ttl_s > 0:
             age = time.monotonic() - self._snapshot_cached_at
             if self._snapshot_cache is not None and age < self._snapshot_ttl_s:
+                logger.debug("Snapshot cache hit for system %s", sid)
                 return self._snapshot_cache
+            logger.debug("Snapshot cache miss for system %s", sid)
 
-        snapshot = await self._hds.get_system(sid)
+        snapshot = await hds.get_system(sid)
 
         if system_id is None and self._snapshot_ttl_s > 0:
             self._snapshot_cache = snapshot
@@ -214,6 +273,7 @@ class QuiltClient:
 
     def invalidate_snapshot(self) -> None:
         """Discard the cached snapshot so the next call fetches fresh data."""
+        logger.warning("Invalidating snapshot cache")
         self._snapshot_cache = None
         self._snapshot_cached_at = 0.0
 
@@ -238,15 +298,11 @@ class QuiltClient:
             space: A ``Space`` object (no snapshot lookup needed) **or** a
                    space ID string (snapshot is fetched to resolve the object).
         """
-        self._ensure_channel()
-        assert self._hds is not None
-        if isinstance(space, str):
-            snapshot = await self.get_snapshot()
-            resolved = next((s for s in snapshot.spaces if s.id == space), None)
-            if resolved is None:
-                raise QuiltError(f"Space {space!r} not found")
-            space = resolved
-        return await self._hds.update_space(
+        hds = self._require_hds()
+        space = await self._resolve_snapshot_item(
+            space, items=lambda snapshot: snapshot.spaces, kind="Space"
+        )
+        return await hds.update_space(
             space,
             mode=mode,
             heat_setpoint_c=heat_setpoint_c,
@@ -267,15 +323,11 @@ class QuiltClient:
             unoccupied_timeout_s: Seconds of no-presence before auto-away.
             occupied_timeout_s: Seconds of presence before auto-return.
         """
-        self._ensure_channel()
-        assert self._hds is not None
-        if isinstance(space, str):
-            snapshot = await self.get_snapshot()
-            resolved = next((s for s in snapshot.spaces if s.id == space), None)
-            if resolved is None:
-                raise QuiltError(f"Space {space!r} not found")
-            space = resolved
-        return await self._hds.update_space_settings(
+        hds = self._require_hds()
+        space = await self._resolve_snapshot_item(
+            space, items=lambda snapshot: snapshot.spaces, kind="Space"
+        )
+        return await hds.update_space_settings(
             space,
             unoccupied_timeout_s=unoccupied_timeout_s,
             occupied_timeout_s=occupied_timeout_s,
@@ -305,15 +357,13 @@ class QuiltClient:
             idu: An ``IndoorUnit`` object (no snapshot lookup needed) **or** an
                  IDU ID string (snapshot is fetched to resolve the object).
         """
-        self._ensure_channel()
-        assert self._hds is not None
-        if isinstance(idu, str):
-            snapshot = await self.get_snapshot()
-            resolved = next((u for u in snapshot.indoor_units if u.id == idu), None)
-            if resolved is None:
-                raise QuiltError(f"Indoor unit {idu!r} not found")
-            idu = resolved
-        return await self._hds.update_indoor_unit(
+        hds = self._require_hds()
+        idu = await self._resolve_snapshot_item(
+            idu,
+            items=lambda snapshot: snapshot.indoor_units,
+            kind="Indoor unit",
+        )
+        return await hds.update_indoor_unit(
             idu,
             fan_speed=fan_speed,
             louver_mode=louver_mode,
@@ -346,15 +396,13 @@ class QuiltClient:
         All parameters are optional; omitted fields keep their current value.
         Set a fence value to 0.0 to clear it (returns to max-range detection).
         """
-        self._ensure_channel()
-        assert self._hds is not None
-        if isinstance(idu, str):
-            snapshot = await self.get_snapshot()
-            resolved = next((u for u in snapshot.indoor_units if u.id == idu), None)
-            if resolved is None:
-                raise QuiltError(f"Indoor unit {idu!r} not found")
-            idu = resolved
-        return await self._hds.update_indoor_unit_settings(
+        hds = self._require_hds()
+        idu = await self._resolve_snapshot_item(
+            idu,
+            items=lambda snapshot: snapshot.indoor_units,
+            kind="Indoor unit",
+        )
+        return await hds.update_indoor_unit_settings(
             idu,
             fence_left_m=fence_left_m,
             fence_right_m=fence_right_m,
@@ -384,15 +432,13 @@ class QuiltClient:
             setting: A ``ComfortSetting`` object (no snapshot lookup needed)
                 **or** a setting ID string (snapshot resolves the object).
         """
-        self._ensure_channel()
-        assert self._hds is not None
-        if isinstance(setting, str):
-            snapshot = await self.get_snapshot()
-            resolved = next((s for s in snapshot.comfort_settings if s.id == setting), None)
-            if resolved is None:
-                raise QuiltError(f"Comfort setting {setting!r} not found")
-            setting = resolved
-        return await self._hds.update_comfort_setting(
+        hds = self._require_hds()
+        setting = await self._resolve_snapshot_item(
+            setting,
+            items=lambda snapshot: snapshot.comfort_settings,
+            kind="Comfort setting",
+        )
+        return await hds.update_comfort_setting(
             setting,
             name=name,
             hvac_mode=hvac_mode,
@@ -410,10 +456,9 @@ class QuiltClient:
         events: list[ScheduleEvent],
     ) -> ScheduleDay:
         """Create a new schedule day program from domain schedule events."""
-        self._ensure_channel()
-        assert self._hds is not None
-        system_id = await self.get_system_id()
-        return await self._hds.create_schedule_day(
+        hds = self._require_hds()
+        system_id = await self._resolve_system_id()
+        return await hds.create_schedule_day(
             system_id=system_id,
             space_id=space_id,
             name=name,
@@ -426,10 +471,9 @@ class QuiltClient:
         days: list[ScheduleWeekDay] | None = None,
     ) -> ScheduleWeek:
         """Create a new schedule week from domain weekday mappings."""
-        self._ensure_channel()
-        assert self._hds is not None
-        system_id = await self.get_system_id()
-        return await self._hds.create_schedule_week(
+        hds = self._require_hds()
+        system_id = await self._resolve_system_id()
+        return await hds.create_schedule_week(
             system_id=system_id,
             space_id=space_id,
             days=days,
@@ -442,10 +486,9 @@ class QuiltClient:
         days: list[ScheduleWeekDay],
     ) -> ScheduleWeek:
         """Update an existing schedule week with domain weekday mappings."""
-        self._ensure_channel()
-        assert self._hds is not None
-        system_id = await self.get_system_id()
-        return await self._hds.update_schedule_week(
+        hds = self._require_hds()
+        system_id = await self._resolve_system_id()
+        return await hds.update_schedule_week(
             schedule_week_id=schedule_week_id,
             system_id=system_id,
             space_id=space_id,
@@ -454,9 +497,7 @@ class QuiltClient:
 
     async def delete_schedule_day(self, schedule_day_id: str) -> None:
         """Delete a schedule day program."""
-        self._ensure_channel()
-        assert self._hds is not None
-        await self._hds.delete_schedule_day(schedule_day_id)
+        await self._require_hds().delete_schedule_day(schedule_day_id)
 
     async def update_schedule_day(
         self,
@@ -466,10 +507,9 @@ class QuiltClient:
         events: list[ScheduleEvent] | None = None,
     ) -> ScheduleDay:
         """Update an existing schedule day using domain schedule events."""
-        self._ensure_channel()
-        assert self._hds is not None
-        system_id = await self.get_system_id()
-        return await self._hds.update_schedule_day(
+        hds = self._require_hds()
+        system_id = await self._resolve_system_id()
+        return await hds.update_schedule_day(
             schedule_day_id=schedule_day_id,
             system_id=system_id,
             space_id=space_id,
@@ -479,9 +519,7 @@ class QuiltClient:
 
     async def delete_schedule_week(self, schedule_week_id: str) -> None:
         """Delete a schedule week."""
-        self._ensure_channel()
-        assert self._hds is not None
-        await self._hds.delete_schedule_week(schedule_week_id)
+        await self._require_hds().delete_schedule_week(schedule_week_id)
 
     async def set_schedule_execution(self, paused: bool) -> None:
         """Globally pause or resume all schedules for the primary location.
@@ -489,13 +527,12 @@ class QuiltClient:
         Args:
             paused: True to pause all schedules, False to resume.
         """
-        self._ensure_channel()
-        assert self._hds is not None
+        hds = self._require_hds()
         snapshot = await self.get_snapshot()
         loc = snapshot.primary_location
         if loc is None:
             raise QuiltError("No location found for this system.")
-        await self._hds.update_location_schedule_execution(
+        await hds.update_location_schedule_execution(
             location_id=loc.id,
             system_id=loc.system_id,
             paused=paused,
@@ -510,10 +547,8 @@ class QuiltClient:
         system_id: str | None = None,
     ) -> list[SpaceEnergyMetrics]:
         """Fetch energy metrics for a time range."""
-        self._ensure_channel()
-        assert self._sysinfo is not None
-        sid = system_id or await self.get_system_id()
-        return await self._sysinfo.get_energy_metrics(sid, start, end)
+        sid = await self._resolve_system_id(system_id)
+        return await self._require_sysinfo().get_energy_metrics(sid, start, end)
 
     # --- Streaming ---
 
@@ -523,6 +558,7 @@ class QuiltClient:
         *,
         max_reconnects: int = -1,
         reconnect_delay_s: float = 1.0,
+        debounce_s: float = 0.0,
     ) -> NotifierStream:
         """Create a NotifierStream for real-time updates.
 
@@ -533,6 +569,9 @@ class QuiltClient:
                 means unlimited (the default).
             reconnect_delay_s: Initial back-off in seconds before reconnecting.
                 Doubles on each attempt, capped at 60 s.
+            debounce_s: Quiet period in seconds for coalescing updates by
+                entity before dispatching the latest event. ``0.0`` disables
+                debouncing.
 
         Returns a ``NotifierStream`` that can be used as:
 
@@ -549,7 +588,7 @@ class QuiltClient:
             s.on_space_update(my_callback)
             await s.run_forever()
         """
-        channel = self._ensure_channel()
+        channel = self._require_channel()
         return NotifierStream.create(
             channel,
             topics,
@@ -557,15 +596,14 @@ class QuiltClient:
             authenticate=self.refresh_token,
             max_reconnects=max_reconnects,
             reconnect_delay_s=reconnect_delay_s,
+            debounce_s=debounce_s,
         )
 
     # --- User ---
 
     async def get_current_user(self) -> User:
         """Get the currently authenticated user."""
-        self._ensure_channel()
-        assert self._user_svc is not None
-        return await self._user_svc.get_current_user()
+        return await self._require_user_service().get_current_user()
 
     async def update_current_user(
         self,
@@ -575,9 +613,7 @@ class QuiltClient:
         phone_number: str | None = None,
     ) -> User:
         """Update current user's first/last name and optional phone number."""
-        self._ensure_channel()
-        assert self._user_svc is not None
-        return await self._user_svc.update_current_user(
+        return await self._require_user_service().update_current_user(
             first_name=first_name,
             last_name=last_name,
             phone_number=phone_number,
@@ -585,9 +621,7 @@ class QuiltClient:
 
     async def get_user_attributes(self) -> UserAttributes:
         """Get current user's additional attributes."""
-        self._ensure_channel()
-        assert self._user_svc is not None
-        return await self._user_svc.get_user_attributes()
+        return await self._require_user_service().get_user_attributes()
 
     async def patch_user_attributes(
         self,
@@ -595,9 +629,7 @@ class QuiltClient:
         declared_user_type: DeclaredUserType,
     ) -> UserAttributes:
         """Patch current user's additional attributes."""
-        self._ensure_channel()
-        assert self._user_svc is not None
-        return await self._user_svc.patch_user_attributes(
+        return await self._require_user_service().patch_user_attributes(
             declared_user_type=declared_user_type,
         )
 
@@ -608,6 +640,9 @@ class QuiltClient:
         if self._channel is not None:
             await self._channel.close()
             self._channel = None
+        self._hds = None
+        self._sysinfo = None
+        self._user_svc = None
 
     async def __aenter__(self) -> Self:
         return self

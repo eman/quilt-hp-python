@@ -5,6 +5,7 @@ Async CRUD for spaces, IDUs, comfort settings, and schedules.
 
 from __future__ import annotations
 
+import logging
 import time
 from collections.abc import Callable, Sequence
 from typing import Protocol, cast
@@ -21,6 +22,8 @@ from quilt_hp.models.indoor_unit import IndoorUnit
 from quilt_hp.models.schedule import ScheduleDay, ScheduleEvent, ScheduleWeek, ScheduleWeekDay
 from quilt_hp.models.space import Space
 from quilt_hp.models.system import SystemSnapshot
+
+logger = logging.getLogger(__name__)
 
 
 class _HomeDatastoreServiceStub(Protocol):
@@ -81,6 +84,7 @@ class HomeDatastoreService:
 
     async def get_system(self, system_id: str) -> SystemSnapshot:
         """Fetch a full system snapshot."""
+        logger.debug("RPC GetHomeDatastoreSystem system_id=%s", system_id)
         try:
             snap = await self._stub.GetHomeDatastoreSystem(
                 hds.GetHomeDatastoreSystemRequest(system_id=system_id)
@@ -118,12 +122,12 @@ class HomeDatastoreService:
         heat = heat_setpoint_c if heat_setpoint_c is not None else c.heating_setpoint_c
         cool = cool_setpoint_c if cool_setpoint_c is not None else c.cooling_setpoint_c
 
-        # Mode-relevant setpoint routing (from KX.java)
-        temp_setpoint = heat if mode_enum == HVACMode.HEAT else cool
-
         # AUTO mode: enforce cool - heat >= 2.5°C
         if mode_enum == HVACMode.AUTO and cool - heat < 2.5:
             cool = heat + 2.5
+
+        # Mode-relevant setpoint routing (from KX.java)
+        temp_setpoint = heat if mode_enum == HVACMode.HEAT else cool
 
         # Setting to STANDBY explicitly means "turn off" — clear the comfort
         # setting so occupancy cannot reactivate the room (i.e. not AWAY mode).
@@ -148,6 +152,9 @@ class HomeDatastoreService:
                 comfort_setting_override=cs_override,
                 comfort_setting_id_string=cs_id,
             ),
+        )
+        logger.debug(
+            "RPC UpdateSpace space_id=%s system_id=%s", snapshot_space.id, snapshot_space.system_id
         )
         try:
             result = await self._stub.UpdateSpace(hds.UpdateSpaceRequest(diff=diff))
@@ -189,6 +196,11 @@ class HomeDatastoreService:
                 safety_heating=cast("hds.SafetyHeatingMode.ValueType", s.safety_heating.value),
                 updated_ts=_now_ts(),
             ),
+        )
+        logger.debug(
+            "RPC UpdateSpace settings space_id=%s system_id=%s",
+            snapshot_space.id,
+            snapshot_space.system_id,
         )
         try:
             result = await self._stub.UpdateSpace(hds.UpdateSpaceRequest(diff=diff))
@@ -238,6 +250,7 @@ class HomeDatastoreService:
                 ),
             ),
         )
+        logger.debug("RPC UpdateIndoorUnit indoor_unit_id=%s system_id=%s", idu.id, idu.system_id)
         try:
             result = await self._stub.UpdateIndoorUnit(hds.UpdateIndoorUnitRequest(diff=diff))
         except grpc.aio.AioRpcError as exc:
@@ -289,6 +302,9 @@ class HomeDatastoreService:
                 ),
             ),
         )
+        logger.debug(
+            "RPC UpdateIndoorUnit settings indoor_unit_id=%s system_id=%s", idu.id, idu.system_id
+        )
         try:
             result = await self._stub.UpdateIndoorUnit(hds.UpdateIndoorUnitRequest(diff=diff))
         except grpc.aio.AioRpcError as exc:
@@ -332,6 +348,11 @@ class HomeDatastoreService:
                 type=cast("hds.ComfortSettingType.ValueType", setting.type.value),
             ),
         )
+        logger.debug(
+            "RPC UpdateComfortSetting comfort_setting_id=%s system_id=%s",
+            setting.id,
+            setting.system_id,
+        )
         try:
             result = await self._stub.UpdateComfortSetting(
                 hds.UpdateComfortSettingRequest(comfort_setting=diff)
@@ -355,6 +376,7 @@ class HomeDatastoreService:
             relationships=hds.ScheduleDayRelationships(space_id=space_id),
             events=wire_events,
         )
+        logger.debug("RPC CreateScheduleDay system_id=%s space_id=%s", system_id, space_id)
         try:
             result = await self._stub.CreateScheduleDay(
                 hds.CreateScheduleDayRequest(schedule_day=diff)
@@ -376,6 +398,7 @@ class HomeDatastoreService:
             relationships=hds.ScheduleWeekRelationships(space_id=space_id),
             days=wire_days,
         )
+        logger.debug("RPC CreateScheduleWeek system_id=%s space_id=%s", system_id, space_id)
         try:
             result = await self._stub.CreateScheduleWeek(
                 hds.CreateScheduleWeekRequest(schedule_week=diff)
@@ -401,6 +424,12 @@ class HomeDatastoreService:
             relationships=hds.ScheduleWeekRelationships(space_id=space_id),
             days=wire_days,
         )
+        logger.debug(
+            "RPC UpdateScheduleWeek schedule_week_id=%s system_id=%s space_id=%s",
+            schedule_week_id,
+            system_id,
+            space_id,
+        )
         try:
             result = await self._stub.UpdateScheduleWeek(
                 hds.UpdateScheduleWeekRequest(schedule_week=diff)
@@ -411,6 +440,7 @@ class HomeDatastoreService:
 
     async def delete_schedule_day(self, schedule_day_id: str) -> None:
         """Delete a schedule day program."""
+        logger.debug("RPC DeleteScheduleDay schedule_day_id=%s", schedule_day_id)
         try:
             await self._stub.DeleteScheduleDay(
                 hds.DeleteScheduleDayRequest(schedule_day_id=schedule_day_id)
@@ -438,6 +468,12 @@ class HomeDatastoreService:
             diff.attributes.CopyFrom(hds.ScheduleDayAttributes(name=name))
         if events is not None:
             diff.events.extend(_to_wire_schedule_event(event) for event in events)
+        logger.debug(
+            "RPC UpdateScheduleDay schedule_day_id=%s system_id=%s space_id=%s",
+            schedule_day_id,
+            system_id,
+            space_id,
+        )
         try:
             result = await self._stub.UpdateScheduleDay(
                 hds.UpdateScheduleDayRequest(schedule_day=diff)
@@ -448,6 +484,7 @@ class HomeDatastoreService:
 
     async def delete_schedule_week(self, schedule_week_id: str) -> None:
         """Delete a schedule week."""
+        logger.debug("RPC DeleteScheduleWeek schedule_week_id=%s", schedule_week_id)
         try:
             await self._stub.DeleteScheduleWeek(
                 hds.DeleteScheduleWeekRequest(schedule_week_id=schedule_week_id)
@@ -474,6 +511,7 @@ class HomeDatastoreService:
             ),
             controls=hds.LocationControls(schedule_execution=execution),
         )
+        logger.debug("RPC UpdateLocation location_id=%s system_id=%s", location_id, system_id)
         try:
             await self._stub.UpdateLocation(hds.UpdateLocationRequest(location=diff))
         except grpc.aio.AioRpcError as exc:

@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import asyncio
 import inspect
+import logging
 import time
 from collections.abc import Awaitable, Callable
 from functools import partial
@@ -33,6 +34,8 @@ from quilt_hp.tokens import (
 type OtpCallback = Callable[[str], str | Awaitable[str]]
 type CognitoAuthResult = dict[str, str | int]
 
+logger = logging.getLogger(__name__)
+
 
 class _CognitoClient(Protocol):
     def initiate_auth(self, **kwargs: object) -> dict[str, object]: ...
@@ -55,8 +58,11 @@ def _require_str(result: CognitoAuthResult, key: str) -> str:
 
 
 def _expires_in_s(result: CognitoAuthResult) -> int:
-    value = result.get("ExpiresIn", 3600)
-    return value if isinstance(value, int) else 3600
+    value = result.get("ExpiresIn")
+    if isinstance(value, int):
+        return value
+    logger.warning("Authentication response missing valid ExpiresIn; using default")
+    return 3600
 
 
 def _make_cognito_client() -> _CognitoClient:
@@ -191,10 +197,12 @@ async def authenticate(
 
     # 1. Valid cached IdToken
     if cached is not None and not cached.is_expired:
+        logger.debug("Using cached token")
         return cached.id_token
 
     # 2. Refresh token
     if cached is not None and cached.refresh_token:
+        logger.debug("Starting token refresh")
         context = refresh_context or TokenRefreshContext(
             reason=TokenRefreshReason.EXPIRED_CACHED_TOKEN,
             source="authenticate",
@@ -203,7 +211,7 @@ async def authenticate(
             await refresh_hooks.on_refresh_start(context)
         try:
             result = await _do_refresh(cached.refresh_token)
-        except Exception as exc:
+        except (QuiltAuthError, ClientError) as exc:
             if refresh_hooks is not None:
                 await refresh_hooks.on_refresh_failure(context, exc)
             action = (
@@ -213,6 +221,7 @@ async def authenticate(
             )
             if action == RefreshFailureAction.RAISE or otp_callback is None:
                 raise
+            logger.warning("Refresh failed; falling back to OTP")
         else:
             tokens = CachedTokens(
                 id_token=_require_str(result, "IdToken"),
@@ -223,6 +232,7 @@ async def authenticate(
                 await _save_tokens(token_store, email, tokens)
             if refresh_hooks is not None:
                 await refresh_hooks.on_refresh_success(context, tokens)
+            logger.info("Token refresh succeeded")
             return tokens.id_token
 
     # 3. Full OTP login
@@ -241,4 +251,5 @@ async def authenticate(
     )
     if token_store:
         await _save_tokens(token_store, email, tokens)
+    logger.info("OTP login succeeded")
     return tokens.id_token

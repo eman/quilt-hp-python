@@ -67,10 +67,16 @@ service = UserService(channel)
 ```python
 from quilt_hp.services.streaming import NotifierStream
 
-stream = NotifierStream(
-    channel=channel,
-    topics=topics,
-    token_provider=client,
+# metadata_provider returns gRPC call metadata (e.g. auth headers).
+# Obtain a token from your QuiltClient or token store.
+def get_metadata() -> list[tuple[str, str]]:
+    return [("authorization", f"Bearer {token}")]
+
+stream = NotifierStream.create(
+    channel,
+    topics,
+    metadata_provider=get_metadata,
+    authenticate=client.refresh_token,
     max_reconnects=-1,
     reconnect_delay_s=1.0,
 )
@@ -78,14 +84,29 @@ stream = NotifierStream(
 
 See [Streaming protocol behavior](../explanation/streaming-protocol.md) for the full state machine, event types, and reconnect behavior.
 
-Event registration methods:
+Callback registration methods:
 
 ```python
-stream.on_space_update(callback)       # Callable[[Space], Awaitable | None]
-stream.on_indoor_unit_update(callback) # Callable[[IndoorUnit], Awaitable | None]
-stream.on_comfort_setting_update(callback)
-stream.on_connected(callback)          # no args
-stream.on_disconnected(callback)       # no args
+stream.on_space_update(callback)
+stream.on_indoor_unit_update(callback)
+stream.on_outdoor_unit_update(callback)
+stream.on_controller_update(callback)
+stream.on_qsm_update(callback)
+stream.on_remote_sensor_update(callback)
+stream.on_controller_remote_sensor_update(callback)
+stream.on_software_update_info(callback)
+stream.on_error(callback)
+```
+
+Lifecycle methods:
+
+```python
+await stream.start()
+await stream.run_forever()
+await stream.subscribe(["hds/space/<uuid>"])
+await stream.unsubscribe(["hds/space/<uuid>"])
+await stream.stop()
+stream.error
 ```
 
 ---
@@ -99,31 +120,45 @@ All models are `dataclass` instances populated from proto fields by `from_proto(
 ```python
 @dataclass
 class SystemSnapshot:
-    system_id: str
-    location_id: str
-    spaces: dict[str, Space]
-    indoor_units: dict[str, IndoorUnit]
-    outdoor_units: dict[str, OutdoorUnit]
-    controllers: dict[str, Controller]
-    sensors: dict[str, RemoteSensor]
-    comfort_settings: dict[str, ComfortSetting]
-    schedule_days: dict[str, ScheduleDay]
-    schedule_weeks: dict[str, ScheduleWeek]
-    schedule_paused: bool
-    fetched_at: float  # time.time() when snapshot was constructed
+    spaces: list[Space]
+    indoor_units: list[IndoorUnit]
+    outdoor_units: list[OutdoorUnit]
+    controllers: list[Controller]
+    quilt_smart_modules: list[QuiltSmartModule]
+    comfort_settings: list[ComfortSetting]
+    schedule_weeks: list[ScheduleWeek]
+    schedule_days: list[ScheduleDay]
+    remote_sensors: list[RemoteSensor]
+    controller_remote_sensors: list[ControllerRemoteSensor]
+    software_update_infos: list[SoftwareUpdateInfo]
+    locations: list[Location]
+    timezone: str | None
 ```
 
-`SystemSnapshot` is the root object returned by `get_snapshot()`. All child objects are indexed by their string ID for O(1) lookup.
+`SystemSnapshot` is the root object returned by `get_snapshot()`. Child collections are stored as lists, not dicts. Look up objects by iterating, with helpers like `space_by_name()`, or by merging stream diffs in place with the `apply_*()` methods.
 
 Useful helper properties and methods:
 
 ```python
-snapshot.rooms         # → list[Space]  leaf spaces only (has parent_space_id)
-snapshot.floors        # → list[Space]  parent spaces only
-snapshot.stream_topics()  # → list[str]  all topics for use with stream()
+snapshot.rooms                      # → list[Space]  leaf spaces only
+snapshot.primary_location           # → Location | None
+snapshot.space_by_name("Bedroom")  # → Space | None
+snapshot.comfort_settings_for_space(space)
+snapshot.away_comfort_setting(space)
+snapshot.stream_topics()            # → list[str]
 ```
 
-The `apply_*` methods (`apply_space_update`, `apply_indoor_unit_update`, etc.) are called by `NotifierStream` to merge sparse proto3 diffs into the snapshot in-place. You rarely call these directly.
+The merge helpers update the matching list entry or append a new object when needed:
+
+```python
+snapshot.apply_space(space)
+snapshot.apply_indoor_unit(idu)
+snapshot.apply_outdoor_unit(odu)
+snapshot.apply_controller(controller)
+snapshot.apply_qsm(qsm)
+snapshot.apply_remote_sensor(sensor)
+snapshot.apply_controller_remote_sensor(sensor)
+```
 
 ---
 
@@ -133,11 +168,11 @@ The `apply_*` methods (`apply_space_update`, `apply_indoor_unit_update`, etc.) a
 @dataclass
 class Space:
     id: str
+    system_id: str
     name: str
     parent_space_id: str | None
-    location_id: str
-    controls: SpaceControls
     settings: SpaceSettings
+    controls: SpaceControls
     state: SpaceState
 ```
 
@@ -148,37 +183,45 @@ A single room or floor zone. `parent_space_id is None` for floor-level spaces; l
 ```python
 @dataclass
 class SpaceControls:
-    mode: HVACMode
-    heat_setpoint_c: float
-    cool_setpoint_c: float
-    comfort_setting_id: str | None
+    hvac_mode: HVACMode
+    temperature_setpoint_c: float
+    cooling_setpoint_c: float
+    heating_setpoint_c: float
+    comfort_setting_id: str
+    comfort_setting_override: ComfortSettingOverride
+    boost_mode: BoostMode
 ```
 
-The writable HVAC setpoint state. `comfort_setting_id` is `None` when the space is in manual control mode. Setting `mode=STANDBY` clears `comfort_setting_id`.
+The writable HVAC control state. `comfort_setting_id` uses an empty-string sentinel when the space is in manual control mode. Setting `hvac_mode=STANDBY` clears the linked comfort setting.
 
 #### `SpaceSettings`
 
 ```python
 @dataclass
 class SpaceSettings:
-    unoccupied_timeout_s: float
+    name: str
+    timezone: str
+    occupancy_mode: OccupancyMode
     occupied_timeout_s: float
-    schedules_paused: bool
+    unoccupied_timeout_s: float
+    safety_heating: SafetyHeatingMode
+    hvac_controller_type: HvacControllerType
 ```
 
-Automation configuration for the space.
+Automation and safety configuration for the space.
 
 #### `SpaceState`
 
 ```python
 @dataclass
 class SpaceState:
-    current_temp_c: float | None
-    occupancy: OccupancyState  # OCCUPIED, UNOCCUPIED, UNKNOWN
-    last_occupied_at: datetime | None
+    ambient_temperature_c: float | None
+    hvac_state: HVACState
+    setpoint_c: float | None
+    comfort_setting_id: str
 ```
 
-Read-only live state derived from sensor telemetry.
+Read-only live state derived from sensor telemetry and current control state.
 
 ---
 
@@ -319,12 +362,16 @@ class RemoteSensorState:
 @dataclass
 class ComfortSetting:
     id: str
-    location_id: str
+    system_id: str
+    space_id: str
     name: str
+    type: ComfortSettingType
     hvac_mode: HVACMode
-    heat_setpoint_c: float
-    cool_setpoint_c: float
+    heating_setpoint_c: float
+    cooling_setpoint_c: float
     fan_speed: FanSpeed
+    louver_mode: LouverMode
+    louver_fixed_position: float
 ```
 
 A named HVAC preset. Spaces reference comfort settings by `controls.comfort_setting_id`.
@@ -347,8 +394,12 @@ class ScheduleDay:
 ```python
 @dataclass
 class ScheduleEvent:
-    time_of_day_s: int          # seconds from midnight
+    start_s: int                # seconds from midnight
     comfort_setting_id: str
+    hvac_mode: HVACMode
+    heating_setpoint_c: float
+    cooling_setpoint_c: float
+    precondition: bool
 ```
 
 ---
@@ -368,8 +419,8 @@ class ScheduleWeek:
 ```python
 @dataclass
 class ScheduleWeekDay:
-    day_of_week: int            # 0 = Monday, 6 = Sunday
-    schedule_day_id: str | None
+    weekday: int                # 1 = Monday, 7 = Sunday
+    day_id: str
 ```
 
 ---
@@ -382,7 +433,6 @@ class SystemInfo:
     id: str
     name: str
     timezone: str
-    location_id: str
 ```
 
 Returned by `list_systems()`.
@@ -396,6 +446,7 @@ Returned by `list_systems()`.
 class Location:
     id: str
     name: str
+    system_id: str
     timezone: str
     schedule_paused: bool
 ```
@@ -404,16 +455,93 @@ Location metadata embedded in `SystemSnapshot`.
 
 ---
 
+### `ControllerRemoteSensor`
+
+```python
+@dataclass
+class ControllerRemoteSensor:
+    id: str
+    controller_id: str
+    mac: str | None
+    ambient_temperature_c: float | None
+    humidity_percent: float | None
+    battery_level_percent: float | None
+    signal_level_dbm: int | None
+    control_mode: RemoteSensorControlMode
+```
+
+Temperature, humidity, battery, and signal data exposed by a controller when its remote-sensor mode is enabled.
+
+---
+
+### `EnergyBucket`
+
+```python
+@dataclass
+class EnergyBucket:
+    start_time: datetime
+    energy_kwh: float
+    status: MetricBucketStatus
+```
+
+One hourly energy measurement bucket. Use `has_missing_energy_value` or `energy_kwh_or_none` to handle NaN sentinel values safely (a `None` or non-float `energy_kwh` is also treated as missing).
+
+---
+
+### `SpaceEnergyMetrics`
+
+```python
+@dataclass
+class SpaceEnergyMetrics:
+    space_id: str
+    buckets: list[EnergyBucket]
+```
+
+Hourly energy history for one space. Convenience properties include `total_kwh` and `missing_bucket_count`.
+
+---
+
+### `SoftwareUpdateInfo`
+
+```python
+@dataclass
+class SoftwareUpdateInfo:
+    id: str
+    state: int
+    status: int
+    current_version: str
+    target_version: str
+    current_progress: float
+    total_progress: float
+    progress_unit: int
+```
+
+Firmware/software update record associated with an indoor unit, outdoor unit, controller, or QSM.
+
+---
+
 ## Enum types
 
-All enums live in `quilt_hp.models.enums`. They are `StrEnum` values (except `LouverMode`, `LedAnimation`, and `LightPreset` which may be `IntEnum`).
+All enums live in `quilt_hp.models.enums` and subclass `IntEnum`, mirroring Quilt's wire values.
 
-| Enum | Values |
-|------|--------|
-| `HVACMode` | `STANDBY`, `COOL`, `HEAT`, `AUTO`, `FAN` |
-| `FanSpeed` | `AUTO`, `QUIET`, `LOW`, `MEDIUM`, `HIGH`, `BLAST` |
-| `LouverMode` | `CLOSED`, `SWEEP`, `FIXED`, `AUTO` |
-| `OccupancyState` | `OCCUPIED`, `UNOCCUPIED`, `UNKNOWN` |
-| `DeclaredUserType` | `HOMEOWNER`, `PARTNER` |
+| Enum | Purpose | Representative values |
+|------|---------|-----------------------|
+| `HVACMode` | Requested operating mode | `STANDBY`, `COOL`, `HEAT`, `AUTO`, `FAN`, `FALLBACK_AUTO`, `FALLBACK_OFF` |
+| `HVACState` | Actual running state | `STANDBY`, `COOL`, `HEAT`, `DRIFT`, `FAN` |
+| `FanSpeed` | Indoor-unit fan speed preset | `AUTO`, `QUIET`, `LOW`, `MEDIUM`, `HIGH`, `BLAST` |
+| `LouverMode` | Indoor-unit louver behavior | `CLOSED`, `SWEEP`, `FIXED`, `AUTO` |
+| `LouverAngle` | Fixed louver angle preset | `ANGLE1`–`ANGLE5` |
+| `LightPreset` | Built-in LED color presets | `DAYLIGHT`, `WARM`, `SUNSET`, `SKY` |
+| `LedAnimation` | Indoor-unit LED animation mode | `NONE`, `SPARKLE_FADE`, `TWINKLE_FADE`, `DANCE`, `CHASE` |
+| `ComfortSettingType` | Named preset kind | `ACTIVE`, `SLEEP`, `AWAY`, `STANDBY`, `CUSTOM` |
+| `ComfortSettingOverride` | Why the active preset differs from schedule | `NONE`, `UNTIL_NEXT_SCHEDULE`, `INDEFINITE`, `UNOCCUPIED`, `OCCUPIED` |
+| `BoostMode` | Space turbo override | `OFF`, `ON` |
+| `OccupancyMode` | Space auto-away/return setting | `DISABLED`, `ENABLED` |
+| `OccupancyState` | Presence/occupancy detection result | `UNDETECTED`, `DETECTED` |
+| `SafetyHeatingMode` | Freeze-protection setting | `DISABLED`, `ENABLED` |
+| `ConditionState` | Diagnostic condition status | `INACTIVE`, `ACTIVE` |
+| `HvacControllerType` | Controller algorithm variant | `PASS_THROUGH_TEMPERATURE`, `INTEGRAL_TEMPERATURE_V1`, `INTEGRAL_TEMPERATURE_V2` |
+| `FallbackControlCommand` | Offline fallback command sent to an IDU | `COMPLETE`, `EXIT` |
+| `RemoteSensorControlMode` | Whether a remote sensor participates in control | `DISABLED`, `ENABLED` |
 
-`FanSpeed.to_wire()` maps to `(fan_speed_mode, fan_speed_percent)` pairs consumed by the HDS proto. This mapping is handled inside `HomeDatastoreService`; client code works with `FanSpeed` values only.
+`FanSpeed.to_wire()` and `FanSpeed.from_wire()` handle the Quilt protocol's `(fan_speed_mode, fan_speed_percent)` encoding. `LouverAngle.to_wire()` and `LouverAngle.from_wire()` do the same for fixed louver positions.

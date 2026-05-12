@@ -56,19 +56,24 @@ _snapshot: SystemSnapshot | None = None
 async def on_space_update(space: Space) -> None:
     global _snapshot
     if _snapshot is not None:
-        _snapshot.spaces[space.id] = space
+        space = _snapshot.apply_space(space)
 
     temp = (
-        f"{space.state.current_temp_c:.1f}°C"
-        if space.state.current_temp_c is not None
+        f"{space.state.ambient_temperature_c:.1f}°C"
+        if space.state.ambient_temperature_c is not None
         else "unknown"
     )
-    LOG.info("[space] %s — mode=%s temp=%s", space.name, space.controls.mode.value, temp)
+    LOG.info(
+        "[space] %s — mode=%s temp=%s",
+        space.name,
+        space.controls.hvac_mode.value,
+        temp,
+    )
 
     if (
-        space.state.current_temp_c is not None
-        and space.state.current_temp_c > 27.0
-        and space.controls.mode.value in ("auto", "cool")
+        space.state.ambient_temperature_c is not None
+        and space.state.ambient_temperature_c > 27.0
+        and space.controls.hvac_mode.value in ("auto", "cool")
     ):
         LOG.warning("[space] %s is above 27°C — check cooling", space.name)
 
@@ -76,8 +81,8 @@ async def on_space_update(space: Space) -> None:
 async def on_idu_update(idu: IndoorUnit) -> None:
     global _snapshot
     if _snapshot is not None:
-        _snapshot.indoor_units[idu.id] = idu
-    LOG.debug("[idu] %s — fan=%s online=%s", idu.id, idu.controls.fan_speed.value, idu.state.is_online)
+        idu = _snapshot.apply_indoor_unit(idu)
+    LOG.debug("[idu] %s — fan=%s online=%s", idu.id, idu.controls.fan_speed.value, idu.is_online)
 
 
 async def run() -> None:
@@ -91,7 +96,7 @@ async def run() -> None:
         _snapshot = await client.get_snapshot()
         LOG.info(
             "Snapshot loaded: system=%s rooms=%d idus=%d",
-            _snapshot.system_id,
+            client.system_name,
             len(_snapshot.rooms),
             len(_snapshot.indoor_units),
         )
@@ -100,8 +105,7 @@ async def run() -> None:
         stream = client.stream(topics, max_reconnects=-1, reconnect_delay_s=2.0)
         stream.on_space_update(on_space_update)
         stream.on_indoor_unit_update(on_idu_update)
-        stream.on_connected(lambda: LOG.info("Stream connected"))
-        stream.on_disconnected(lambda: LOG.warning("Stream disconnected; will reconnect automatically"))
+        stream.on_error(lambda exc: LOG.error("Stream stopped: %s", exc))
 
         async with stream:
             LOG.info("Daemon running. Send SIGINT or SIGTERM to stop.")
