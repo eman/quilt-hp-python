@@ -7,31 +7,11 @@ from datetime import UTC, datetime
 from typing import Any, cast
 
 from quilt_hp.const import PROTO_TIMESTAMP_UNSET_SECONDS
+from quilt_hp.models._helpers import lookup_hardware, parse_wifi_state
 from quilt_hp.models.enums import RemoteSensorControlMode
 from quilt_hp.models.qsm import WifiInfo
 
 _ONLINE_THRESHOLD_S = 5 * 60  # 5 minutes, matching KMP IS_ONLINE_THRESHOLD_MINUTES
-
-
-def _lookup_hw(hw_map: dict[str, object], hardware_id: str | None) -> object | None:
-    if not hardware_id:
-        return None
-    raw = hardware_id.strip()
-    if not raw:
-        return None
-    keys = (
-        raw,
-        raw.rsplit("/", 1)[-1],
-        raw.rsplit(":", 1)[-1],
-        raw.casefold(),
-        raw.rsplit("/", 1)[-1].casefold(),
-        raw.rsplit(":", 1)[-1].casefold(),
-    )
-    for key in keys:
-        hw = hw_map.get(key)
-        if hw is not None:
-            return hw
-    return None
 
 
 @dataclass(slots=True)
@@ -119,11 +99,13 @@ class Controller:
             info = WifiInfo.from_proto(wstate)
             return info if info.connected else None
 
+        wifi_ssid, wifi_ip, wifi_signal_dbm = parse_wifi_state(w)
+
         serial: str | None = None
         model_sku: str | None = None
         fw_ver: str | None = None
         if hw_map:
-            hw = _lookup_hw(hw_map, p.relationships.hardware_id)
+            hw = lookup_hardware(hw_map, p.relationships.hardware_id)
             if hw is not None:
                 a = cast("Any", hw).attributes
                 serial = a.serial_number or None
@@ -139,9 +121,9 @@ class Controller:
             pcb_temperature_a_c=p.state.temperature_f3,
             pcb_temperature_b_c=p.state.temperature_f4,
             calibrated_ambient_c=p.state.temperature_f5,
-            wifi_ssid=w.ssid or None,
-            wifi_ip=w.ipv4_address or None,
-            wifi_signal_dbm=w.signal_level_dbm or None,
+            wifi_ssid=wifi_ssid,
+            wifi_ip=wifi_ip,
+            wifi_signal_dbm=wifi_signal_dbm,
             wifi_freq_mhz=w.frequency_mhz or None,
             wifi_last_seen=wifi_last_seen,
             ap_wifi=_wifi(p.ap_wifi_state),

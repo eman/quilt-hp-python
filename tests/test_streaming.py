@@ -159,6 +159,23 @@ async def test_unsubscribe_removes_topics() -> None:
     assert "topic-b" in stream._topics
 
 
+@pytest.mark.asyncio
+async def test_subscribe_after_queue_reset_resubscribes_from_topics() -> None:
+    stream = _make_stream(["topic-a"])
+    stream._request_queue = asyncio.Queue()
+
+    await stream.subscribe(["topic-b"])
+
+    stream._running = True
+    request_iterator = stream._request_iterator(list(stream._topics), stream._request_queue)
+    initial = await anext(request_iterator)
+    queued = await anext(request_iterator)
+    await request_iterator.aclose()
+
+    assert [sub.topic for sub in initial.append.subscriptions] == ["topic-a", "topic-b"]
+    assert [sub.topic for sub in queued.append.subscriptions] == ["topic-b"]
+
+
 # ─── lifecycle ───────────────────────────────────────────────────────────────
 
 

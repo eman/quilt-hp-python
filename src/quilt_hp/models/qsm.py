@@ -11,6 +11,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+from quilt_hp.models._helpers import parse_wifi_state
+
 
 @dataclass(slots=True)
 class WifiInfo:
@@ -26,10 +28,8 @@ class WifiInfo:
 
     @classmethod
     def from_proto(cls, proto: object) -> WifiInfo:
-        ssid = getattr(proto, "ssid", None) or None
-        ip = getattr(proto, "ipv4_address", None) or None
-        sig = getattr(proto, "signal_level_dbm", None) or None
-        return cls(ssid=ssid, ip=ip, signal_dbm=sig)
+        ssid, ip, signal_dbm = parse_wifi_state(proto)
+        return cls(ssid=ssid, ip=ip, signal_dbm=signal_dbm)
 
 
 @dataclass(slots=True)

@@ -392,7 +392,9 @@ def _idu_from_proto(proto: object) -> IndoorUnit:
             fan_speed=FanSpeed.from_wire(c.fan_speed_mode, c.fan_speed_percent),
             fan_speed_mode_raw=c.fan_speed_mode,
             fan_speed_percent_raw=c.fan_speed_percent,
-            louver_mode=LouverMode(c.louver_mode) if c.louver_mode else LouverMode.UNSPECIFIED,
+            louver_mode=(
+                LouverMode(c.louver_mode) if c.louver_mode is not None else LouverMode.UNSPECIFIED
+            ),
             louver_fixed_position=c.louver_fixed_position,
             led_color_code=c.led_color_code,
             led_brightness=c.led_color_brightness_percent,

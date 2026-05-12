@@ -113,6 +113,35 @@ async def test_client_error_and_service_wrapper_paths(monkeypatch: pytest.Monkey
 
 
 @pytest.mark.asyncio
+async def test_client_requires_login_and_close_clears_services() -> None:
+    client = QuiltClient("user@example.com")
+
+    with pytest.raises(QuiltError, match=r"Client not connected\. Call login\(\) first\."):
+        await client.list_systems()
+    with pytest.raises(QuiltError, match=r"Client not connected\. Call login\(\) first\."):
+        await client.get_snapshot()
+    with pytest.raises(QuiltError, match=r"Client not connected\. Call login\(\) first\."):
+        await client.get_current_user()
+    with pytest.raises(QuiltError, match=r"Client not connected\. Call login\(\) first\."):
+        client.stream(["hds/space/space-1"])
+
+    fake_channel = MagicMock()
+    fake_channel.close = AsyncMock()
+    client._channel = fake_channel
+    client._hds = MagicMock()
+    client._sysinfo = MagicMock()
+    client._user_svc = MagicMock()
+
+    await client.close()
+
+    fake_channel.close.assert_awaited_once()
+    assert client._channel is None
+    assert client._hds is None
+    assert client._sysinfo is None
+    assert client._user_svc is None
+
+
+@pytest.mark.asyncio
 async def test_client_wrapper_methods_and_context_manager(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr("quilt_hp.client.authenticate", AsyncMock(return_value="jwt-token"))
 
@@ -172,6 +201,11 @@ async def test_client_wrapper_methods_and_context_manager(monkeypatch: pytest.Mo
     async with client:
         assert client.get_current_token() == "jwt-token"
 
+    assert client._channel is None
+    assert client._hds is None
+    assert client._sysinfo is None
+    assert client._user_svc is None
+
 
 @pytest.mark.asyncio
 async def test_system_service_success_and_error_paths(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -214,6 +248,7 @@ async def test_system_service_success_and_error_paths(monkeypatch: pytest.Monkey
     )
     assert metrics[0].space_id == "space-1"
     assert len(metrics[0].buckets) == 2
+    assert metrics[0].buckets[0].status == system_service.MetricBucketStatus.COMPLETE
 
     err_stub = MagicMock(
         ListSystems=AsyncMock(side_effect=_FakeRpcError(grpc.StatusCode.UNKNOWN, "x"))

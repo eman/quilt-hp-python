@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import inspect
+import logging
 from collections.abc import Awaitable, Callable
 from typing import cast
 
@@ -23,6 +24,9 @@ type RefreshCallback = (
 )
 type TokenProviderLike = Callable[[], str] | CurrentTokenProvider
 
+logger = logging.getLogger(__name__)
+_REFRESH_CALLBACK_HAS_PARAMS: dict[int, bool] = {}
+
 
 def _resolve_token_provider(token_provider: TokenProviderLike) -> Callable[[], str]:
     if callable(token_provider):
@@ -33,12 +37,14 @@ def _resolve_token_provider(token_provider: TokenProviderLike) -> Callable[[], s
 async def _invoke_refresh_callback(
     refresh_callback: RefreshCallback, context: TokenRefreshContext
 ) -> None:
-    try:
-        has_params = bool(inspect.signature(refresh_callback).parameters)
-    except TypeError:
-        has_params = False
-    except ValueError:
-        has_params = False
+    callback_id = id(refresh_callback)
+    has_params = _REFRESH_CALLBACK_HAS_PARAMS.get(callback_id)
+    if has_params is None:
+        try:
+            has_params = bool(inspect.signature(refresh_callback).parameters)
+        except TypeError, ValueError:
+            has_params = False
+        _REFRESH_CALLBACK_HAS_PARAMS[callback_id] = has_params
     if has_params:
         await cast("Callable[[TokenRefreshContext], Awaitable[None]]", refresh_callback)(context)
         return
@@ -66,6 +72,7 @@ class _AuthInterceptor(
         self._refresh_callback = refresh_callback
 
     def _metadata(self) -> list[tuple[str, str]]:
+        logger.debug("Attaching auth metadata")
         return [
             ("authorization", self._token_provider()),
             ("x-quilt-app-version", APP_VERSION),
@@ -125,6 +132,7 @@ class _AuthInterceptor(
             return await continuation(self._patch(client_call_details), request)
         except grpc.aio.AioRpcError as exc:
             if exc.code() == grpc.StatusCode.UNAUTHENTICATED and self._refresh_callback:
+                logger.warning("Retrying unary RPC after UNAUTHENTICATED response")
                 return await self._refresh_and_retry(continuation, client_call_details, request)
             raise
 
@@ -141,6 +149,7 @@ class _AuthInterceptor(
             return await continuation(self._patch(client_call_details), request)
         except grpc.aio.AioRpcError as exc:
             if exc.code() == grpc.StatusCode.UNAUTHENTICATED and self._refresh_callback:
+                logger.warning("Retrying streaming RPC setup after UNAUTHENTICATED response")
                 return await self._refresh_and_retry(continuation, client_call_details, request)
             raise
 
@@ -184,6 +193,7 @@ def create_channel(
         An async gRPC channel with TLS and auth interceptor.
     """
     host = grpc_host(environment)
+    logger.debug("Creating gRPC channel for host %s", host)
     creds = grpc.ssl_channel_credentials()
     interceptors = [_AuthInterceptor(token_provider, refresh_callback)]
     return grpc.aio.secure_channel(
@@ -200,6 +210,7 @@ def auth_metadata(token_provider: TokenProviderLike) -> list[tuple[str, str]]:
     Useful for stream-stream RPCs where the channel interceptor may not fire.
     """
     resolved_provider = _resolve_token_provider(token_provider)
+    logger.debug("Building auth metadata")
     return [
         ("authorization", resolved_provider()),
         ("x-quilt-app-version", APP_VERSION),

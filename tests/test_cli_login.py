@@ -8,6 +8,7 @@ from typing import ClassVar
 from unittest.mock import patch
 
 from quilt_hp.cli import main as cli_main
+from quilt_hp.exceptions import QuiltAuthError
 
 
 class _FakeClient:
@@ -27,7 +28,7 @@ class _FakeClient:
     async def login(self, otp_callback: Callable[[str], object] | None = None) -> None:
         if otp_callback is None:
             _FakeClient.events.append("silent-login")
-            raise RuntimeError("need OTP")
+            raise QuiltAuthError("need OTP")
 
         _FakeClient.events.append("otp-login-start")
         otp = otp_callback("user@example.com")

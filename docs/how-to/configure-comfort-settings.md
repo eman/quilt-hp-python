@@ -11,14 +11,14 @@ To retrieve all comfort presets:
 ```python
 settings = await client.list_comfort_settings()
 for s in settings:
-    print(f"{s.name}: mode={s.hvac_mode}, heat={s.heat_setpoint_c}°C, cool={s.cool_setpoint_c}°C, fan={s.fan_speed}")
+    print(f"{s.name}: mode={s.hvac_mode}, heat={s.heating_setpoint_c}°C, cool={s.cooling_setpoint_c}°C, fan={s.fan_speed}")
 ```
 
 Alternatively, comfort settings are embedded in `SystemSnapshot`:
 
 ```python
 snapshot = await client.get_snapshot()
-for cs in snapshot.comfort_settings.values():
+for cs in snapshot.comfort_settings:
     print(f"{cs.name}: {cs.hvac_mode}")
 ```
 
@@ -40,7 +40,7 @@ updated = await client.update_comfort_setting(
     cool_setpoint_c=25.0,
     fan_speed=FanSpeed.AUTO,
 )
-print(f"Updated '{updated.name}': heat={updated.heat_setpoint_c}°C cool={updated.cool_setpoint_c}°C")
+print(f"Updated '{updated.name}': heat={updated.heating_setpoint_c}°C cool={updated.cooling_setpoint_c}°C")
 ```
 
 Omit any parameter to keep its current value. You can also update by comfort setting ID string:
@@ -73,11 +73,11 @@ async def main() -> None:
         snapshot = await client.get_snapshot()
 
         preset = next(
-            (cs for cs in snapshot.comfort_settings.values() if cs.name == PRESET_NAME),
+            (cs for cs in snapshot.comfort_settings if cs.name == PRESET_NAME),
             None,
         )
         if preset is None:
-            names = [cs.name for cs in snapshot.comfort_settings.values()]
+            names = [cs.name for cs in snapshot.comfort_settings]
             print(f"Preset '{PRESET_NAME}' not found. Available: {names}")
             return
 
@@ -85,8 +85,8 @@ async def main() -> None:
             updated = await client.set_space(
                 space,
                 mode=preset.hvac_mode,
-                heat_setpoint_c=preset.heat_setpoint_c,
-                cool_setpoint_c=preset.cool_setpoint_c,
+                heat_setpoint_c=preset.heating_setpoint_c,
+                cool_setpoint_c=preset.cooling_setpoint_c,
             )
             print(f"  {updated.name}: mode={updated.controls.hvac_mode}")
 

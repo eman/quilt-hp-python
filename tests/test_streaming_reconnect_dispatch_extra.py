@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -94,7 +95,9 @@ async def test_run_one_stream_dispatches_callbacks_and_swallows_callback_errors(
 
 
 @pytest.mark.asyncio
-async def test_reconnect_retries_then_resubscribes(monkeypatch: pytest.MonkeyPatch) -> None:
+async def test_reconnect_retries_then_resubscribes(
+    monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
     stream = _make_stream()
     stream._running = True
     stream._max_reconnects = 1
@@ -118,11 +121,13 @@ async def test_reconnect_retries_then_resubscribes(monkeypatch: pytest.MonkeyPat
 
     monkeypatch.setattr("quilt_hp.services.streaming.asyncio.sleep", _fake_sleep)
 
-    await stream._run_stream_with_reconnect()
+    with caplog.at_level(logging.INFO):
+        await stream._run_stream_with_reconnect()
 
     assert calls == 2
     assert sleep_calls == [1.0]
     assert stream._request_queue is not old_queue
+    assert "Resetting subscription queue before reconnect" in caplog.text
 
 
 @pytest.mark.asyncio

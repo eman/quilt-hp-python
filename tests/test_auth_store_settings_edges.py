@@ -118,5 +118,5 @@ def test_settings_store_corruption_and_schema_edges(tmp_path: Path) -> None:
     settings = store.load()
     assert settings.email is None
     assert settings.home is None
-    assert settings.use_fahrenheit is True
+    assert settings.use_fahrenheit is False
     assert settings.dark is None

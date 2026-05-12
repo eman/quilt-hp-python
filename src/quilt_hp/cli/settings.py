@@ -98,10 +98,11 @@ class SettingsStore:
         email = payload.get("email")
         home = payload.get("home")
         dark = payload.get("dark")
+        uf = payload.get("use_fahrenheit", False)
         return Settings(
             email=email if isinstance(email, str) else None,
             home=home if isinstance(home, str) else None,
-            use_fahrenheit=bool(payload.get("use_fahrenheit", False)),
+            use_fahrenheit=uf if isinstance(uf, bool) else False,
             dark=dark if isinstance(dark, bool) else None,
         )
 

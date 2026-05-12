@@ -21,11 +21,15 @@ def _parse_state(
     s: object,
 ) -> tuple[float | None, float | None, float | None, int | None]:
     """Return ambient temp, humidity, battery, and signal from proto state."""
+    ambient_temperature_c = getattr(s, "ambient_temperature_c", None)
+    humidity_percent = getattr(s, "humidity_percent", None)
+    battery_level_percent = getattr(s, "battery_level_percent", None)
+    signal_level_dbm = getattr(s, "signal_level_dbm", None)
     return (
-        s.ambient_temperature_c or None,  # type: ignore[attr-defined]
-        s.humidity_percent or None,  # type: ignore[attr-defined]
-        s.battery_level_percent or None,  # type: ignore[attr-defined]
-        s.signal_level_dbm or None,  # type: ignore[attr-defined]
+        ambient_temperature_c if ambient_temperature_c is not None else None,
+        humidity_percent if humidity_percent is not None else None,
+        battery_level_percent if battery_level_percent is not None else None,
+        signal_level_dbm if signal_level_dbm is not None else None,
     )
 
 

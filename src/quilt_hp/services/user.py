@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from collections.abc import Callable
 from dataclasses import dataclass
 from enum import IntEnum
@@ -12,6 +13,8 @@ import grpc.aio
 from quilt_hp._proto import quilt_services_pb2 as svc
 from quilt_hp._proto import quilt_services_pb2_grpc as svc_grpc
 from quilt_hp.exceptions import QuiltError
+
+logger = logging.getLogger(__name__)
 
 
 class DeclaredUserType(IntEnum):
@@ -75,6 +78,7 @@ class UserService:
 
     async def get_current_user(self) -> User:
         """Get the currently authenticated user."""
+        logger.debug("Getting current user")
         try:
             response = cast(
                 "Any",
@@ -92,6 +96,7 @@ class UserService:
         phone_number: str | None = None,
     ) -> User:
         """Update first/last name and optional phone number for current user."""
+        logger.debug("Updating current user")
         try:
             response = cast(
                 "Any",
@@ -109,6 +114,7 @@ class UserService:
 
     async def get_user_attributes(self) -> UserAttributes:
         """Get current user's additional attributes."""
+        logger.debug("Getting user attributes")
         try:
             response = cast(
                 "Any",
@@ -124,6 +130,7 @@ class UserService:
         declared_user_type: DeclaredUserType,
     ) -> UserAttributes:
         """Patch user attributes for the current user."""
+        logger.debug("Patching user attributes")
         try:
             response = cast(
                 "Any",

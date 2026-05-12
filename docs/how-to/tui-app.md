@@ -64,12 +64,10 @@ class IDUUpdate(Message):
         self.idu = idu
 
 
-class StreamConnected(Message):
-    pass
-
-
-class StreamDisconnected(Message):
-    pass
+class StreamError(Message):
+    def __init__(self, error: Exception) -> None:
+        super().__init__()
+        self.error = error
 
 
 class QuiltApp(App):
@@ -99,6 +97,7 @@ class QuiltApp(App):
 
         self._snapshot = await self._client.get_snapshot()
         self._refresh_table()
+        self.query_one("#status-bar", Label).update("● Streaming")
 
         self.run_worker(self._run_stream(), exclusive=True)
 
@@ -110,30 +109,26 @@ class QuiltApp(App):
         stream = self._client.stream(topics, max_reconnects=-1)
         stream.on_space_update(self._on_space)
         stream.on_indoor_unit_update(self._on_idu)
-        stream.on_connected(lambda: self.post_message(StreamConnected()))
-        stream.on_disconnected(lambda: self.post_message(StreamDisconnected()))
+        stream.on_error(lambda exc: self.post_message(StreamError(exc)))
 
         async with stream:
             await asyncio.Event().wait()
 
     def _on_space(self, space: Space) -> None:
         if self._snapshot is not None:
-            self._snapshot.spaces[space.id] = space
+            space = self._snapshot.apply_space(space)
         self.post_message(SpaceUpdate(space))
 
     def _on_idu(self, idu: IndoorUnit) -> None:
         if self._snapshot is not None:
-            self._snapshot.indoor_units[idu.id] = idu
+            idu = self._snapshot.apply_indoor_unit(idu)
         self.post_message(IDUUpdate(idu))
 
     def on_space_update(self, msg: SpaceUpdate) -> None:
         self._update_row(msg.space)
 
-    def on_stream_connected(self, msg: StreamConnected) -> None:
-        self.query_one("#status-bar", Label).update("● Connected")
-
-    def on_stream_disconnected(self, msg: StreamDisconnected) -> None:
-        self.query_one("#status-bar", Label).update("○ Disconnected — reconnecting…")
+    def on_stream_error(self, msg: StreamError) -> None:
+        self.query_one("#status-bar", Label).update(f"✕ Stream stopped: {msg.error}")
 
     def _refresh_table(self) -> None:
         if self._snapshot is None:
@@ -144,15 +139,15 @@ class QuiltApp(App):
     def _update_row(self, space: Space) -> None:
         table = self.query_one("#spaces-table", DataTable)
         temp = (
-            f"{space.state.current_temp_c:.1f}°C"
-            if space.state.current_temp_c is not None
+            f"{space.state.ambient_temperature_c:.1f}°C"
+            if space.state.ambient_temperature_c is not None
             else "—"
         )
         setpoints = (
-            f"{space.controls.heat_setpoint_c:.0f} / "
-            f"{space.controls.cool_setpoint_c:.0f}°C"
+            f"{space.controls.heating_setpoint_c:.0f} / "
+            f"{space.controls.cooling_setpoint_c:.0f}°C"
         )
-        row = (space.name, space.controls.mode.value, temp, setpoints)
+        row = (space.name, space.controls.hvac_mode.value, temp, setpoints)
 
         key = f"space-{space.id}"
         if key in table.rows:
@@ -203,8 +198,10 @@ async def action_set_mode(self) -> None:
     row_key = table.cursor_row_key
     if row_key is None:
         return
+    if self._snapshot is None:
+        return
     space_id = row_key.removeprefix("space-")
-    space = self._snapshot.spaces.get(space_id)
+    space = next((s for s in self._snapshot.spaces if s.id == space_id), None)
     if space is None:
         return
 
