@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import inspect
 from unittest.mock import MagicMock
 
 import grpc
@@ -41,6 +42,38 @@ async def test_invoke_refresh_callback_handles_signature_fallback(
         ),
     )
     assert called == ["legacy"]
+
+
+@pytest.mark.asyncio
+async def test_invoke_refresh_callback_caches_signature(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    transport._REFRESH_CALLBACK_HAS_PARAMS.clear()
+    called: list[transport.TokenRefreshContext] = []
+
+    async def _with_context(context: transport.TokenRefreshContext) -> None:
+        called.append(context)
+
+    signature = inspect.Signature(
+        parameters=[
+            inspect.Parameter(
+                "context",
+                inspect.Parameter.POSITIONAL_OR_KEYWORD,
+            )
+        ]
+    )
+    inspect_signature = MagicMock(return_value=signature)
+    monkeypatch.setattr(transport.inspect, "signature", inspect_signature)
+
+    context = transport.TokenRefreshContext(
+        reason=transport.TokenRefreshReason.TRANSPORT_UNAUTHENTICATED,
+        source="test",
+    )
+    await transport._invoke_refresh_callback(_with_context, context)
+    await transport._invoke_refresh_callback(_with_context, context)
+
+    assert called == [context, context]
+    assert inspect_signature.call_count == 1
 
 
 @pytest.mark.asyncio

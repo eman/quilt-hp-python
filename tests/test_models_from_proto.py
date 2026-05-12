@@ -27,22 +27,15 @@ from quilt_hp.models.enums import (
     SafetyHeatingMode,
 )
 from quilt_hp.models.indoor_unit import IndoorUnit
-from quilt_hp.models.qsm import QuiltSmartModule
+from quilt_hp.models.outdoor_unit import OutdoorUnit
+from quilt_hp.models.qsm import QuiltSmartModule, WifiInfo
 from quilt_hp.models.schedule import ScheduleDay, ScheduleEvent, ScheduleWeek
 from quilt_hp.models.sensor import RemoteSensor
 from quilt_hp.models.space import Space, SpaceControls, SpaceSettings
 from quilt_hp.models.system import Location, SystemSnapshot
+from tests.conftest import _make_header, _ns
 
 # ─── helpers ────────────────────────────────────────────────────────────────
-
-
-def _ns(**kwargs: object) -> SimpleNamespace:
-    """Build a SimpleNamespace recursively from keyword args."""
-    return SimpleNamespace(**kwargs)
-
-
-def _make_header(object_id: str = "obj-1", system_id: str = "sys-1") -> SimpleNamespace:
-    return _ns(object_id=object_id, system_id=system_id)
 
 
 # ─── Space ──────────────────────────────────────────────────────────────────
@@ -262,6 +255,18 @@ def test_display_setpoint_standby() -> None:
         comfort_setting_override=0,
     )
     assert c.display_setpoint == "--"
+
+
+def test_display_setpoint_zero_value_is_preserved() -> None:
+    c = SpaceControls(
+        hvac_mode=HVACMode.HEAT,
+        temperature_setpoint_c=0.0,
+        cooling_setpoint_c=26.0,
+        heating_setpoint_c=0.0,
+        comfort_setting_id="",
+        comfort_setting_override=0,
+    )
+    assert c.display_setpoint == "0.0°C"
 
 
 def test_space_controls_comfort_setting_id_sentinel() -> None:
@@ -714,10 +719,53 @@ def test_controller_no_wifi() -> None:
     ctrl = Controller.from_proto(proto)
     assert ctrl.wifi_ssid is None
     assert ctrl.wifi_ip is None
-    assert ctrl.wifi_signal_dbm is None
+    assert ctrl.wifi_signal_dbm == 0
     assert ctrl.wifi_band is None
     assert ctrl.wifi_last_seen is None
     assert ctrl.is_online  # seconds=0 → no timestamp → unknown → assume online (fail-open)
+
+
+def test_controller_wifi_signal_zero_is_preserved() -> None:
+    proto = _ns(
+        header=_make_header("ctrl-3"),
+        relationships=_ns(
+            space_id="space-1",
+            software_update_info_id="",
+            firmware_update_info_id="",
+        ),
+        settings=_ns(name="Dial"),
+        state=_ns(
+            updated_ts=_ns(seconds=0),
+            ambient_temperature_c=20.0,
+            temperature_f3=33.0,
+            temperature_f4=47.0,
+            temperature_f5=20.0,
+        ),
+        hosted_wifi_state=_ns(
+            ssid="MyNet",
+            ipv4_address="192.168.1.42",
+            signal_level_dbm=0,
+            frequency_mhz=2412,
+            updated_ts=_ns(seconds=0),
+        ),
+        ap_wifi_state=_ns(
+            ssid="",
+            ipv4_address="",
+            signal_level_dbm=0,
+            frequency_mhz=0,
+            updated_ts=_ns(seconds=0),
+        ),
+        p2p_wifi_state=_ns(
+            ssid="",
+            ipv4_address="",
+            signal_level_dbm=0,
+            frequency_mhz=0,
+            updated_ts=_ns(seconds=0),
+        ),
+        controls=_ns(remote_sensor_control_mode=0),
+    )
+    ctrl = Controller.from_proto(proto)
+    assert ctrl.wifi_signal_dbm == 0
 
 
 # ─── QuiltSmartModule ────────────────────────────────────────────────────────
@@ -785,6 +833,14 @@ def test_qsm_from_proto_no_sensors() -> None:
     assert qsm.hosted_wifi is None
 
 
+def test_wifi_info_zero_signal_is_preserved() -> None:
+    info = WifiInfo.from_proto(
+        _ns(ssid="HomeNet", ipv4_address="192.168.1.50", signal_level_dbm=0)
+    )
+    assert info.signal_dbm == 0
+    assert info.connected is True
+
+
 # ─── RemoteSensor ────────────────────────────────────────────────────────────
 
 
@@ -810,7 +866,7 @@ def test_remote_sensor_from_proto() -> None:
     assert rs.control_mode == RemoteSensorControlMode.ENABLED
 
 
-def test_remote_sensor_missing_fields() -> None:
+def test_remote_sensor_zero_values_are_preserved() -> None:
     proto = _ns(
         header=_make_header("rs-2"),
         relationships=_ns(indoor_unit_id="idu-1"),
@@ -825,9 +881,10 @@ def test_remote_sensor_missing_fields() -> None:
     )
     rs = RemoteSensor.from_proto(proto)
     assert rs.mac is None
-    assert rs.ambient_temperature_c is None
-    assert rs.battery_level_percent is None
-    assert rs.signal_level_dbm is None
+    assert rs.ambient_temperature_c == 0.0
+    assert rs.humidity_percent == 0.0
+    assert rs.battery_level_percent == 0.0
+    assert rs.signal_level_dbm == 0
 
 
 # ─── ScheduleDay / ScheduleWeek ─────────────────────────────────────────────
@@ -858,6 +915,7 @@ def test_schedule_day_from_proto_sorted() -> None:
     day = ScheduleDay.from_proto(proto)
     assert day.id == "day-1"
     assert day.name == "Weekday"
+    assert all(isinstance(ev.hvac_mode, HVACMode) for ev in day.events)
     times = [ev.start_time for ev in day.events]
     assert times == ["07:00", "09:00", "18:00"]
 
@@ -913,6 +971,12 @@ def test_energy_bucket_nan_sentinel_handling() -> None:
     assert bucket_nan.energy_kwh_or_none is None
     assert metrics.missing_bucket_count == 1
     assert metrics.total_kwh == 1.25
+
+
+def test_energy_bucket_none_does_not_raise() -> None:
+    bucket = EnergyBucket(start_time=datetime.now(UTC), energy_kwh=None, status=0)  # type: ignore[arg-type]
+    assert bucket.has_missing_energy_value is False
+    assert bucket.energy_kwh_or_none is None
 
 
 # ─── Location ────────────────────────────────────────────────────────────────
@@ -1416,11 +1480,25 @@ def _make_odu_proto(odu_id: str, space_id: str = "space-1") -> SimpleNamespace:
         relationships=_ns(space_id=space_id, hardware_id="", firmware_update_info_id=""),
         state=_ns(hvac_state=0),
         performance_data=_ns(
+            measurement_interval_s=0.0,
             ambient_temperature_c=0.0,
             compressor_frequency_hz=0.0,
             energy_measurement_j=0.0,
+            coil_temperature_c=0.0,
+            exhaust_temperature_c=0.0,
+            high_pressure_kpa=0.0,
+            low_pressure_kpa=0.0,
         ),
     )
+
+
+def test_outdoor_unit_zero_performance_values_are_preserved() -> None:
+    proto = _make_odu_proto("odu-1")
+    odu = OutdoorUnit.from_proto(proto)
+    assert odu.performance_data is not None
+    assert odu.performance_data.ambient_temperature_c == 0.0
+    assert odu.performance_data.compressor_frequency_hz == 0.0
+    assert odu.performance_data.energy_measurement_j == 0.0
 
 
 def _make_snap_with_multiple_odus() -> SystemSnapshot:

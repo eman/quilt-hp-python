@@ -7,6 +7,7 @@ from quilt_hp.exceptions import (
     QuiltConnectionError,
     QuiltError,
     QuiltNotFoundError,
+    QuiltStreamError,
 )
 
 __version__ = "0.2.2"
@@ -18,5 +19,6 @@ __all__ = [
     "QuiltConnectionError",
     "QuiltError",
     "QuiltNotFoundError",
+    "QuiltStreamError",
     "__version__",
 ]

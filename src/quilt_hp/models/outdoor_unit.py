@@ -4,26 +4,19 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+from quilt_hp.models._helpers import lookup_hardware
 
-def _lookup_hw(hw_map: dict[str, object], hardware_id: str | None) -> object | None:
-    if not hardware_id:
-        return None
-    raw = hardware_id.strip()
-    if not raw:
-        return None
-    keys = (
-        raw,
-        raw.rsplit("/", 1)[-1],
-        raw.rsplit(":", 1)[-1],
-        raw.casefold(),
-        raw.rsplit("/", 1)[-1].casefold(),
-        raw.rsplit(":", 1)[-1].casefold(),
-    )
-    for key in keys:
-        hw = hw_map.get(key)
-        if hw is not None:
-            return hw
-    return None
+
+def _has_performance_data(proto: object) -> bool:
+    if not hasattr(proto, "performance_data"):
+        return False
+    has_field = getattr(proto, "HasField", None)
+    if callable(has_field):
+        try:
+            return bool(has_field("performance_data"))
+        except ValueError:
+            pass
+    return True
 
 
 @dataclass(slots=True)
@@ -58,24 +51,21 @@ class OutdoorUnit:
     def from_proto(cls, proto: object, hw_map: dict[str, object] | None = None) -> OutdoorUnit:
         """Construct from a protobuf OutdoorUnit message."""
         hw_id = proto.relationships.hardware_id  # type: ignore[attr-defined]
-        hw = _lookup_hw(hw_map, hw_id) if hw_map else None
+        hw = lookup_hardware(hw_map, hw_id) if hw_map else None
 
         pd = None
-        if hasattr(proto, "performance_data"):
-            p = proto.performance_data
-            # Server does not reliably set updated_ts on
-            # OutdoorUnitPerformanceData. Gate on any non-zero value instead.
-            if p.ambient_temperature_c or p.compressor_frequency_hz or p.energy_measurement_j:
-                pd = OutdoorUnitPerformanceData(
-                    measurement_interval_s=p.measurement_interval_s,
-                    energy_measurement_j=p.energy_measurement_j,
-                    compressor_frequency_hz=p.compressor_frequency_hz,
-                    ambient_temperature_c=p.ambient_temperature_c,
-                    coil_temperature_c=p.coil_temperature_c,
-                    exhaust_temperature_c=p.exhaust_temperature_c,
-                    high_pressure_kpa=p.high_pressure_kpa,
-                    low_pressure_kpa=p.low_pressure_kpa,
-                )
+        if _has_performance_data(proto):
+            p = proto.performance_data  # type: ignore[attr-defined]
+            pd = OutdoorUnitPerformanceData(
+                measurement_interval_s=p.measurement_interval_s,
+                energy_measurement_j=p.energy_measurement_j,
+                compressor_frequency_hz=p.compressor_frequency_hz,
+                ambient_temperature_c=p.ambient_temperature_c,
+                coil_temperature_c=p.coil_temperature_c,
+                exhaust_temperature_c=p.exhaust_temperature_c,
+                high_pressure_kpa=p.high_pressure_kpa,
+                low_pressure_kpa=p.low_pressure_kpa,
+            )
 
         return cls(
             id=proto.header.object_id,  # type: ignore[attr-defined]

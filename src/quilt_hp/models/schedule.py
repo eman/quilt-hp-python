@@ -5,6 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from quilt_hp.const import EMPTY_COMFORT_SETTING_ID_SENTINEL, UNKNOWN_SCHEDULE_SORT_ORDER_SENTINEL
+from quilt_hp.models.enums import HVACMode
 
 _WEEKDAY_NAMES = {
     0: "?",
@@ -24,7 +25,7 @@ class ScheduleEvent:
 
     start_s: int  # seconds from midnight
     comfort_setting_id: str
-    hvac_mode: int
+    hvac_mode: HVACMode
     heating_setpoint_c: float
     cooling_setpoint_c: float
     precondition: bool
@@ -61,7 +62,7 @@ class ScheduleDay:
             ScheduleEvent(
                 start_s=ev.start_s,
                 comfort_setting_id=ev.comfort_setting_id,
-                hvac_mode=ev.hvac_mode,
+                hvac_mode=HVACMode(ev.hvac_mode),
                 heating_setpoint_c=ev.heating_temperature_setpoint_c,
                 cooling_setpoint_c=ev.cooling_temperature_setpoint_c,
                 precondition=ev.precondition,

@@ -79,14 +79,18 @@ class SpaceControls:
         mode = self.hvac_mode
         if mode in (HVACMode.STANDBY, HVACMode.UNSPECIFIED, HVACMode.FAN):
             return "--"
-        if mode == HVACMode.COOL and self.cooling_setpoint_c:
+        if mode == HVACMode.COOL:
             return fmt(self.cooling_setpoint_c)
-        if mode == HVACMode.HEAT and self.heating_setpoint_c:
+        if mode == HVACMode.HEAT:
             return fmt(self.heating_setpoint_c)
-        if mode == HVACMode.AUTO and self.cooling_setpoint_c and self.heating_setpoint_c:
+        if mode == HVACMode.AUTO:
             return f"{fmt(self.heating_setpoint_c)}–{fmt(self.cooling_setpoint_c)}"
-        best = self.temperature_setpoint_c or self.cooling_setpoint_c or self.heating_setpoint_c
-        return fmt(best) if best else "--"
+        best = self.temperature_setpoint_c
+        if best is None:
+            best = self.cooling_setpoint_c
+        if best is None:
+            best = self.heating_setpoint_c
+        return fmt(best) if best is not None else "--"
 
     @property
     def has_standby_sentinel_setpoints(self) -> bool:

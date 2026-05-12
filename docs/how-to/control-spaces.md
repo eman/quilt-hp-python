@@ -88,7 +88,7 @@ To set the fan speed on an indoor unit:
 from quilt_hp.models.enums import FanSpeed
 
 snapshot = await client.get_snapshot()
-idu = snapshot.indoor_units[next(iter(snapshot.indoor_units))]  # first IDU
+idu = snapshot.indoor_units[0]  # first IDU
 
 updated = await client.set_indoor_unit(idu, fan_speed=FanSpeed.MEDIUM)
 print(f"Fan speed: {updated.controls.fan_speed}")
