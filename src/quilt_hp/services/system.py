@@ -28,6 +28,13 @@ if TYPE_CHECKING:
     from datetime import datetime as _datetime
 
 
+def _safe_bucket_status(value: int) -> MetricBucketStatus:
+    try:
+        return MetricBucketStatus(value)
+    except ValueError:
+        return MetricBucketStatus.UNSPECIFIED
+
+
 class _SystemInformationServiceStub(Protocol):
     async def ListSystems(
         self, request: svc.ListSystemInformationRequest
@@ -91,7 +98,7 @@ class SystemInformationService:
                 EnergyBucket(
                     start_time=b.start_time.ToDatetime(tzinfo=datetime.UTC),
                     energy_kwh=b.energy_kwh,
-                    status=MetricBucketStatus(b.status),
+                    status=_safe_bucket_status(b.status),
                 )
                 for b in sm.energy_buckets
             ]

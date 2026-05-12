@@ -67,10 +67,15 @@ service = UserService(channel)
 ```python
 from quilt_hp.services.streaming import NotifierStream
 
+# metadata_provider returns gRPC call metadata (e.g. auth headers).
+# Obtain a token from your QuiltClient or token store.
+def get_metadata() -> list[tuple[str, str]]:
+    return [("authorization", f"Bearer {token}")]
+
 stream = NotifierStream.create(
     channel,
     topics,
-    metadata_provider=metadata_provider,
+    metadata_provider=get_metadata,
     authenticate=client.refresh_token,
     max_reconnects=-1,
     reconnect_delay_s=1.0,
