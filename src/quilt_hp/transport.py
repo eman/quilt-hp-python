@@ -38,7 +38,10 @@ def _resolve_token_provider(token_provider: TokenProviderLike) -> Callable[[], s
 async def _invoke_refresh_callback(
     refresh_callback: RefreshCallback, context: TokenRefreshContext
 ) -> None:
-    has_params = _REFRESH_CALLBACK_HAS_PARAMS.get(refresh_callback)
+    try:
+        has_params = _REFRESH_CALLBACK_HAS_PARAMS.get(refresh_callback)
+    except TypeError:
+        has_params = None  # non-weakrefable callable — skip cache
     if has_params is None:
         try:
             has_params = bool(inspect.signature(refresh_callback).parameters)
@@ -47,7 +50,7 @@ async def _invoke_refresh_callback(
         try:
             _REFRESH_CALLBACK_HAS_PARAMS[refresh_callback] = has_params
         except TypeError:
-            pass  # unhashable callable — skip caching
+            pass  # non-weakrefable callable — skip caching
     if has_params:
         await cast("Callable[[TokenRefreshContext], Awaitable[None]]", refresh_callback)(context)
         return
