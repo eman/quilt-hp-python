@@ -25,7 +25,7 @@ events = [
     ScheduleEvent(
         start_s=7 * 3600,
         comfort_setting_id=active_cs.id,
-        hvac_mode=active_cs.hvac_mode.value,
+        hvac_mode=active_cs.hvac_mode,
         heating_setpoint_c=active_cs.heating_setpoint_c,
         cooling_setpoint_c=active_cs.cooling_setpoint_c,
         precondition=False,
@@ -33,7 +33,7 @@ events = [
     ScheduleEvent(
         start_s=22 * 3600,
         comfort_setting_id=sleep_cs.id,
-        hvac_mode=sleep_cs.hvac_mode.value,
+        hvac_mode=sleep_cs.hvac_mode,
         heating_setpoint_c=sleep_cs.heating_setpoint_c,
         cooling_setpoint_c=sleep_cs.cooling_setpoint_c,
         precondition=False,

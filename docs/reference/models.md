@@ -391,7 +391,7 @@ class ScheduleDay:
 class ScheduleEvent:
     start_s: int                # seconds from midnight
     comfort_setting_id: str
-    hvac_mode: int
+    hvac_mode: HVACMode
     heating_setpoint_c: float
     cooling_setpoint_c: float
     precondition: bool
@@ -476,10 +476,10 @@ Temperature, humidity, battery, and signal data exposed by a controller when its
 class EnergyBucket:
     start_time: datetime
     energy_kwh: float
-    status: int
+    status: MetricBucketStatus
 ```
 
-One hourly energy measurement bucket. Use `has_missing_energy_value` or `energy_kwh_or_none` to handle NaN sentinel values safely.
+One hourly energy measurement bucket. Use `has_missing_energy_value` or `energy_kwh_or_none` to handle NaN sentinel values safely (a `None` or non-float `energy_kwh` is also treated as missing).
 
 ---
 

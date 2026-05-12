@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import inspect
 import logging
+import weakref
 from collections.abc import Awaitable, Callable
 from typing import cast
 
@@ -25,7 +26,7 @@ type RefreshCallback = (
 type TokenProviderLike = Callable[[], str] | CurrentTokenProvider
 
 logger = logging.getLogger(__name__)
-_REFRESH_CALLBACK_HAS_PARAMS: dict[int, bool] = {}
+_REFRESH_CALLBACK_HAS_PARAMS: weakref.WeakKeyDictionary[object, bool] = weakref.WeakKeyDictionary()
 
 
 def _resolve_token_provider(token_provider: TokenProviderLike) -> Callable[[], str]:
@@ -37,14 +38,16 @@ def _resolve_token_provider(token_provider: TokenProviderLike) -> Callable[[], s
 async def _invoke_refresh_callback(
     refresh_callback: RefreshCallback, context: TokenRefreshContext
 ) -> None:
-    callback_id = id(refresh_callback)
-    has_params = _REFRESH_CALLBACK_HAS_PARAMS.get(callback_id)
+    has_params = _REFRESH_CALLBACK_HAS_PARAMS.get(refresh_callback)
     if has_params is None:
         try:
             has_params = bool(inspect.signature(refresh_callback).parameters)
         except TypeError, ValueError:
             has_params = False
-        _REFRESH_CALLBACK_HAS_PARAMS[callback_id] = has_params
+        try:
+            _REFRESH_CALLBACK_HAS_PARAMS[refresh_callback] = has_params
+        except TypeError:
+            pass  # unhashable callable — skip caching
     if has_params:
         await cast("Callable[[TokenRefreshContext], Awaitable[None]]", refresh_callback)(context)
         return

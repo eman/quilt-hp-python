@@ -55,6 +55,8 @@ class _GrpcCallContext:
             except Exception as exc:
                 wrapped = self._translate_exception(exc)
                 if not self._should_retry(exc, attempt):
+                    if wrapped is exc:
+                        raise
                     raise wrapped from exc
                 attempt += 1
                 logger.warning(

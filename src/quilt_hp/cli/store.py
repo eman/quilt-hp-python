@@ -40,13 +40,18 @@ class FileStore:
         path.parent.mkdir(parents=True, exist_ok=True)
         tmp = path.with_name(f"{path.name}.{os.getpid()}.{uuid4().hex}.tmp")
         try:
-            tmp.write_text(json.dumps(payload, indent=2))
-            os.chmod(tmp, 0o600)
+            # Open with O_CREAT|O_WRONLY|O_TRUNC and mode 0o600 so the file
+            # is never world-readable, even transiently before chmod.
+            fd = os.open(tmp, os.O_CREAT | os.O_WRONLY | os.O_TRUNC, 0o600)
+            with os.fdopen(fd, "w") as f:
+                f.write(json.dumps(payload, indent=2))
             os.replace(tmp, path)
             os.chmod(path, 0o600)
         except OSError:
-            if tmp.exists():
+            try:
                 tmp.unlink(missing_ok=True)
+            except OSError:
+                pass
             raise
 
     async def load(self, email: str) -> CachedTokens | None:
