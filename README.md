@@ -1,6 +1,6 @@
-# quilt-hp-python
+# Quilt Python Client
 
-Async Python client library for [Quilt](https://www.quilt.com/) mini-split HVAC systems.
+Python client library for [Quilt](https://www.quilt.com/) mini-split HVAC systems.
 
 Communicates with the Quilt cloud API via gRPC to control spaces (rooms), indoor units,
 comfort presets, schedules, and stream real-time updates.
