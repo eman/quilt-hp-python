@@ -1,11 +1,33 @@
 # Changelog
 
-All notable changes to this project will be documented in this file.
-
-The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
-and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
-
 ## [Unreleased]
+
+### Added
+- `NotifierStream` health properties: `is_connected`, `last_event_at`, `stream_state`
+- `NotifierStream` `debounce_s` parameter to coalesce rapid update bursts
+- `MetricBucketStatus` enum exposed on `EnergyBucket.status` (was untyped `int`)
+- `grpc_call()` context manager in `services` for consistent gRPC error translation and optional retry
+- Structured `logging.getLogger(__name__)` across all modules (auth, client, transport, services, CLI)
+- `QuiltStreamError` re-exported from the top-level `quilt_hp` package
+- Shared model helpers (`_helpers.py`) for WiFi signal parsing and hardware lookup
+
+### Changed
+- `ScheduleEvent.hvac_mode` is now typed as `HVACMode` (was `int`)
+- Token temp file created with `os.open(..., 0o600)` so permissions are secure from creation (no transient world-readable window)
+- Signature cache in transport layer uses `weakref.WeakKeyDictionary` instead of `dict[int, bool]` — prevents unbounded growth and id-reuse bugs after GC
+- `login()` clears the token cache so a re-login always fetches fresh credentials
+- `_GrpcCallContext` avoids self-chaining when re-raising a `QuiltError` unchanged
+
+### Fixed
+- `EnergyBucket.has_missing_energy_value` now treats `None` (absent proto field) as missing, not just `NaN`; prevents `TypeError` in `SpaceEnergyMetrics.total_kwh`
+- `MetricBucketStatus()` conversion in `get_energy_metrics` catches `ValueError` for unknown server values and falls back to `UNSPECIFIED` instead of raising
+- `WeakKeyDictionary.get()` for the refresh-callback signature cache is now guarded against `TypeError` for non-weakrefable callables
+- AUTO mode setpoint deadband clamp now runs before setpoint selection, ensuring the correct (clamped) value is sent to the device
+- CLI settings `bool` coercion uses `isinstance(v, bool)` to avoid `bool("false") == True`
+- Zero-value proto3 fields (0 °C temperature, 0 dBm WiFi signal, 0% humidity) are now preserved instead of being dropped as falsy
+- `NotifierStream` reconnect subscription is now protected by an `asyncio.Lock` to prevent concurrent subscribe/reconnect races
+- CLI enum lookups raise a clear error showing valid options on invalid input
+- `auth.py` narrows broad `except Exception` to `except (QuiltAuthError, ClientError)` to avoid swallowing unexpected errors
 
 ## [0.2.2] - 2026-05-11
 
