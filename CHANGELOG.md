@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-05-12
+
 ### Added
 - `NotifierStream` health properties: `is_connected`, `last_event_at`, `stream_state`
 - `NotifierStream` `debounce_s` parameter to coalesce rapid update bursts
