@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [0.3.1] - 2026-05-14
+
 ### Fixed
 - `RST_STREAM with error code 0` (HTTP/2 `NO_ERROR`, a normal server-side graceful reset) is now logged at `DEBUG` instead of `WARNING` to reduce log noise
 - `CANCELLED` (server closed the stream normally, e.g. keepalive timeout or server rotation) is now logged at `INFO` instead of `WARNING`
