@@ -2,6 +2,11 @@
 
 ## [Unreleased]
 
+### Added
+- `LouverAngle.label` property and `__str__` with human-readable position names:
+  `ANGLE1` → `"Horizontal"`, `ANGLE2` → `"Slightly Down"`, `ANGLE3` → `"Down"`,
+  `ANGLE4` → `"Mostly Down"`, `ANGLE5` → `"Straight Down"`
+
 ## [0.3.1] - 2026-05-14
 
 ### Fixed
