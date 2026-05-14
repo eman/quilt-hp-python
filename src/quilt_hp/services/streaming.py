@@ -630,10 +630,16 @@ class NotifierStream:
                         break
                 elif can_retry:
                     self._stream_state = "reconnecting"
-                    logger.warning(
+                    details = exc.details() or ""
+                    # RST_STREAM/error-code-0 is HTTP/2 NO_ERROR — a normal
+                    # server-side graceful reset (e.g. load-balancer recycling
+                    # the connection).  Log at DEBUG to avoid log noise.
+                    is_graceful_reset = "RST_STREAM with error code 0" in details
+                    log = logger.debug if is_graceful_reset else logger.warning
+                    log(
                         "Stream error %s: %s; reconnecting in %.1fs (attempt %d)",
                         exc.code(),
-                        exc.details(),
+                        details,
                         delay,
                         attempt + 1,
                     )
