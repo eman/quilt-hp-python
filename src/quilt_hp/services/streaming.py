@@ -612,7 +612,9 @@ class NotifierStream:
 
                 if is_unauth and self._authenticate is not None and can_retry:
                     self._stream_state = "reconnecting"
-                    logger.warning(
+                    # Token expiry is handled automatically — INFO to confirm it
+                    # happened without alarming the user.
+                    logger.info(
                         "Stream got UNAUTHENTICATED; refreshing token (attempt %d)",
                         attempt + 1,
                     )
@@ -631,11 +633,20 @@ class NotifierStream:
                 elif can_retry:
                     self._stream_state = "reconnecting"
                     details = exc.details() or ""
-                    # RST_STREAM/error-code-0 is HTTP/2 NO_ERROR — a normal
-                    # server-side graceful reset (e.g. load-balancer recycling
-                    # the connection).  Log at DEBUG to avoid log noise.
+                    # Classify the error to pick the right log level:
+                    #   DEBUG  — HTTP/2 NO_ERROR RST_STREAM: server gracefully
+                    #            recycled the connection (load balancer, keepalive).
+                    #   INFO   — CANCELLED: server closed the stream normally
+                    #            (keepalive timeout, server rotation, etc.).
+                    #   WARNING — anything else is unexpected.
                     is_graceful_reset = "RST_STREAM with error code 0" in details
-                    log = logger.debug if is_graceful_reset else logger.warning
+                    is_server_cancel = exc.code() == grpc.StatusCode.CANCELLED
+                    if is_graceful_reset:
+                        log = logger.debug
+                    elif is_server_cancel:
+                        log = logger.info
+                    else:
+                        log = logger.warning
                     log(
                         "Stream error %s: %s; reconnecting in %.1fs (attempt %d)",
                         exc.code(),
