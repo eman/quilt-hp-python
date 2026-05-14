@@ -94,14 +94,34 @@ class LouverMode(IntEnum):
         return self.name
 
 
+_LOUVER_ANGLE_LABELS: dict[int, str] = {
+    1: "Horizontal",
+    2: "Slightly Down",
+    3: "Down",
+    4: "Mostly Down",
+    5: "Straight Down",
+}
+
+
 class LouverAngle(IntEnum):
-    """Discrete louver angle positions (when mode=FIXED)."""
+    """Discrete louver angle positions (when mode=FIXED).
+
+    Positions run from most horizontal (ANGLE1) to most downward (ANGLE5).
+    """
 
     ANGLE1 = 1
     ANGLE2 = 2
     ANGLE3 = 3
     ANGLE4 = 4
     ANGLE5 = 5
+
+    @property
+    def label(self) -> str:
+        """Human-readable position name."""
+        return _LOUVER_ANGLE_LABELS[self.value]
+
+    def __str__(self) -> str:
+        return self.label
 
     def to_wire(self) -> float:
         """Return the louver_fixed_position float for the wire."""
