@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "quilt-hp-python"
-version = "0.3.1"
+version = "0.3.2"
 description = "Async Python client for Quilt mini-split HVAC systems"
 readme = "README.md"
 license = { file = "LICENSE" }
