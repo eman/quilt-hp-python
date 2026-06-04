@@ -16,6 +16,7 @@ class HVACMode(IntEnum):
     FAN = 5
     FALLBACK_AUTO = 6
     FALLBACK_OFF = 7
+    DRY = 8
 
     def __str__(self) -> str:
         return self.name

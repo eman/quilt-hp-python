@@ -26,6 +26,7 @@ enum HVACMode {
   HVAC_MODE_FAN = 5;
   HVAC_MODE_FALLBACK_AUTO = 6;
   HVAC_MODE_FALLBACK_OFF = 7;
+  HVAC_MODE_DRY = 8;
 }
 
 // Confirmed by Android proto Java enum SJ (implements ProtocolMessageEnum).

@@ -37,6 +37,7 @@ class _HVACModeEnumTypeWrapper(_enum_type_wrapper._EnumTypeWrapper[_HVACMode.Val
     HVAC_MODE_FAN: _HVACMode.ValueType  # 5
     HVAC_MODE_FALLBACK_AUTO: _HVACMode.ValueType  # 6
     HVAC_MODE_FALLBACK_OFF: _HVACMode.ValueType  # 7
+    HVAC_MODE_DRY: _HVACMode.ValueType  # 8
 
 class HVACMode(_HVACMode, metaclass=_HVACModeEnumTypeWrapper):
     """---------------------------------------------------------------------------
@@ -54,6 +55,7 @@ HVAC_MODE_AUTO: HVACMode.ValueType  # 4
 HVAC_MODE_FAN: HVACMode.ValueType  # 5
 HVAC_MODE_FALLBACK_AUTO: HVACMode.ValueType  # 6
 HVAC_MODE_FALLBACK_OFF: HVACMode.ValueType  # 7
+HVAC_MODE_DRY: HVACMode.ValueType  # 8
 Global___HVACMode: _TypeAlias = HVACMode  # noqa: Y015
 
 class _HVACState:
