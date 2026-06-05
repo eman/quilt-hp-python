@@ -9,9 +9,10 @@ Each indoor unit contains one QSM that handles:
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 from quilt_hp.models._helpers import parse_wifi_state
+from quilt_hp.models.enums import LocalCommsHealthStatus
 
 
 @dataclass(slots=True)
@@ -64,6 +65,15 @@ class QuiltSmartModule:
     p2p_wifi: WifiInfo | None  # peer-to-peer / Wi-Fi Direct (usually empty)
     software_update_info_id: str | None = None
     firmware_update_info_id: str | None = None
+    local_comms_health: LocalCommsHealthStatus = field(
+        default=LocalCommsHealthStatus.UNSPECIFIED
+    )
+    """Local mesh health (proto field 8). Available on app 1.0.26+.
+
+    Gate: ``mobile_local_control_health_enabled``.  UNSPECIFIED means the
+    server has not yet reported a health value (pre-1.0.26 firmware or the
+    gate is off).
+    """
 
     @classmethod
     def from_proto(cls, proto: object) -> QuiltSmartModule:
@@ -101,5 +111,8 @@ class QuiltSmartModule:
             ),
             firmware_update_info_id=(
                 proto.relationships.firmware_update_info_id or None  # type: ignore[attr-defined]
+            ),
+            local_comms_health=LocalCommsHealthStatus(
+                getattr(getattr(proto, "local_comms_status", None), "health", 0)  # type: ignore[attr-defined]
             ),
         )

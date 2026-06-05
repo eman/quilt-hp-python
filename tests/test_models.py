@@ -6,6 +6,7 @@ from quilt_hp.models.enums import (
     FanSpeed,
     HVACMode,
     HVACState,
+    LocalCommsHealthStatus,
     LouverAngle,
     LouverMode,
 )
@@ -18,6 +19,9 @@ def test_hvac_mode_values() -> None:
     assert HVACMode.HEAT == 3
     assert HVACMode.AUTO == 4
     assert HVACMode.FAN == 5
+    assert HVACMode.FALLBACK_AUTO == 6
+    assert HVACMode.FALLBACK_OFF == 7
+    assert HVACMode.DRY == 8
 
 
 def test_hvac_state_values() -> None:
@@ -28,6 +32,18 @@ def test_hvac_state_values() -> None:
     assert HVACState.DRIFT == 4
     assert HVACState.COOL_DEFERRED == 6
     assert HVACState.HEAT_PREPARING == 10
+    assert HVACState.DRY == 11
+    assert HVACState.DRY_DEFERRED == 12
+    assert HVACState.DRY_PREPARING == 13
+
+
+def test_local_comms_health_status_values() -> None:
+    """LocalCommsHealthStatus wire values (proto field 8/9 on QSM/Controller)."""
+    assert LocalCommsHealthStatus.UNSPECIFIED == 0
+    assert LocalCommsHealthStatus.HEALTHY == 1
+    assert LocalCommsHealthStatus.DEGRADED == 2
+    assert LocalCommsHealthStatus.OFFLINE == 3
+    assert LocalCommsHealthStatus.STARTING_UP == 4
 
 
 def test_fan_speed_wire_roundtrip() -> None:

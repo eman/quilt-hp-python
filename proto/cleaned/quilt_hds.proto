@@ -1,5 +1,12 @@
 // quilt_hds.proto
+// Reconstructed from Quilt app v1.0.25 (com.quilt.app) Kotlin Multiplatform source.
 // Home Datastore (HDS) messages — objects managed by the gRPC API.
+// Field numbers and types verified against:
+//   - Live mitmproxy binary capture (decoded_log.txt)
+//   - quilt_office.proto.json (bundled in IPA — exact proto3 JSON field names)
+//   - KMP Kotlin source in extracted/Payload/Quilt.app/commonMain/kotlin/
+//   - Android APK decompiled proto enums (com.quilt.android v1.x, jadx)
+//     These are authoritative generated proto Java classes (InterfaceC6012sp0)
 
 syntax = "proto3";
 
@@ -16,7 +23,8 @@ option java_outer_classname = "QuiltHdsProto";
 // Enums
 // ---------------------------------------------------------------------------
 
-// COOL=2, HEAT=3
+// Confirmed by Android proto Java enum QJ (implements ProtocolMessageEnum).
+// COOL=2, HEAT=3 confirmed. No DRY mode in the proto (was iOS KMP-only artifact).
 enum HVACMode {
   HVAC_MODE_UNSPECIFIED = 0;
   HVAC_MODE_STANDBY = 1;
@@ -26,10 +34,11 @@ enum HVACMode {
   HVAC_MODE_FAN = 5;
   HVAC_MODE_FALLBACK_AUTO = 6;
   HVAC_MODE_FALLBACK_OFF = 7;
+  HVAC_MODE_DRY = 8;  // iOS KMP 1.0.26 / user-confirmed: DRY dehumidification mode
 }
 
 // Confirmed by Android proto Java enum SJ (implements ProtocolMessageEnum).
-// DRY states were iOS KMP-layer only and do not exist in the wire proto.
+// DRY states added in iOS KMP 1.0.26 alongside HVAC_MODE_DRY.
 enum HVACState {
   HVAC_STATE_UNSPECIFIED = 0;
   HVAC_STATE_STANDBY = 1;
@@ -42,6 +51,33 @@ enum HVACState {
   HVAC_STATE_FAN_DEFERRED = 8;
   HVAC_STATE_COOL_PREPARING = 9;
   HVAC_STATE_HEAT_PREPARING = 10;
+  HVAC_STATE_DRY = 11;           // iOS KMP 1.0.26: DRY actively dehumidifying
+  HVAC_STATE_DRY_DEFERRED = 12;  // iOS KMP 1.0.26: DRY waiting for mode-switch delay
+  HVAC_STATE_DRY_PREPARING = 13; // iOS KMP 1.0.26: DRY compressor pre-conditioning
+}
+
+// Local communications health for QSM and Controller mesh nodes.
+// Added in iOS KMP 1.0.26 alongside the local-control over-the-air update.
+// iOS KMP source: com.quilt.models.hds.LocalCommsHealthStatus
+enum LocalCommsHealthStatus {
+  LOCAL_COMMS_HEALTH_STATUS_UNSPECIFIED = 0;
+  LOCAL_COMMS_HEALTH_STATUS_HEALTHY = 1;
+  LOCAL_COMMS_HEALTH_STATUS_DEGRADED = 2;
+  LOCAL_COMMS_HEALTH_STATUS_OFFLINE = 3;
+  LOCAL_COMMS_HEALTH_STATUS_STARTING_UP = 4;
+}
+
+// Wire-confirmed in 2026-06-04 mitmproxy capture (iOS 1.0.26).
+// Carried as field 8 on QuiltSmartModule and field 9 on Controller.
+// KMP app layer extracts only the `health` subfield (subfield 2).
+// Subfields 3, 4, 6 are wire-confirmed but semantics TBD without the server proto source.
+message LocalCommsStatus {
+  google.protobuf.Timestamp updated_ts = 1;      // most-recent server update timestamp
+  LocalCommsHealthStatus health = 2;             // current health; KMP: localCommsHealth
+  int32 link_state = 3;                          // observed: HEALTHY=9, DEGRADED=8; enum TBD
+  int32 version = 4;                             // observed: always 9
+  google.protobuf.Timestamp health_changed_ts = 5; // when health last changed
+  int32 connection_state = 6;                    // observed: HEALTHY=1, DEGRADED=5; enum TBD
 }
 
 enum OccupancyMode {
@@ -632,6 +668,7 @@ message Controller {
   WifiState ap_wifi_state = 6;      // the upstream AP the controller connects to
   WifiState p2p_wifi_state = 7;     // peer-to-peer WiFi (usually empty)
   ControllerControls controls = 8;
+  LocalCommsStatus local_comms_status = 9;  // iOS KMP 1.0.26: local mesh status for this Dial
 }
 
 // ---------------------------------------------------------------------------
@@ -846,6 +883,7 @@ message QuiltSmartModule {
   WifiState ap_wifi_state = 5;                 // APK: AP_WIFI_STATE_FIELD_NUMBER=5
   WifiState p2p_wifi_state = 6;               // APK: P2P_WIFI_STATE_FIELD_NUMBER=6 (usually empty)
   QuiltSmartModuleRelationships relationships = 7;
+  LocalCommsStatus local_comms_status = 8;  // iOS KMP 1.0.26: local mesh status for this QSM
 }
 
 // ---------------------------------------------------------------------------

@@ -126,7 +126,9 @@ class HomeDatastoreService:
         if mode_enum == HVACMode.AUTO and cool - heat < 2.5:
             cool = heat + 2.5
 
-        # Mode-relevant setpoint routing (from KX.java)
+        # Mode-relevant setpoint routing (from KX.java).
+        # DRY mode has no user-configurable setpoint; the device ignores it.
+        # Fall through to cool setpoint (same as all non-HEAT modes).
         temp_setpoint = heat if mode_enum == HVACMode.HEAT else cool
 
         # Setting to STANDBY explicitly means "turn off" — clear the comfort
