@@ -1720,3 +1720,99 @@ def test_odu_for_idu_matches_prefixed_and_raw_ids() -> None:
     snap.outdoor_units[0] = replace(snap.outdoor_units[0], id="outdoor_unit/odu-1")
     assert snap.odu_for_idu(idu1) is not None
     assert snap.odu_for_idu(idu1).id == "outdoor_unit/odu-1"  # type: ignore[union-attr]
+
+
+# ─── SystemSnapshot sparse-diff apply ───────────────────────────────────────
+
+
+def _make_minimal_qsm(qsm_id: str, health: LocalCommsHealthStatus) -> QuiltSmartModule:
+    return QuiltSmartModule(
+        id=qsm_id,
+        system_id="sys-1",
+        led_color_code=0,
+        sensors=None,
+        hosted_wifi=None,
+        ap_wifi=None,
+        p2p_wifi=None,
+        software_update_info_id=None,
+        firmware_update_info_id=None,
+        local_comms_health=health,
+    )
+
+
+def _make_minimal_controller(ctrl_id: str, health: LocalCommsHealthStatus) -> Controller:
+    from quilt_hp.models.enums import RemoteSensorControlMode
+
+    return Controller(
+        id=ctrl_id,
+        system_id="sys-1",
+        space_id=None,
+        name="Dial",
+        raw_thermistor_c=None,
+        pcb_temperature_a_c=None,
+        pcb_temperature_b_c=None,
+        calibrated_ambient_c=None,
+        wifi_ssid=None,
+        wifi_ip=None,
+        wifi_signal_dbm=None,
+        wifi_freq_mhz=None,
+        wifi_last_seen=None,
+        ap_wifi=None,
+        p2p_wifi=None,
+        remote_sensor_mode=RemoteSensorControlMode.UNSPECIFIED,
+        local_comms_health=health,
+        software_update_info_id=None,
+        firmware_update_info_id=None,
+        serial_number=None,
+        model_sku=None,
+        firmware_version=None,
+        state_updated_at=None,
+    )
+
+
+def test_apply_qsm_preserves_local_comms_health_on_sparse_diff() -> None:
+    """A stream diff that omits local_comms_status must not erase the known health."""
+    snap = SystemSnapshot.__new__(SystemSnapshot)
+    snap.quilt_smart_modules = [_make_minimal_qsm("qsm-1", LocalCommsHealthStatus.HEALTHY)]
+    snap.spaces = []
+    snap.indoor_units = []
+    snap.outdoor_units = []
+    snap.controllers = []
+    snap.remote_sensors = []
+    snap.controller_remote_sensors = []
+    snap.comfort_settings = []
+    snap.schedule_days = []
+    snap.schedule_weeks = []
+    snap.software_update_infos = []
+    snap.locations = []
+    snap.timezone = "UTC"
+
+    # Simulate a sparse diff — local_comms_status absent, decodes as UNSPECIFIED
+    diff = _make_minimal_qsm("qsm-1", LocalCommsHealthStatus.UNSPECIFIED)
+    result = snap.apply_qsm(diff)
+
+    assert result.local_comms_health == LocalCommsHealthStatus.HEALTHY
+
+
+def test_apply_controller_preserves_local_comms_health_on_sparse_diff() -> None:
+    """A stream diff that omits local_comms_status must not erase the known health."""
+    snap = SystemSnapshot.__new__(SystemSnapshot)
+    snap.controllers = [_make_minimal_controller("ctrl-1", LocalCommsHealthStatus.DEGRADED)]
+    snap.spaces = []
+    snap.indoor_units = []
+    snap.outdoor_units = []
+    snap.quilt_smart_modules = []
+    snap.remote_sensors = []
+    snap.controller_remote_sensors = []
+    snap.comfort_settings = []
+    snap.schedule_days = []
+    snap.schedule_weeks = []
+    snap.software_update_infos = []
+    snap.locations = []
+    snap.timezone = "UTC"
+
+    # Simulate a sparse diff — local_comms_status absent, decodes as UNSPECIFIED
+    diff = _make_minimal_controller("ctrl-1", LocalCommsHealthStatus.UNSPECIFIED)
+    result = snap.apply_controller(diff)
+
+    assert result.local_comms_health == LocalCommsHealthStatus.DEGRADED
