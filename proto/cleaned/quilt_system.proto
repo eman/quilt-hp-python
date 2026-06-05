@@ -1,11 +1,11 @@
 // quilt_system.proto
-// SystemService lives in package core.protos.system on the Android wire path.
+// SystemService lives in package core.protos.system on the wire path.
 //
-// Confirmed in current Android APK:
+// Wire-confirmed RPCs:
 //   - CreateSystem
 //   - DeleteSystem
 //
-// Present in KMP interfaces but not confirmed in the current Android APK:
+// Additional RPCs present in service definition:
 //   - GetSystem
 //   - UpdateSystem
 //   - ListSystems
@@ -40,7 +40,7 @@ message ListSystemsResponse {
   repeated System systems = 1;
 }
 
-// KMP exposes a simplified System model (id + created timestamp).
+// Simplified System model (id + created timestamp).
 message System {
   string id = 1;
   google.protobuf.Timestamp created_ts = 2;

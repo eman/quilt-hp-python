@@ -4,7 +4,6 @@ isort:skip_file
 quilt_device_pairing.proto
 BLE/WiFi device pairing protocol — serialized over Bluetooth (not gRPC).
 Used during initial setup of Quilt Smart Module (QSM) and Controller devices.
-Reconstructed from Quilt app v1.0.25 KMP source (ProtoSerializationClientService).
 """
 
 from collections import abc as _abc
@@ -116,9 +115,8 @@ class WifiScan(_message.Message):
     RSSI_FIELD_NUMBER: _builtins.int
     SECURITY_TYPE_FIELD_NUMBER: _builtins.int
     mac_address: _builtins.str
-    """Field ordering based on KMP model (WifiScan.kt) and confirmed by
-    observed data: field 4 contains negative dBm values (RSSI).
-    NM.smali is a DIFFERENT message (WifiState for established connections).
+    """Field 4 contains negative dBm values (RSSI); wire-confirmed.
+    Note: WifiState (for established connections) is a different message.
     BSSID
     """
     ssid: _builtins.str

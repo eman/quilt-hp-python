@@ -16,6 +16,7 @@ class HVACMode(IntEnum):
     FAN = 5
     FALLBACK_AUTO = 6
     FALLBACK_OFF = 7
+    DRY = 8  # Dehumidification mode; wire-confirmed value 8
 
     def __str__(self) -> str:
         return self.name
@@ -35,6 +36,9 @@ class HVACState(IntEnum):
     FAN_DEFERRED = 8
     COOL_PREPARING = 9
     HEAT_PREPARING = 10
+    DRY = 11  # Actively dehumidifying
+    DRY_DEFERRED = 12  # Waiting for mode-switch delay before dehumidifying
+    DRY_PREPARING = 13  # Compressor pre-conditioning before DRY
 
     def __str__(self) -> str:
         return self.name
@@ -324,6 +328,30 @@ class RemoteSensorControlMode(IntEnum):
     UNSPECIFIED = 0
     DISABLED = 1
     ENABLED = 2
+
+    def __str__(self) -> str:
+        return self.name
+
+
+class LocalCommsHealthStatus(IntEnum):
+    """Local mesh communication health for a QSM or Controller node.
+
+    Reported on ``QuiltSmartModule.local_comms_health`` and
+    ``Controller.local_comms_health`` after the local-control OTA update
+    (app version 1.0.26+).
+
+    Gate: ``mobile_local_control_health_enabled`` (Statsig).
+
+    STARTING_UP is transient — the node is booting its mesh stack and has not
+    yet reported a stable health state.  Treat it the same as HEALTHY for
+    user-facing display so the warning banner does not flicker during boot.
+    """
+
+    UNSPECIFIED = 0
+    HEALTHY = 1
+    DEGRADED = 2
+    OFFLINE = 3
+    STARTING_UP = 4
 
     def __str__(self) -> str:
         return self.name

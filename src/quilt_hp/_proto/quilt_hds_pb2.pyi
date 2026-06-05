@@ -3,6 +3,7 @@
 isort:skip_file
 quilt_hds.proto
 Home Datastore (HDS) messages — objects managed by the gRPC API.
+Field numbers and wire types confirmed via live mitmproxy capture.
 """
 
 from collections import abc as _abc
@@ -37,13 +38,15 @@ class _HVACModeEnumTypeWrapper(_enum_type_wrapper._EnumTypeWrapper[_HVACMode.Val
     HVAC_MODE_FAN: _HVACMode.ValueType  # 5
     HVAC_MODE_FALLBACK_AUTO: _HVACMode.ValueType  # 6
     HVAC_MODE_FALLBACK_OFF: _HVACMode.ValueType  # 7
+    HVAC_MODE_DRY: _HVACMode.ValueType  # 8
+    """dehumidification mode"""
 
 class HVACMode(_HVACMode, metaclass=_HVACModeEnumTypeWrapper):
     """---------------------------------------------------------------------------
     Enums
     ---------------------------------------------------------------------------
 
-    COOL=2, HEAT=3
+    Wire-confirmed: COOL=2, HEAT=3.
     """
 
 HVAC_MODE_UNSPECIFIED: HVACMode.ValueType  # 0
@@ -54,6 +57,8 @@ HVAC_MODE_AUTO: HVACMode.ValueType  # 4
 HVAC_MODE_FAN: HVACMode.ValueType  # 5
 HVAC_MODE_FALLBACK_AUTO: HVACMode.ValueType  # 6
 HVAC_MODE_FALLBACK_OFF: HVACMode.ValueType  # 7
+HVAC_MODE_DRY: HVACMode.ValueType  # 8
+"""dehumidification mode"""
 Global___HVACMode: _TypeAlias = HVACMode  # noqa: Y015
 
 class _HVACState:
@@ -73,11 +78,15 @@ class _HVACStateEnumTypeWrapper(_enum_type_wrapper._EnumTypeWrapper[_HVACState.V
     HVAC_STATE_FAN_DEFERRED: _HVACState.ValueType  # 8
     HVAC_STATE_COOL_PREPARING: _HVACState.ValueType  # 9
     HVAC_STATE_HEAT_PREPARING: _HVACState.ValueType  # 10
+    HVAC_STATE_DRY: _HVACState.ValueType  # 11
+    """DRY actively dehumidifying"""
+    HVAC_STATE_DRY_DEFERRED: _HVACState.ValueType  # 12
+    """DRY waiting for mode-switch delay"""
+    HVAC_STATE_DRY_PREPARING: _HVACState.ValueType  # 13
+    """DRY compressor pre-conditioning"""
 
 class HVACState(_HVACState, metaclass=_HVACStateEnumTypeWrapper):
-    """Confirmed by Android proto Java enum SJ (implements ProtocolMessageEnum).
-    DRY states were iOS KMP-layer only and do not exist in the wire proto.
-    """
+    """Wire-confirmed: DRY states added alongside HVAC_MODE_DRY."""
 
 HVAC_STATE_UNSPECIFIED: HVACState.ValueType  # 0
 HVAC_STATE_STANDBY: HVACState.ValueType  # 1
@@ -90,7 +99,35 @@ HVAC_STATE_HEAT_DEFERRED: HVACState.ValueType  # 7
 HVAC_STATE_FAN_DEFERRED: HVACState.ValueType  # 8
 HVAC_STATE_COOL_PREPARING: HVACState.ValueType  # 9
 HVAC_STATE_HEAT_PREPARING: HVACState.ValueType  # 10
+HVAC_STATE_DRY: HVACState.ValueType  # 11
+"""DRY actively dehumidifying"""
+HVAC_STATE_DRY_DEFERRED: HVACState.ValueType  # 12
+"""DRY waiting for mode-switch delay"""
+HVAC_STATE_DRY_PREPARING: HVACState.ValueType  # 13
+"""DRY compressor pre-conditioning"""
 Global___HVACState: _TypeAlias = HVACState  # noqa: Y015
+
+class _LocalCommsHealthStatus:
+    ValueType = _typing.NewType("ValueType", _builtins.int)
+    V: _TypeAlias = ValueType  # noqa: Y015
+
+class _LocalCommsHealthStatusEnumTypeWrapper(_enum_type_wrapper._EnumTypeWrapper[_LocalCommsHealthStatus.ValueType], _builtins.type):
+    DESCRIPTOR: _descriptor.EnumDescriptor
+    LOCAL_COMMS_HEALTH_STATUS_UNSPECIFIED: _LocalCommsHealthStatus.ValueType  # 0
+    LOCAL_COMMS_HEALTH_STATUS_HEALTHY: _LocalCommsHealthStatus.ValueType  # 1
+    LOCAL_COMMS_HEALTH_STATUS_DEGRADED: _LocalCommsHealthStatus.ValueType  # 2
+    LOCAL_COMMS_HEALTH_STATUS_OFFLINE: _LocalCommsHealthStatus.ValueType  # 3
+    LOCAL_COMMS_HEALTH_STATUS_STARTING_UP: _LocalCommsHealthStatus.ValueType  # 4
+
+class LocalCommsHealthStatus(_LocalCommsHealthStatus, metaclass=_LocalCommsHealthStatusEnumTypeWrapper):
+    """Local communications health for QSM and Controller mesh nodes."""
+
+LOCAL_COMMS_HEALTH_STATUS_UNSPECIFIED: LocalCommsHealthStatus.ValueType  # 0
+LOCAL_COMMS_HEALTH_STATUS_HEALTHY: LocalCommsHealthStatus.ValueType  # 1
+LOCAL_COMMS_HEALTH_STATUS_DEGRADED: LocalCommsHealthStatus.ValueType  # 2
+LOCAL_COMMS_HEALTH_STATUS_OFFLINE: LocalCommsHealthStatus.ValueType  # 3
+LOCAL_COMMS_HEALTH_STATUS_STARTING_UP: LocalCommsHealthStatus.ValueType  # 4
+Global___LocalCommsHealthStatus: _TypeAlias = LocalCommsHealthStatus  # noqa: Y015
 
 class _OccupancyMode:
     ValueType = _typing.NewType("ValueType", _builtins.int)
@@ -122,7 +159,7 @@ class _SafetyHeatingModeEnumTypeWrapper(_enum_type_wrapper._EnumTypeWrapper[_Saf
 class SafetyHeatingMode(_SafetyHeatingMode, metaclass=_SafetyHeatingModeEnumTypeWrapper):
     """Freeze-protection setting on SpaceSettings (field 9).
     UNSPECIFIED is treated as ENABLED by the app (freeze protection on by default).
-    KMP: SafetyHeatingMode — field number unconfirmed (not present in APK build; added post-release).
+    Field number unconfirmed (assumed f9; added post-initial release).
     """
 
 SAFETY_HEATING_MODE_UNSPECIFIED: SafetyHeatingMode.ValueType  # 0
@@ -428,9 +465,7 @@ class _OccupancyStateEnumTypeWrapper(_enum_type_wrapper._EnumTypeWrapper[_Occupa
     OCCUPANCY_STATE_DETECTED: _OccupancyState.ValueType  # 2
 
 class OccupancyState(_OccupancyState, metaclass=_OccupancyStateEnumTypeWrapper):
-    """APK-confirmed (C5337pK.java): occupancy detection result for this IDU/space.
-    OccupancyState (MK.java): UNSPECIFIED=0, UNDETECTED=1, DETECTED=2.
-    """
+    """Occupancy detection result for this IDU/space."""
 
 OCCUPANCY_STATE_UNSPECIFIED: OccupancyState.ValueType  # 0
 OCCUPANCY_STATE_UNDETECTED: OccupancyState.ValueType  # 1
@@ -469,6 +504,55 @@ WIFI_STATE_4WAY_HANDSHAKE: WifiConnectionState.ValueType  # 8
 WIFI_STATE_GROUP_HANDSHAKE: WifiConnectionState.ValueType  # 9
 WIFI_STATE_WPA_COMPLETED: WifiConnectionState.ValueType  # 10
 Global___WifiConnectionState: _TypeAlias = WifiConnectionState  # noqa: Y015
+
+@_typing.final
+class LocalCommsStatus(_message.Message):
+    """Local communications health status for a QSM or Controller mesh node.
+    Carried as field 8 on QuiltSmartModule and field 9 on Controller.
+    The `health` subfield (2) is the primary value; subfields 3, 4, 6 semantics TBD.
+    """
+
+    DESCRIPTOR: _descriptor.Descriptor
+
+    UPDATED_TS_FIELD_NUMBER: _builtins.int
+    HEALTH_FIELD_NUMBER: _builtins.int
+    LINK_STATE_FIELD_NUMBER: _builtins.int
+    VERSION_FIELD_NUMBER: _builtins.int
+    HEALTH_CHANGED_TS_FIELD_NUMBER: _builtins.int
+    CONNECTION_STATE_FIELD_NUMBER: _builtins.int
+    health: Global___LocalCommsHealthStatus.ValueType
+    """current health"""
+    link_state: _builtins.int
+    """observed: HEALTHY=9, DEGRADED=8; enum TBD"""
+    version: _builtins.int
+    """observed: always 9"""
+    connection_state: _builtins.int
+    """observed: HEALTHY=1, DEGRADED=5; enum TBD"""
+    @_builtins.property
+    def updated_ts(self) -> _timestamp_pb2.Timestamp:
+        """most-recent server update timestamp"""
+
+    @_builtins.property
+    def health_changed_ts(self) -> _timestamp_pb2.Timestamp:
+        """when health last changed"""
+
+    def __init__(
+        self,
+        *,
+        updated_ts: _timestamp_pb2.Timestamp | None = ...,
+        health: Global___LocalCommsHealthStatus.ValueType = ...,
+        link_state: _builtins.int = ...,
+        version: _builtins.int = ...,
+        health_changed_ts: _timestamp_pb2.Timestamp | None = ...,
+        connection_state: _builtins.int = ...,
+    ) -> None: ...
+    _HasFieldArgType: _TypeAlias = _typing.Literal["health_changed_ts", b"health_changed_ts", "updated_ts", b"updated_ts"]  # noqa: Y015
+    def HasField(self, field_name: _HasFieldArgType) -> _builtins.bool: ...
+    _ClearFieldArgType: _TypeAlias = _typing.Literal["connection_state", b"connection_state", "health", b"health", "health_changed_ts", b"health_changed_ts", "link_state", b"link_state", "updated_ts", b"updated_ts", "version", b"version"]  # noqa: Y015
+    def ClearField(self, field_name: _ClearFieldArgType) -> None: ...
+    def WhichOneof(self, oneof_group: _Never) -> None: ...
+
+Global___LocalCommsStatus: _TypeAlias = LocalCommsStatus  # noqa: Y015
 
 @_typing.final
 class EntityMetadata(_message.Message):
@@ -640,9 +724,8 @@ class SpaceSettings(_message.Message):
     """Wire-confirmed SpaceSettings fields (from field_3.f3):
     f1=name, f2=description, f3=updated_ts, f4=timezone, f5=OccupancyMode,
     f6=HvacControllerType, f7=occupied_timeout_s(180.0), f8=unoccupied_timeout_s(1200.0)
-    APK-confirmed (C5149oM.java): fields 1–8 exactly.
-    f9=SafetyHeatingMode (freeze protection): KMP-confirmed in SpaceSettings.safetyHeating,
-      field number unconfirmed (not in APK build; added post-release, assumed f9).
+    Wire-confirmed: fields 1–8.
+    f9=SafetyHeatingMode (freeze protection): field number unconfirmed (assumed f9).
     """
 
     DESCRIPTOR: _descriptor.Descriptor
@@ -729,7 +812,7 @@ class SpaceControls(_message.Message):
     heating_temperature_setpoint_c: _builtins.float
     """wire-confirmed: f5 (heating at 5, not cooling!)"""
     comfort_setting_id: _builtins.str
-    """Android proto: COMFORT_SETTING_ID_FIELD_NUMBER=6"""
+    """wire-confirmed: COMFORT_SETTING_ID_FIELD_NUMBER=6"""
     boost_mode: Global___BoostMode.ValueType
     """wire-confirmed: f7 (varint, 0=UNSPECIFIED)"""
     comfort_setting_override: Global___ComfortSettingOverride.ValueType
@@ -972,7 +1055,7 @@ class IndoorUnitControls(_message.Message):
     LED_ANIMATION_FIELD_NUMBER: _builtins.int
     LED_STATE_FIELD_NUMBER: _builtins.int
     led_color_code: _builtins.int
-    """f1, f2 absent in Android DEX (C2523cK.java)
+    """f1, f2 absent from wire captures
     RGBW packed uint32
     """
     led_color_brightness_percent: _builtins.float
@@ -985,7 +1068,7 @@ class IndoorUnitControls(_message.Message):
     louver_fixed_position: _builtins.float
     """degrees, used when louver_mode=FIXED"""
     led_animation: Global___LightAnimation.ValueType
-    """confirmed Android C2523cK: LED_ANIMATION_FIELD_NUMBER=12"""
+    """LED_ANIMATION_FIELD_NUMBER=12; wire-confirmed"""
     led_state: Global___LightState.ValueType
     """wire-confirmed f13: UNSPECIFIED=0,ON=1,OFF=2"""
     @_builtins.property
@@ -1013,15 +1096,13 @@ Global___IndoorUnitControls: _TypeAlias = IndoorUnitControls  # noqa: Y015
 
 @_typing.final
 class IndoorUnitState(_message.Message):
-    """Android-confirmed field layout (CK.java):
+    """Wire-confirmed field layout (from binary capture):
     1=updated_ts, 2=temperature_setpoint_c, 3=ambient_temperature_c, 4=hvac_state,
     5=fan_speed_setpoint_rpm, 6=fan_speed_rpm, 7=light_brightness_percent,
     8=presence_detection_level, 9=inlet_temperature_c, 10=outlet_temperature_c,
     11=ambient_humidity_percent, 12=hvac_mode, 13=calculated_ambient_temperature_c,
     14=louver_angle_up_down_degrees
-    Note: KMP IndoorUnit.kt adds `ledState: LightState` to IndoorUnitState, but this
-    field is NOT in the APK (CK.java) or on the wire. The led_state field (f13) lives
-    in IndoorUnitControls (confirmed), not IndoorUnitState.
+    Note: led_state (f13) lives in IndoorUnitControls, not IndoorUnitState.
     """
 
     DESCRIPTOR: _descriptor.Descriptor
@@ -1054,7 +1135,7 @@ class IndoorUnitState(_message.Message):
     hvac_mode: Global___HVACMode.ValueType
     calculated_ambient_temperature_c: _builtins.float
     louver_angle_up_down_degrees: _builtins.float
-    """fields 15+ reserved for future ledState enum (KMP-only, not yet deployed)"""
+    """fields 15+ reserved for future ledState enum (not yet deployed)"""
     @_builtins.property
     def updated_ts(self) -> _timestamp_pb2.Timestamp: ...
     def __init__(
@@ -1207,9 +1288,7 @@ class IndoorUnitHardwareAttributes(_message.Message):
     firmware_version: _builtins.str
     fan_speed_max_rpm: _builtins.float
     indoor_unit_serial_number: _builtins.str
-    """APK: INDOOR_UNIT_SERIAL_NUMBER_FIELD_NUMBER"""
     quilt_smart_module_serial_number: _builtins.str
-    """APK: QUILT_SMART_MODULE_SERIAL_NUMBER_FIELD_NUMBER"""
     @_builtins.property
     def production_ts(self) -> _timestamp_pb2.Timestamp: ...
     @_builtins.property
@@ -1260,7 +1339,7 @@ Global___IndoorUnitHardware: _TypeAlias = IndoorUnitHardware  # noqa: Y015
 
 @_typing.final
 class IndoorUnitHvacInputs(_message.Message):
-    """APK-confirmed (C4363kK.java): HVAC controller inputs — what the controller sends to the IDU."""
+    """HVAC controller inputs — what the controller sends to the IDU."""
 
     DESCRIPTOR: _descriptor.Descriptor
 
@@ -1303,7 +1382,7 @@ Global___IndoorUnitHvacInputs: _TypeAlias = IndoorUnitHvacInputs  # noqa: Y015
 
 @_typing.final
 class IndoorUnitPerformanceData(_message.Message):
-    """APK-confirmed (C5918sK.java): raw IDU performance measurements."""
+    """Raw IDU performance measurements."""
 
     DESCRIPTOR: _descriptor.Descriptor
 
@@ -1358,7 +1437,7 @@ Global___IndoorUnitPerformanceData: _TypeAlias = IndoorUnitPerformanceData  # no
 
 @_typing.final
 class IndoorUnitPerformanceMetrics(_message.Message):
-    """APK-confirmed (C6306uK.java): computed energy/power metrics over a measurement window."""
+    """Computed energy/power metrics over a measurement window."""
 
     DESCRIPTOR: _descriptor.Descriptor
 
@@ -1439,9 +1518,7 @@ Global___IndoorUnitOccupancy: _TypeAlias = IndoorUnitOccupancy  # noqa: Y015
 
 @_typing.final
 class IndoorUnit(_message.Message):
-    """Wire-confirmed top-level layout from binary capture: header=1(LEN/102), relationships=2(LEN/203),
-    settings=3(LEN/67), controls=4(LEN/40), state=5(LEN/79), then f6–f12 per APK.
-    """
+    """Wire-confirmed field layout: header=1, relationships=2, settings=3, controls=4, state=5, f6–f12."""
 
     DESCRIPTOR: _descriptor.Descriptor
 
@@ -1478,33 +1555,19 @@ class IndoorUnit(_message.Message):
         """wire-confirmed: f5"""
 
     @_builtins.property
-    def hvac_inputs(self) -> Global___IndoorUnitHvacInputs:
-        """APK: HVAC_INPUTS_FIELD_NUMBER=6 (C4363kK)"""
-
+    def hvac_inputs(self) -> Global___IndoorUnitHvacInputs: ...
     @_builtins.property
-    def presence(self) -> Global___IndoorUnitPresenceState:
-        """APK: PRESENCE_FIELD_NUMBER=7 (C6694wK)"""
-
+    def presence(self) -> Global___IndoorUnitPresenceState: ...
     @_builtins.property
-    def conditions(self) -> Global___IndoorUnitConditions:
-        """APK: CONDITIONS_FIELD_NUMBER=8 (C2132aK)"""
-
+    def conditions(self) -> Global___IndoorUnitConditions: ...
     @_builtins.property
-    def commands(self) -> Global___IndoorUnitCommands:
-        """APK: COMMANDS_FIELD_NUMBER=9 (YJ)"""
-
+    def commands(self) -> Global___IndoorUnitCommands: ...
     @_builtins.property
-    def performance_data(self) -> Global___IndoorUnitPerformanceData:
-        """APK: PERFORMANCE_DATA_FIELD_NUMBER=10 (C5918sK)"""
-
+    def performance_data(self) -> Global___IndoorUnitPerformanceData: ...
     @_builtins.property
-    def performance_metrics(self) -> Global___IndoorUnitPerformanceMetrics:
-        """APK: PERFORMANCE_METRICS_FIELD_NUMBER=11 (C6306uK)"""
-
+    def performance_metrics(self) -> Global___IndoorUnitPerformanceMetrics: ...
     @_builtins.property
-    def occupancy(self) -> Global___IndoorUnitOccupancy:
-        """APK: OCCUPANCY_FIELD_NUMBER=12 (C5337pK)"""
-
+    def occupancy(self) -> Global___IndoorUnitOccupancy: ...
     def __init__(
         self,
         *,
@@ -1621,7 +1684,7 @@ Global___OutdoorUnitState: _TypeAlias = OutdoorUnitState  # noqa: Y015
 
 @_typing.final
 class OutdoorUnitPerformanceData(_message.Message):
-    """APK-confirmed: YK.java — compressor telemetry from the outdoor unit.
+    """Compressor telemetry from the outdoor unit.
     Populated during active operation; empty/zero in standby.
     """
 
@@ -1734,9 +1797,7 @@ Global___OutdoorUnitHardware: _TypeAlias = OutdoorUnitHardware  # noqa: Y015
 
 @_typing.final
 class OutdoorUnit(_message.Message):
-    """Wire-confirmed field layout: header=1, relationships=2, settings=3, state=4.
-    APK-confirmed (QK.java): performance_data=5.
-    """
+    """Wire-confirmed field layout: header=1, relationships=2, settings=3, state=4, performance_data=5."""
 
     DESCRIPTOR: _descriptor.Descriptor
 
@@ -1862,8 +1923,7 @@ class ControllerState(_message.Message):
     @_builtins.property
     def updated_ts(self) -> _timestamp_pb2.Timestamp:
         """Wire-confirmed from field_11.f4 of HomeDatastoreSystem.
-        f1 = updated_ts  (KMP: ControllerState.updatedTimestamp, used by Controller.isOnline())
-        f2 = raw Dial surface thermistor (inflated by self-heating; used for display).
+        f1 = updated_ts; f2 = raw Dial surface thermistor (inflated by self-heating; used for display).
         f5 = calibrated/corrected ambient temperature sent to IDU as external_ambient_temperature_c.
              Cross-confirmed: f5 value matches IndoorUnitHvacInputs.external_ambient_temperature_c
              for all 5 rooms during live operation.
@@ -1912,7 +1972,7 @@ Global___ControllerControls: _TypeAlias = ControllerControls  # noqa: Y015
 
 @_typing.final
 class WifiState(_message.Message):
-    """APK-confirmed field layout (NM.java). Used in QSM (f4/f5/f6) and Controller (f5/f6/f7)."""
+    """Wire-confirmed field layout. Used in QSM (f4/f5/f6) and Controller (f5/f6/f7)."""
 
     DESCRIPTOR: _descriptor.Descriptor
 
@@ -2037,7 +2097,7 @@ Global___ControllerHardware: _TypeAlias = ControllerHardware  # noqa: Y015
 
 @_typing.final
 class Controller(_message.Message):
-    """APK-confirmed field layout (C5331pI.java):
+    """Wire-confirmed field layout:
     header=1, relationships=2, settings=3, state=4,
     hosted_wifi_state=5, ap_wifi_state=6, p2p_wifi_state=7, controls=8.
     """
@@ -2052,6 +2112,7 @@ class Controller(_message.Message):
     AP_WIFI_STATE_FIELD_NUMBER: _builtins.int
     P2P_WIFI_STATE_FIELD_NUMBER: _builtins.int
     CONTROLS_FIELD_NUMBER: _builtins.int
+    LOCAL_COMMS_STATUS_FIELD_NUMBER: _builtins.int
     @_builtins.property
     def header(self) -> Global___EntityMetadata: ...
     @_builtins.property
@@ -2074,6 +2135,10 @@ class Controller(_message.Message):
 
     @_builtins.property
     def controls(self) -> Global___ControllerControls: ...
+    @_builtins.property
+    def local_comms_status(self) -> Global___LocalCommsStatus:
+        """local mesh communication status"""
+
     def __init__(
         self,
         *,
@@ -2085,10 +2150,11 @@ class Controller(_message.Message):
         ap_wifi_state: Global___WifiState | None = ...,
         p2p_wifi_state: Global___WifiState | None = ...,
         controls: Global___ControllerControls | None = ...,
+        local_comms_status: Global___LocalCommsStatus | None = ...,
     ) -> None: ...
-    _HasFieldArgType: _TypeAlias = _typing.Literal["ap_wifi_state", b"ap_wifi_state", "controls", b"controls", "header", b"header", "hosted_wifi_state", b"hosted_wifi_state", "p2p_wifi_state", b"p2p_wifi_state", "relationships", b"relationships", "settings", b"settings", "state", b"state"]  # noqa: Y015
+    _HasFieldArgType: _TypeAlias = _typing.Literal["ap_wifi_state", b"ap_wifi_state", "controls", b"controls", "header", b"header", "hosted_wifi_state", b"hosted_wifi_state", "local_comms_status", b"local_comms_status", "p2p_wifi_state", b"p2p_wifi_state", "relationships", b"relationships", "settings", b"settings", "state", b"state"]  # noqa: Y015
     def HasField(self, field_name: _HasFieldArgType) -> _builtins.bool: ...
-    _ClearFieldArgType: _TypeAlias = _typing.Literal["ap_wifi_state", b"ap_wifi_state", "controls", b"controls", "header", b"header", "hosted_wifi_state", b"hosted_wifi_state", "p2p_wifi_state", b"p2p_wifi_state", "relationships", b"relationships", "settings", b"settings", "state", b"state"]  # noqa: Y015
+    _ClearFieldArgType: _TypeAlias = _typing.Literal["ap_wifi_state", b"ap_wifi_state", "controls", b"controls", "header", b"header", "hosted_wifi_state", b"hosted_wifi_state", "local_comms_status", b"local_comms_status", "p2p_wifi_state", b"p2p_wifi_state", "relationships", b"relationships", "settings", b"settings", "state", b"state"]  # noqa: Y015
     def ClearField(self, field_name: _ClearFieldArgType) -> None: ...
     def WhichOneof(self, oneof_group: _Never) -> None: ...
 
@@ -2100,8 +2166,6 @@ class RemoteSensorAttributes(_message.Message):
     Remote Sensor (BLE temperature/humidity sensor)
     ---------------------------------------------------------------------------
 
-    APK-confirmed (C5921sL.java): MAC_FIELD_NUMBER=1, UPDATED_TS_FIELD_NUMBER=2.
-    APK-confirmed (C5921sL.java): MAC_FIELD_NUMBER=1, UPDATED_TS_FIELD_NUMBER=2.
     Shared by both RemoteSensor and ControllerRemoteSensor.
     """
 
@@ -2110,11 +2174,8 @@ class RemoteSensorAttributes(_message.Message):
     MAC_FIELD_NUMBER: _builtins.int
     UPDATED_TS_FIELD_NUMBER: _builtins.int
     mac: _builtins.str
-    """APK: MAC_FIELD_NUMBER=1"""
     @_builtins.property
-    def updated_ts(self) -> _timestamp_pb2.Timestamp:
-        """APK: UPDATED_TS_FIELD_NUMBER=2"""
-
+    def updated_ts(self) -> _timestamp_pb2.Timestamp: ...
     def __init__(
         self,
         *,
@@ -2131,9 +2192,7 @@ Global___RemoteSensorAttributes: _TypeAlias = RemoteSensorAttributes  # noqa: Y0
 
 @_typing.final
 class RemoteSensorState(_message.Message):
-    """APK-confirmed (AL.java): ambient_temp=1, humidity=2, updated_ts=3, battery=4, signal=5.
-    Shared by both RemoteSensor and ControllerRemoteSensor.
-    """
+    """Shared by both RemoteSensor and ControllerRemoteSensor."""
 
     DESCRIPTOR: _descriptor.Descriptor
 
@@ -2143,17 +2202,11 @@ class RemoteSensorState(_message.Message):
     BATTERY_LEVEL_PERCENT_FIELD_NUMBER: _builtins.int
     SIGNAL_LEVEL_DBM_FIELD_NUMBER: _builtins.int
     ambient_temperature_c: _builtins.float
-    """APK: AMBIENT_TEMPERATURE_C_FIELD_NUMBER=1"""
     humidity_percent: _builtins.float
-    """APK: HUMIDITY_PERCENT_FIELD_NUMBER=2"""
     battery_level_percent: _builtins.float
-    """APK: BATTERY_LEVEL_PERCENT_FIELD_NUMBER=4"""
     signal_level_dbm: _builtins.int
-    """APK: SIGNAL_LEVEL_DBM_FIELD_NUMBER=5"""
     @_builtins.property
-    def updated_ts(self) -> _timestamp_pb2.Timestamp:
-        """APK: UPDATED_TS_FIELD_NUMBER=3"""
-
+    def updated_ts(self) -> _timestamp_pb2.Timestamp: ...
     def __init__(
         self,
         *,
@@ -2173,16 +2226,13 @@ Global___RemoteSensorState: _TypeAlias = RemoteSensorState  # noqa: Y015
 
 @_typing.final
 class RemoteSensorRelationships(_message.Message):
-    """APK-confirmed (C7085yL.java): indoor_unit_id=1, updated_ts=2.
-    Used by standalone RemoteSensor (field 12 in HomeDatastoreSystem).
-    """
+    """Used by standalone RemoteSensor (field 12 in HomeDatastoreSystem)."""
 
     DESCRIPTOR: _descriptor.Descriptor
 
     INDOOR_UNIT_ID_FIELD_NUMBER: _builtins.int
     UPDATED_TS_FIELD_NUMBER: _builtins.int
     indoor_unit_id: _builtins.str
-    """APK: INDOOR_UNIT_ID_FIELD_NUMBER=1"""
     @_builtins.property
     def updated_ts(self) -> _timestamp_pb2.Timestamp: ...
     def __init__(
@@ -2201,16 +2251,13 @@ Global___RemoteSensorRelationships: _TypeAlias = RemoteSensorRelationships  # no
 
 @_typing.final
 class ControllerRemoteSensorRelationships(_message.Message):
-    """APK-confirmed (FI.java): controller_id=1, updated_ts=2.
-    Used by ControllerRemoteSensor (field 16 in HomeDatastoreSystem).
-    """
+    """Used by ControllerRemoteSensor (field 16 in HomeDatastoreSystem)."""
 
     DESCRIPTOR: _descriptor.Descriptor
 
     CONTROLLER_ID_FIELD_NUMBER: _builtins.int
     UPDATED_TS_FIELD_NUMBER: _builtins.int
     controller_id: _builtins.str
-    """APK: CONTROLLER_ID_FIELD_NUMBER=1"""
     @_builtins.property
     def updated_ts(self) -> _timestamp_pb2.Timestamp: ...
     def __init__(
@@ -2229,20 +2276,15 @@ Global___ControllerRemoteSensorRelationships: _TypeAlias = ControllerRemoteSenso
 
 @_typing.final
 class RemoteSensorControls(_message.Message):
-    """APK-confirmed (C6503vL.java): updated_ts=1, control_mode=2.
-    Shared by both RemoteSensor and ControllerRemoteSensor.
-    """
+    """Shared by both RemoteSensor and ControllerRemoteSensor."""
 
     DESCRIPTOR: _descriptor.Descriptor
 
     UPDATED_TS_FIELD_NUMBER: _builtins.int
     CONTROL_MODE_FIELD_NUMBER: _builtins.int
     control_mode: Global___RemoteSensorControlMode.ValueType
-    """APK: CONTROL_MODE_FIELD_NUMBER=2"""
     @_builtins.property
-    def updated_ts(self) -> _timestamp_pb2.Timestamp:
-        """APK: UPDATED_TS_FIELD_NUMBER=1"""
-
+    def updated_ts(self) -> _timestamp_pb2.Timestamp: ...
     def __init__(
         self,
         *,
@@ -2259,7 +2301,7 @@ Global___RemoteSensorControls: _TypeAlias = RemoteSensorControls  # noqa: Y015
 
 @_typing.final
 class RemoteSensor(_message.Message):
-    """APK-confirmed (C5534qL.java): header=1, attributes=2, state=3, relationships=4, controls=5.
+    """Wire-confirmed: header=1, attributes=2, state=3, relationships=4, controls=5.
     Standalone remote sensor linked to an IndoorUnit (field 12 in HomeDatastoreSystem).
     Not present in installations without paired remote sensors.
     """
@@ -2302,7 +2344,7 @@ Global___RemoteSensor: _TypeAlias = RemoteSensor  # noqa: Y015
 
 @_typing.final
 class ControllerRemoteSensor(_message.Message):
-    """APK-confirmed (CI.java): header=1, attributes=2, state=3, relationships=4, controls=5.
+    """Wire-confirmed: header=1, attributes=2, state=3, relationships=4, controls=5.
     Sensor capability of a Controller (Dial) used for zone temperature control.
     Linked to a Controller via controller_id. Field 16 in HomeDatastoreSystem.
     Not present unless remote sensor control mode is configured on a Dial.
@@ -2602,8 +2644,8 @@ Global___ScheduleDayRelationships: _TypeAlias = ScheduleDayRelationships  # noqa
 
 @_typing.final
 class ScheduleDay(_message.Message):
-    """APK-confirmed (DL.java): EVENTS_FIELD_NUMBER=3, RELATIONSHIPS_FIELD_NUMBER=4.
-    (Earlier proto.json source had these swapped — APK takes precedence.)
+    """Wire-confirmed: EVENTS_FIELD_NUMBER=3, RELATIONSHIPS_FIELD_NUMBER=4.
+    (Earlier proto.json source had these swapped.)
     """
 
     DESCRIPTOR: _descriptor.Descriptor
@@ -2691,8 +2733,8 @@ Global___ScheduleWeekRelationships: _TypeAlias = ScheduleWeekRelationships  # no
 
 @_typing.final
 class ScheduleWeek(_message.Message):
-    """APK-confirmed (OL.java): DAYS_FIELD_NUMBER=2, RELATIONSHIPS_FIELD_NUMBER=3.
-    (Earlier proto.json source had relationships=2, days=3 — APK takes precedence.)
+    """Wire-confirmed: DAYS_FIELD_NUMBER=2, RELATIONSHIPS_FIELD_NUMBER=3.
+    (Earlier proto.json source had these swapped.)
     """
 
     DESCRIPTOR: _descriptor.Descriptor
@@ -2725,7 +2767,6 @@ Global___ScheduleWeek: _TypeAlias = ScheduleWeek  # noqa: Y015
 class QuiltSmartModuleRelationships(_message.Message):
     """---------------------------------------------------------------------------
     QuiltSmartModule (QSM — WiFi compute module embedded in every IDU)
-    Wire-confirmed: field 7 in HomeDatastoreSystem (5 items for 5 IDUs)
     ---------------------------------------------------------------------------
     """
 
@@ -2755,7 +2796,7 @@ Global___QuiltSmartModuleRelationships: _TypeAlias = QuiltSmartModuleRelationshi
 
 @_typing.final
 class QuiltSmartModuleControls(_message.Message):
-    """APK-confirmed (C4171jL.java): LED_COLOR_CODE_FIELD_NUMBER=1, UPDATED_TS_FIELD_NUMBER=2."""
+    """QSM LED color code and timestamp."""
 
     DESCRIPTOR: _descriptor.Descriptor
 
@@ -2780,7 +2821,7 @@ Global___QuiltSmartModuleControls: _TypeAlias = QuiltSmartModuleControls  # noqa
 
 @_typing.final
 class QuiltSmartModuleState(_message.Message):
-    """APK-confirmed (C5146oL.java): 9 fields, presence/ALS/accelerometer sensor data."""
+    """QSM sensor data: presence, ambient light, and accelerometer readings."""
 
     DESCRIPTOR: _descriptor.Descriptor
 
@@ -2834,7 +2875,7 @@ Global___QuiltSmartModuleState: _TypeAlias = QuiltSmartModuleState  # noqa: Y015
 
 @_typing.final
 class QuiltSmartModule(_message.Message):
-    """APK-confirmed (C3678hL.java):
+    """Wire-confirmed field layout:
     header=1, controls=2, state=3, hosted_wifi_state=4, ap_wifi_state=5, p2p_wifi_state=6, relationships=7.
     """
 
@@ -2847,30 +2888,25 @@ class QuiltSmartModule(_message.Message):
     AP_WIFI_STATE_FIELD_NUMBER: _builtins.int
     P2P_WIFI_STATE_FIELD_NUMBER: _builtins.int
     RELATIONSHIPS_FIELD_NUMBER: _builtins.int
+    LOCAL_COMMS_STATUS_FIELD_NUMBER: _builtins.int
     @_builtins.property
     def header(self) -> Global___EntityMetadata: ...
     @_builtins.property
-    def controls(self) -> Global___QuiltSmartModuleControls:
-        """APK: CONTROLS_FIELD_NUMBER=2"""
-
+    def controls(self) -> Global___QuiltSmartModuleControls: ...
     @_builtins.property
-    def state(self) -> Global___QuiltSmartModuleState:
-        """APK: STATE_FIELD_NUMBER=3 (was incorrectly at f2)"""
-
+    def state(self) -> Global___QuiltSmartModuleState: ...
     @_builtins.property
-    def hosted_wifi_state(self) -> Global___WifiState:
-        """APK: HOSTED_WIFI_STATE_FIELD_NUMBER=4"""
-
+    def hosted_wifi_state(self) -> Global___WifiState: ...
     @_builtins.property
-    def ap_wifi_state(self) -> Global___WifiState:
-        """APK: AP_WIFI_STATE_FIELD_NUMBER=5"""
-
+    def ap_wifi_state(self) -> Global___WifiState: ...
     @_builtins.property
-    def p2p_wifi_state(self) -> Global___WifiState:
-        """APK: P2P_WIFI_STATE_FIELD_NUMBER=6 (usually empty)"""
-
+    def p2p_wifi_state(self) -> Global___WifiState: ...
     @_builtins.property
     def relationships(self) -> Global___QuiltSmartModuleRelationships: ...
+    @_builtins.property
+    def local_comms_status(self) -> Global___LocalCommsStatus:
+        """local mesh communication status"""
+
     def __init__(
         self,
         *,
@@ -2881,10 +2917,11 @@ class QuiltSmartModule(_message.Message):
         ap_wifi_state: Global___WifiState | None = ...,
         p2p_wifi_state: Global___WifiState | None = ...,
         relationships: Global___QuiltSmartModuleRelationships | None = ...,
+        local_comms_status: Global___LocalCommsStatus | None = ...,
     ) -> None: ...
-    _HasFieldArgType: _TypeAlias = _typing.Literal["ap_wifi_state", b"ap_wifi_state", "controls", b"controls", "header", b"header", "hosted_wifi_state", b"hosted_wifi_state", "p2p_wifi_state", b"p2p_wifi_state", "relationships", b"relationships", "state", b"state"]  # noqa: Y015
+    _HasFieldArgType: _TypeAlias = _typing.Literal["ap_wifi_state", b"ap_wifi_state", "controls", b"controls", "header", b"header", "hosted_wifi_state", b"hosted_wifi_state", "local_comms_status", b"local_comms_status", "p2p_wifi_state", b"p2p_wifi_state", "relationships", b"relationships", "state", b"state"]  # noqa: Y015
     def HasField(self, field_name: _HasFieldArgType) -> _builtins.bool: ...
-    _ClearFieldArgType: _TypeAlias = _typing.Literal["ap_wifi_state", b"ap_wifi_state", "controls", b"controls", "header", b"header", "hosted_wifi_state", b"hosted_wifi_state", "p2p_wifi_state", b"p2p_wifi_state", "relationships", b"relationships", "state", b"state"]  # noqa: Y015
+    _ClearFieldArgType: _TypeAlias = _typing.Literal["ap_wifi_state", b"ap_wifi_state", "controls", b"controls", "header", b"header", "hosted_wifi_state", b"hosted_wifi_state", "local_comms_status", b"local_comms_status", "p2p_wifi_state", b"p2p_wifi_state", "relationships", b"relationships", "state", b"state"]  # noqa: Y015
     def ClearField(self, field_name: _ClearFieldArgType) -> None: ...
     def WhichOneof(self, oneof_group: _Never) -> None: ...
 
@@ -2896,7 +2933,7 @@ class SoftwareUpdateInfoAttributes(_message.Message):
     Software / Firmware Update
     ---------------------------------------------------------------------------
 
-    APK-confirmed (WL.java): SoftwareUpdateInfoAttributes fields.
+    Software/firmware update state and progress for a device.
     """
 
     DESCRIPTOR: _descriptor.Descriptor
@@ -2943,16 +2980,12 @@ Global___SoftwareUpdateInfoAttributes: _TypeAlias = SoftwareUpdateInfoAttributes
 
 @_typing.final
 class SoftwareUpdateInfo(_message.Message):
-    """APK-confirmed (YL.java): HEADER_FIELD_NUMBER=1, ATTRIBUTES_FIELD_NUMBER=2."""
-
     DESCRIPTOR: _descriptor.Descriptor
 
     HEADER_FIELD_NUMBER: _builtins.int
     ATTRIBUTES_FIELD_NUMBER: _builtins.int
     @_builtins.property
-    def header(self) -> Global___EntityMetadata:
-        """APK: was named "metadata" — fix to "header" """
-
+    def header(self) -> Global___EntityMetadata: ...
     @_builtins.property
     def attributes(self) -> Global___SoftwareUpdateInfoAttributes: ...
     def __init__(
@@ -2973,9 +3006,9 @@ Global___SoftwareUpdateInfo: _TypeAlias = SoftwareUpdateInfo  # noqa: Y015
 class HomeDatastoreSystem(_message.Message):
     """---------------------------------------------------------------------------
     HomeDatastoreSystem (full system snapshot)
-    ALL field numbers APK-confirmed from OJ.java (HomeDatastoreSystem proto class).
-    Fields 1, 2, 4 are unknown. Fields 12 and 16 are empty for installations
-    without standalone remote sensors or configured ControllerRemoteSensors.
+    Wire-confirmed field numbers. Fields 1, 2, 4 are unknown/empty.
+    Fields 12 and 16 are empty for installations without standalone remote
+    sensors or configured ControllerRemoteSensors.
     ---------------------------------------------------------------------------
     """
 
@@ -2998,68 +3031,42 @@ class HomeDatastoreSystem(_message.Message):
     SOFTWARE_UPDATE_INFOS_FIELD_NUMBER: _builtins.int
     @_builtins.property
     def spaces(self) -> _containers.RepeatedCompositeFieldContainer[Global___Space]:
-        """field 1, 2 — unknown/empty in captured system
-        APK: SPACES_FIELD_NUMBER=3; confirmed: 6 items
-        """
+        """field 1, 2 — unknown/empty in captured system"""
 
     @_builtins.property
     def outdoor_unit_hardware(self) -> _containers.RepeatedCompositeFieldContainer[Global___OutdoorUnitHardware]:
-        """field 4 — unknown/empty
-        APK: OUTDOOR_UNIT_HARDWARE_FIELD_NUMBER=5; confirmed: 3 items
-        """
+        """field 4 — unknown/empty"""
 
     @_builtins.property
-    def outdoor_units(self) -> _containers.RepeatedCompositeFieldContainer[Global___OutdoorUnit]:
-        """APK: OUTDOOR_UNITS_FIELD_NUMBER=6; confirmed: 3 items"""
-
+    def outdoor_units(self) -> _containers.RepeatedCompositeFieldContainer[Global___OutdoorUnit]: ...
     @_builtins.property
-    def quilt_smart_modules(self) -> _containers.RepeatedCompositeFieldContainer[Global___QuiltSmartModule]:
-        """APK: QUILT_SMART_MODULES_FIELD_NUMBER=7; confirmed: 5 items"""
-
+    def quilt_smart_modules(self) -> _containers.RepeatedCompositeFieldContainer[Global___QuiltSmartModule]: ...
     @_builtins.property
-    def indoor_unit_hardware(self) -> _containers.RepeatedCompositeFieldContainer[Global___IndoorUnitHardware]:
-        """APK: INDOOR_UNIT_HARDWARE_FIELD_NUMBER=8; confirmed: 5 items"""
-
+    def indoor_unit_hardware(self) -> _containers.RepeatedCompositeFieldContainer[Global___IndoorUnitHardware]: ...
     @_builtins.property
-    def indoor_units(self) -> _containers.RepeatedCompositeFieldContainer[Global___IndoorUnit]:
-        """APK: INDOOR_UNITS_FIELD_NUMBER=9; confirmed: 5 items"""
-
+    def indoor_units(self) -> _containers.RepeatedCompositeFieldContainer[Global___IndoorUnit]: ...
     @_builtins.property
-    def controller_hardware(self) -> _containers.RepeatedCompositeFieldContainer[Global___ControllerHardware]:
-        """APK: CONTROLLER_HARDWARE_FIELD_NUMBER=10; confirmed: 5 items"""
-
+    def controller_hardware(self) -> _containers.RepeatedCompositeFieldContainer[Global___ControllerHardware]: ...
     @_builtins.property
-    def controllers(self) -> _containers.RepeatedCompositeFieldContainer[Global___Controller]:
-        """APK: CONTROLLERS_FIELD_NUMBER=11; confirmed: 5 items"""
-
+    def controllers(self) -> _containers.RepeatedCompositeFieldContainer[Global___Controller]: ...
     @_builtins.property
     def remote_sensors(self) -> _containers.RepeatedCompositeFieldContainer[Global___RemoteSensor]:
-        """APK: REMOTE_SENSORS_FIELD_NUMBER=12; empty without paired sensors"""
+        """empty without paired sensors"""
 
     @_builtins.property
-    def comfort_settings(self) -> _containers.RepeatedCompositeFieldContainer[Global___ComfortSetting]:
-        """APK: COMFORT_SETTINGS_FIELD_NUMBER=13; confirmed: 20+ items"""
-
+    def comfort_settings(self) -> _containers.RepeatedCompositeFieldContainer[Global___ComfortSetting]: ...
     @_builtins.property
-    def schedule_days(self) -> _containers.RepeatedCompositeFieldContainer[Global___ScheduleDay]:
-        """APK: SCHEDULE_DAYS_FIELD_NUMBER=14; confirmed: 5 items"""
-
+    def schedule_days(self) -> _containers.RepeatedCompositeFieldContainer[Global___ScheduleDay]: ...
     @_builtins.property
-    def schedule_weeks(self) -> _containers.RepeatedCompositeFieldContainer[Global___ScheduleWeek]:
-        """APK: SCHEDULE_WEEKS_FIELD_NUMBER=15; confirmed: 5 items"""
-
+    def schedule_weeks(self) -> _containers.RepeatedCompositeFieldContainer[Global___ScheduleWeek]: ...
     @_builtins.property
     def controller_remote_sensors(self) -> _containers.RepeatedCompositeFieldContainer[Global___ControllerRemoteSensor]:
-        """APK: CONTROLLER_REMOTE_SENSORS_FIELD_NUMBER=16; empty without sensor mode configured"""
+        """empty without sensor mode configured"""
 
     @_builtins.property
-    def locations(self) -> _containers.RepeatedCompositeFieldContainer[Global___Location]:
-        """APK: LOCATIONS_FIELD_NUMBER=17; confirmed: 1 item"""
-
+    def locations(self) -> _containers.RepeatedCompositeFieldContainer[Global___Location]: ...
     @_builtins.property
-    def software_update_infos(self) -> _containers.RepeatedCompositeFieldContainer[Global___SoftwareUpdateInfo]:
-        """APK: SOFTWARE_UPDATE_INFOS_FIELD_NUMBER=18; confirmed: 28 items (SUI+FUI for all devices)"""
-
+    def software_update_infos(self) -> _containers.RepeatedCompositeFieldContainer[Global___SoftwareUpdateInfo]: ...
     def __init__(
         self,
         *,

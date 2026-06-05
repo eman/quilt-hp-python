@@ -2,6 +2,20 @@
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-06-04
+
+### Added protocol support
+- `HVACMode.DRY = 8` — dehumidification mode; gate: `mobile_dry_mode_selection_enabled`. Fan non-interactive (QSM forces ~600 RPM). No user-configurable temperature setpoint; built-in temperature floor is server-side.
+- `HVACState.DRY = 11`, `DRY_DEFERRED = 12`, `DRY_PREPARING = 13`
+- `LocalCommsHealthStatus` enum (`UNSPECIFIED=0`, `HEALTHY=1`, `DEGRADED=2`, `OFFLINE=3`, `STARTING_UP=4`) — gate: `mobile_local_control_health_enabled`
+- `QuiltSmartModule.local_comms_health` — extracted from new `LocalCommsStatus` nested message (proto field 8, subfield 2)
+- `Controller.local_comms_health` — extracted from new `LocalCommsStatus` nested message (proto field 9, subfield 2)
+- `LocalCommsStatus` proto message with `updated_ts`, `health`, `link_state`, `version`, `health_changed_ts`, `connection_state` subfields (fields 1–6; wire-confirmed)
+
+### Changed
+- `APP_VERSION` bumped to `1.0.26`
+- `LocalCommsStatus` is a **nested message** (not a simple enum) on both QSM and Controller — the earlier inferred field type was incorrect; wire-confirmed via 2026-06-04 mitmproxy capture
+
 ## [0.4.0] - 2026-05-16
 
 ## [0.3.2] - 2026-05-19
