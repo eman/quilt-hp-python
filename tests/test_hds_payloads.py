@@ -122,3 +122,21 @@ async def test_update_space_standby_clears_comfort_setting(
 
     assert diff.controls.comfort_setting_id_string == ""
     assert diff.controls.comfort_setting_override == hds.COMFORT_SETTING_OVERRIDE_NONE
+
+
+async def test_update_space_dry_mode_omits_setpoints(
+    monkeypatch: pytest.MonkeyPatch,
+    fake_snapshot: SystemSnapshot,
+) -> None:
+    diff = await _capture_update_space_diff(
+        monkeypatch,
+        fake_snapshot.spaces[0],
+        mode=HVACMode.DRY,
+    )
+
+    assert diff.controls.hvac_mode == HVACMode.DRY.value
+    # Setpoint fields must be absent (proto3 default = 0.0) for DRY mode
+    assert diff.controls.temperature_setpoint_c == pytest.approx(0.0)
+    assert diff.controls.heating_temperature_setpoint_c == pytest.approx(0.0)
+    assert diff.controls.cooling_temperature_setpoint_c == pytest.approx(0.0)
+    assert diff.controls.updated_ts.seconds == 123
