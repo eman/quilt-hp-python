@@ -5,18 +5,17 @@ quilt_notifier.proto
 NotifierService — bidirectional streaming subscription service.
 Confirmed gRPC path: /core.protos.notifier.NotifierService/Subscribe
 
-Android APK DEX class reference (authoritative):
-  HR0   = SubscribeRequest  (oneof: append=2 | remove=3, each a TopicsMessage)
-  SR0   = TopicsMessage     (subscriptions=1, repeated Subscription)
-  LR0   = Subscription      (topic=1, string)
-  CR0   = SubscribeResponse (notifier_events=1, control_events=2, system_events=3)
-  ER0   = NotifierEvent     (topic=1 string, payload=2 google.protobuf.Any)
-  C7104yR0 = ControlEvent   (topics=1 repeated string, type=2 ControlEventType)
-  C6328uR0 = HdsNotification (notification_type=1, payload=2 HomeDatastoreObjectDiff)
-  MJ    = HomeDatastoreObjectDiff (space=3, indoor_unit=9, ..., see quilt_hds.proto)
+Message type reference:
+  SubscribeRequest   (oneof: append=2 | remove=3, each a TopicsMessage)
+  TopicsMessage      (subscriptions=1, repeated Subscription)
+  Subscription       (topic=1, string)
+  SubscribeResponse  (notifier_events=1, control_events=2, system_events=3)
+  NotifierEvent      (topic=1 string, payload=2 google.protobuf.Any)
+  ControlEvent       (topics=1 repeated string, type=2 ControlEventType)
+  HdsNotification    (notification_type=1, payload=2 HomeDatastoreObjectDiff)
+  HomeDatastoreObjectDiff (space=3, indoor_unit=9, ..., see quilt_hds.proto)
 
-NOTE: The current Android APK only exposes Subscribe. The previous cleaned proto
-included a Publish RPC, but no matching descriptor was found in the APK.
+NOTE: Only Subscribe is exposed; no Publish RPC exists.
 """
 
 from collections import abc as _abc
@@ -55,7 +54,7 @@ class ControlEventType(_ControlEventType, metaclass=_ControlEventTypeEnumTypeWra
     ---------------------------------------------------------------------------
     Topics follow the pattern: hds/<object_type>/<object_id>
     e.g. "hds/space/98f9121d-...", "hds/indoor_unit/abc123"
-    Object types (from EnumC5979se0.java):
+    Object types:
       space, outdoor_unit_hardware, outdoor_unit, indoor_unit_hardware,
       indoor_unit, controller_hardware, controller, controller_remote_sensor,
       remote_sensor, quilt_smart_module, schedule_week, schedule_day,
@@ -158,7 +157,7 @@ class NotifierEvent(_message.Message):
                     outer_any = google.protobuf.Any{type_url="type.googleapis.com/core.protos.hds.HdsNotification",
                                                     value=HdsNotification bytes}
                     HdsNotification (C6328uR0): {notification_type=1(varint), payload=2(HomeDatastoreObjectDiff)}
-                    HomeDatastoreObjectDiff (MJ.java): space=3, outdoor_unit=6, indoor_unit=9, etc.
+                    HomeDatastoreObjectDiff: space=3, outdoor_unit=6, indoor_unit=9, etc.
       HEARTBEATS:   topic (f1) absent (b""); payload (f2) = C1517Ta{type_url="hds/space/<uuid>",
                                                                       value=b"" or varint control byte}
     NOTE: topic field is 'bytes' (not string) because data events embed a binary C1517Ta message

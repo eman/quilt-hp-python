@@ -46,7 +46,7 @@ COGNITO_REGION = "us-west-2"
 COGNITO_CLIENT_ID = "6lef74vtc8p7pgu47nmqubd9vn"
 
 # App version sent with every gRPC call
-APP_VERSION = "1.0.25"
+APP_VERSION = "1.0.26"
 
 # Common placeholder / sentinel values seen in app and wire data.
 EMPTY_COMFORT_SETTING_ID_SENTINEL: str = ""

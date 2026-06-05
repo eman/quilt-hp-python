@@ -2,11 +2,9 @@
 
 RemoteSensor: standalone BLE temperature/humidity puck linked to an IndoorUnit.
   - Proto field 12 in HomeDatastoreSystem (empty if no sensors paired).
-  - APK: C5534qL.java (proto), C3056e81.java (KMP model).
 
 ControllerRemoteSensor: sensor capability of a Controller (Dial) for zones.
   - Proto field 16 in HomeDatastoreSystem (empty if sensor mode not configured).
-  - APK: CI.java (proto), JD.java (KMP model).
   - Shares RemoteSensorState and RemoteSensorAttributes with RemoteSensor.
 """
 

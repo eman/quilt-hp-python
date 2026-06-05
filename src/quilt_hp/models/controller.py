@@ -8,10 +8,10 @@ from typing import Any, cast
 
 from quilt_hp.const import PROTO_TIMESTAMP_UNSET_SECONDS
 from quilt_hp.models._helpers import lookup_hardware, parse_wifi_state
-from quilt_hp.models.enums import RemoteSensorControlMode
+from quilt_hp.models.enums import LocalCommsHealthStatus, RemoteSensorControlMode
 from quilt_hp.models.qsm import WifiInfo
 
-_ONLINE_THRESHOLD_S = 5 * 60  # 5 minutes, matching KMP IS_ONLINE_THRESHOLD_MINUTES
+_ONLINE_THRESHOLD_S = 5 * 60  # 5-minute online detection window
 
 
 @dataclass(slots=True)
@@ -42,6 +42,13 @@ class Controller:
     model_sku: str | None = None  # ControllerHardware.attributes.model_sku
     firmware_version: str | None = None  # ControllerHardware.attributes.firmware_version
     state_updated_at: datetime | None = None  # ControllerState.updated_ts (field 1)
+    local_comms_health: LocalCommsHealthStatus = LocalCommsHealthStatus.UNSPECIFIED
+    """Local mesh health (proto field 9). Available on app 1.0.26+.
+
+    Gate: ``mobile_local_control_health_enabled``.  UNSPECIFIED means the
+    server has not yet reported a health value (pre-1.0.26 firmware or the
+    gate is off).
+    """
 
     @property
     def ambient_temperature_c(self) -> float:
@@ -64,7 +71,7 @@ class Controller:
         """True if the controller is known to be online.
 
         Uses ``ControllerState.updated_ts`` if available, with a 5-minute
-        threshold matching KMP ``IS_ONLINE_THRESHOLD_MINUTES = 5``.
+        threshold.
 
         The server does not currently send ``ControllerState.updated_ts``
         (confirmed from wire captures — field 1 always absent).  When no
@@ -135,4 +142,7 @@ class Controller:
             model_sku=model_sku,
             firmware_version=fw_ver,
             state_updated_at=updated_at,
+            local_comms_health=LocalCommsHealthStatus(
+                getattr(getattr(p, "local_comms_status", None), "health", 0)
+            ),
         )

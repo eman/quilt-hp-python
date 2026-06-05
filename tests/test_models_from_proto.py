@@ -21,6 +21,7 @@ from quilt_hp.models.enums import (
     FanSpeed,
     HVACMode,
     HVACState,
+    LocalCommsHealthStatus,
     LouverMode,
     OccupancyMode,
     RemoteSensorControlMode,
@@ -841,6 +842,124 @@ def test_wifi_info_zero_signal_is_preserved() -> None:
     assert info.connected is True
 
 
+def test_qsm_local_comms_health_populated() -> None:
+    """local_comms_health is decoded from the nested LocalCommsStatus (field 8, subfield 2)."""
+    proto = _ns(
+        header=_make_header("qsm-3"),
+        relationships=_ns(software_update_info_id="", firmware_update_info_id=""),
+        controls=_ns(led_color_code=0, updated_ts=None),
+        state=_ns(
+            updated_ts=None,
+            phase_detected_raw=0.0,
+            target_detected_raw=0.0,
+            als_illuminance_raw=0,
+            als_ir_raw=0,
+            als_both_raw=0,
+            accel_x_raw=0,
+            accel_y_raw=0,
+            accel_z_raw=0,
+        ),
+        hosted_wifi_state=_ns(ssid="", ipv4_address="", signal_level_dbm=0),
+        ap_wifi_state=_ns(ssid="", ipv4_address="", signal_level_dbm=0),
+        p2p_wifi_state=_ns(ssid="", ipv4_address="", signal_level_dbm=0),
+        local_comms_status=_ns(health=1),  # health subfield 2 = HEALTHY
+    )
+    qsm = QuiltSmartModule.from_proto(proto)
+    assert qsm.local_comms_health == LocalCommsHealthStatus.HEALTHY
+
+
+def test_qsm_local_comms_health_defaults_to_unspecified() -> None:
+    """Absent local_comms_status (stream diff / pre-1.0.26 firmware) defaults to UNSPECIFIED."""
+    proto = _ns(
+        header=_make_header("qsm-4"),
+        relationships=_ns(software_update_info_id="", firmware_update_info_id=""),
+        controls=_ns(led_color_code=0, updated_ts=None),
+        state=_ns(
+            updated_ts=None,
+            phase_detected_raw=0.0,
+            target_detected_raw=0.0,
+            als_illuminance_raw=0,
+            als_ir_raw=0,
+            als_both_raw=0,
+            accel_x_raw=0,
+            accel_y_raw=0,
+            accel_z_raw=0,
+        ),
+        hosted_wifi_state=_ns(ssid="", ipv4_address="", signal_level_dbm=0),
+        ap_wifi_state=_ns(ssid="", ipv4_address="", signal_level_dbm=0),
+        p2p_wifi_state=_ns(ssid="", ipv4_address="", signal_level_dbm=0),
+        # no local_comms_status → simulates old firmware / stream diff
+    )
+    qsm = QuiltSmartModule.from_proto(proto)
+    assert qsm.local_comms_health == LocalCommsHealthStatus.UNSPECIFIED
+
+
+def test_controller_local_comms_health_populated() -> None:
+    """local_comms_health is decoded from the nested LocalCommsStatus (field 9, subfield 2)."""
+    proto = _ns(
+        header=_make_header("ctrl-lch"),
+        relationships=_ns(
+            space_id="space-1",
+            software_update_info_id="",
+            firmware_update_info_id="",
+        ),
+        settings=_ns(name="Dial"),
+        state=_ns(
+            updated_ts=_ns(seconds=0),
+            ambient_temperature_c=20.0,
+            temperature_f3=33.0,
+            temperature_f4=47.0,
+            temperature_f5=20.0,
+        ),
+        hosted_wifi_state=_ns(
+            ssid="",
+            ipv4_address="",
+            signal_level_dbm=0,
+            frequency_mhz=0,
+            updated_ts=_ns(seconds=0),
+        ),
+        ap_wifi_state=_ns(ssid="", ipv4_address="", signal_level_dbm=0),
+        p2p_wifi_state=_ns(ssid="", ipv4_address="", signal_level_dbm=0),
+        controls=_ns(remote_sensor_control_mode=0),
+        local_comms_status=_ns(health=3),  # health subfield 2 = OFFLINE
+    )
+    ctrl = Controller.from_proto(proto)
+    assert ctrl.local_comms_health == LocalCommsHealthStatus.OFFLINE
+
+
+def test_controller_local_comms_health_defaults_to_unspecified() -> None:
+    """Absent local_comms_status on Controller defaults to UNSPECIFIED."""
+    proto = _ns(
+        header=_make_header("ctrl-no-lch"),
+        relationships=_ns(
+            space_id="space-1",
+            software_update_info_id="",
+            firmware_update_info_id="",
+        ),
+        settings=_ns(name="Dial"),
+        state=_ns(
+            updated_ts=_ns(seconds=0),
+            ambient_temperature_c=20.0,
+            temperature_f3=33.0,
+            temperature_f4=47.0,
+            temperature_f5=20.0,
+        ),
+        hosted_wifi_state=_ns(
+            ssid="",
+            ipv4_address="",
+            signal_level_dbm=0,
+            frequency_mhz=0,
+            updated_ts=_ns(seconds=0),
+        ),
+        ap_wifi_state=_ns(ssid="", ipv4_address="", signal_level_dbm=0),
+        p2p_wifi_state=_ns(ssid="", ipv4_address="", signal_level_dbm=0),
+        controls=_ns(remote_sensor_control_mode=0),
+        # no local_comms_status → simulates old firmware / stream diff
+    )
+    ctrl = Controller.from_proto(proto)
+    assert ctrl.local_comms_health == LocalCommsHealthStatus.UNSPECIFIED
+
+
 # ─── RemoteSensor ────────────────────────────────────────────────────────────
 
 
@@ -1601,3 +1720,99 @@ def test_odu_for_idu_matches_prefixed_and_raw_ids() -> None:
     snap.outdoor_units[0] = replace(snap.outdoor_units[0], id="outdoor_unit/odu-1")
     assert snap.odu_for_idu(idu1) is not None
     assert snap.odu_for_idu(idu1).id == "outdoor_unit/odu-1"  # type: ignore[union-attr]
+
+
+# ─── SystemSnapshot sparse-diff apply ───────────────────────────────────────
+
+
+def _make_minimal_qsm(qsm_id: str, health: LocalCommsHealthStatus) -> QuiltSmartModule:
+    return QuiltSmartModule(
+        id=qsm_id,
+        system_id="sys-1",
+        led_color_code=0,
+        sensors=None,
+        hosted_wifi=None,
+        ap_wifi=None,
+        p2p_wifi=None,
+        software_update_info_id=None,
+        firmware_update_info_id=None,
+        local_comms_health=health,
+    )
+
+
+def _make_minimal_controller(ctrl_id: str, health: LocalCommsHealthStatus) -> Controller:
+    from quilt_hp.models.enums import RemoteSensorControlMode
+
+    return Controller(
+        id=ctrl_id,
+        system_id="sys-1",
+        space_id=None,
+        name="Dial",
+        raw_thermistor_c=None,
+        pcb_temperature_a_c=None,
+        pcb_temperature_b_c=None,
+        calibrated_ambient_c=None,
+        wifi_ssid=None,
+        wifi_ip=None,
+        wifi_signal_dbm=None,
+        wifi_freq_mhz=None,
+        wifi_last_seen=None,
+        ap_wifi=None,
+        p2p_wifi=None,
+        remote_sensor_mode=RemoteSensorControlMode.UNSPECIFIED,
+        local_comms_health=health,
+        software_update_info_id=None,
+        firmware_update_info_id=None,
+        serial_number=None,
+        model_sku=None,
+        firmware_version=None,
+        state_updated_at=None,
+    )
+
+
+def test_apply_qsm_preserves_local_comms_health_on_sparse_diff() -> None:
+    """A stream diff that omits local_comms_status must not erase the known health."""
+    snap = SystemSnapshot.__new__(SystemSnapshot)
+    snap.quilt_smart_modules = [_make_minimal_qsm("qsm-1", LocalCommsHealthStatus.HEALTHY)]
+    snap.spaces = []
+    snap.indoor_units = []
+    snap.outdoor_units = []
+    snap.controllers = []
+    snap.remote_sensors = []
+    snap.controller_remote_sensors = []
+    snap.comfort_settings = []
+    snap.schedule_days = []
+    snap.schedule_weeks = []
+    snap.software_update_infos = []
+    snap.locations = []
+    snap.timezone = "UTC"
+
+    # Simulate a sparse diff — local_comms_status absent, decodes as UNSPECIFIED
+    diff = _make_minimal_qsm("qsm-1", LocalCommsHealthStatus.UNSPECIFIED)
+    result = snap.apply_qsm(diff)
+
+    assert result.local_comms_health == LocalCommsHealthStatus.HEALTHY
+
+
+def test_apply_controller_preserves_local_comms_health_on_sparse_diff() -> None:
+    """A stream diff that omits local_comms_status must not erase the known health."""
+    snap = SystemSnapshot.__new__(SystemSnapshot)
+    snap.controllers = [_make_minimal_controller("ctrl-1", LocalCommsHealthStatus.DEGRADED)]
+    snap.spaces = []
+    snap.indoor_units = []
+    snap.outdoor_units = []
+    snap.quilt_smart_modules = []
+    snap.remote_sensors = []
+    snap.controller_remote_sensors = []
+    snap.comfort_settings = []
+    snap.schedule_days = []
+    snap.schedule_weeks = []
+    snap.software_update_infos = []
+    snap.locations = []
+    snap.timezone = "UTC"
+
+    # Simulate a sparse diff — local_comms_status absent, decodes as UNSPECIFIED
+    diff = _make_minimal_controller("ctrl-1", LocalCommsHealthStatus.UNSPECIFIED)
+    result = snap.apply_controller(diff)
+
+    assert result.local_comms_health == LocalCommsHealthStatus.DEGRADED

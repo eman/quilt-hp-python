@@ -126,7 +126,8 @@ class HomeDatastoreService:
         if mode_enum == HVACMode.AUTO and cool - heat < 2.5:
             cool = heat + 2.5
 
-        # Mode-relevant setpoint routing (from KX.java)
+        # Mode-relevant setpoint routing.
+        # DRY mode has no user-configurable setpoint; omit setpoint fields entirely.
         temp_setpoint = heat if mode_enum == HVACMode.HEAT else cool
 
         # Setting to STANDBY explicitly means "turn off" — clear the comfort
@@ -138,20 +139,23 @@ class HomeDatastoreService:
             cs_id = c.comfort_setting_id
             cs_override = hds.COMFORT_SETTING_OVERRIDE_UNTIL_NEXT_SCHEDULE
 
+        controls_kwargs: dict[str, object] = {
+            "hvac_mode": cast("hds.HVACMode.ValueType", mode_val),
+            "updated_ts": _now_ts(),
+            "comfort_setting_override": cs_override,
+            "comfort_setting_id_string": cs_id,
+        }
+        if mode_enum != HVACMode.DRY:
+            controls_kwargs["temperature_setpoint_c"] = temp_setpoint
+            controls_kwargs["heating_temperature_setpoint_c"] = heat
+            controls_kwargs["cooling_temperature_setpoint_c"] = cool
+
         diff = hds.Space(
             header=hds.EntityMetadata(
                 object_id=snapshot_space.id,
                 system_id=snapshot_space.system_id,
             ),
-            controls=hds.SpaceControls(
-                hvac_mode=cast("hds.HVACMode.ValueType", mode_val),
-                temperature_setpoint_c=temp_setpoint,
-                heating_temperature_setpoint_c=heat,
-                cooling_temperature_setpoint_c=cool,
-                updated_ts=_now_ts(),
-                comfort_setting_override=cs_override,
-                comfort_setting_id_string=cs_id,
-            ),
+            controls=hds.SpaceControls(**controls_kwargs),  # type: ignore[arg-type]
         )
         logger.debug(
             "RPC UpdateSpace space_id=%s system_id=%s", snapshot_space.id, snapshot_space.system_id

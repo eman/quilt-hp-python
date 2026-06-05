@@ -11,6 +11,7 @@ from quilt_hp.models.enums import (
     ComfortSettingType,
     HVACMode,
     LightState,
+    LocalCommsHealthStatus,
     LouverMode,
     RemoteSensorControlMode,
 )
@@ -328,6 +329,11 @@ class SystemSnapshot:
                     and c.remote_sensor_mode != RemoteSensorControlMode.UNSPECIFIED
                 ):
                     updates["remote_sensor_mode"] = c.remote_sensor_mode
+                if (
+                    ctrl.local_comms_health == LocalCommsHealthStatus.UNSPECIFIED
+                    and c.local_comms_health != LocalCommsHealthStatus.UNSPECIFIED
+                ):
+                    updates["local_comms_health"] = c.local_comms_health
                 # Hardware fields are never in stream diffs — always preserve
                 # from snapshot
                 if ctrl.serial_number is None and c.serial_number is not None:
@@ -360,6 +366,11 @@ class SystemSnapshot:
                     updates["ap_wifi"] = q.ap_wifi
                 if qsm.p2p_wifi is None and q.p2p_wifi is not None:
                     updates["p2p_wifi"] = q.p2p_wifi
+                if (
+                    qsm.local_comms_health == LocalCommsHealthStatus.UNSPECIFIED
+                    and q.local_comms_health != LocalCommsHealthStatus.UNSPECIFIED
+                ):
+                    updates["local_comms_health"] = q.local_comms_health
                 if updates:
                     qsm = replace(qsm, **updates)
                 self.quilt_smart_modules[i] = qsm

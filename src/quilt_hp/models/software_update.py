@@ -7,8 +7,6 @@ Each device (IDU, QSM, Controller, ODU) has two entries:
 
 When no update is pending, only updated_ts is populated; all version
 fields and progress fields are empty/zero.
-
-APK-confirmed: YL.java (proto), WL.java (attributes), OJ.java (field 18 in HDS).
 """
 
 from __future__ import annotations
