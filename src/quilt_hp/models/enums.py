@@ -36,7 +36,7 @@ class HVACState(IntEnum):
     FAN_DEFERRED = 8
     COOL_PREPARING = 9
     HEAT_PREPARING = 10
-    DRY = 11           # Actively dehumidifying
+    DRY = 11  # Actively dehumidifying
     DRY_DEFERRED = 12  # Waiting for mode-switch delay before dehumidifying
     DRY_PREPARING = 13  # Compressor pre-conditioning before DRY
 

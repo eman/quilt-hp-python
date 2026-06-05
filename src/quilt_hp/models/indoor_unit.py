@@ -247,7 +247,7 @@ class IndoorUnit:
 
     @property
     def is_online(self) -> bool:
-        """        True if the IDU has sent a state update within the last 5 minutes.
+        """True if the IDU has sent a state update within the last 5 minutes.
         An offline IDU may have stale controls data — treat LED as off.
         """
         ts = self.state.updated_at
@@ -259,7 +259,7 @@ class IndoorUnit:
 
     @property
     def led_on(self) -> bool:
-        """        True if the LED is currently illuminated.
+        """True if the LED is currently illuminated.
 
         Applies the online gate: offline IDUs have stale controls data and
         must not be used for LED state.
@@ -268,7 +268,7 @@ class IndoorUnit:
 
     @property
     def effective_occupancy_state(self) -> int | None:
-        """        Occupancy state proto value, or None if the IDU is offline.
+        """Occupancy state proto value, or None if the IDU is offline.
 
         An offline IDU's last-known ``occupancy_state`` is stale and must not
         be displayed as current. Returns None when offline or no occupancy data.
