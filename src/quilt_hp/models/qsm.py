@@ -65,9 +65,7 @@ class QuiltSmartModule:
     p2p_wifi: WifiInfo | None  # peer-to-peer / Wi-Fi Direct (usually empty)
     software_update_info_id: str | None = None
     firmware_update_info_id: str | None = None
-    local_comms_health: LocalCommsHealthStatus = field(
-        default=LocalCommsHealthStatus.UNSPECIFIED
-    )
+    local_comms_health: LocalCommsHealthStatus = field(default=LocalCommsHealthStatus.UNSPECIFIED)
     """Local mesh health (proto field 8). Available on app 1.0.26+.
 
     Gate: ``mobile_local_control_health_enabled``.  UNSPECIFIED means the
