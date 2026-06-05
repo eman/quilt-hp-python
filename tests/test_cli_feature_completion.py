@@ -13,6 +13,7 @@ from quilt_hp.models.enums import (
     FanSpeed,
     HVACMode,
     HVACState,
+    LocalCommsHealthStatus,
     LouverMode,
     RemoteSensorControlMode,
 )
@@ -98,6 +99,7 @@ class _FakeSnapshot:
                 ambient_temperature_c=22.8,
                 raw_thermistor_c=24.2,
                 remote_sensor_mode=RemoteSensorControlMode.ENABLED,
+                local_comms_health=LocalCommsHealthStatus.HEALTHY,
                 software_update_info_id="update-software-ctrl",
                 firmware_update_info_id="update-firmware-ctrl",
                 serial_number="CTRL123",
@@ -131,6 +133,7 @@ class _FakeSnapshot:
                 id="qsm-1",
                 software_update_info_id="update-software-qsm",
                 firmware_update_info_id="update-firmware-qsm",
+                local_comms_health=LocalCommsHealthStatus.HEALTHY,
                 sensors=SimpleNamespace(
                     phase_detected_raw=0.1,
                     target_detected_raw=0.2,

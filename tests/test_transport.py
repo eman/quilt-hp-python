@@ -21,7 +21,7 @@ def test_grpc_host_staging() -> None:
 
 def test_app_version() -> None:
     """App version constant is set."""
-    assert APP_VERSION == "1.0.25"
+    assert APP_VERSION == "1.0.26"
 
 
 class _Provider:

@@ -246,6 +246,7 @@ def _snapshot_payload(snap: SystemSnapshot) -> dict[str, Any]:
                 "ambient_temperature_c": ctrl.ambient_temperature_c,
                 "raw_thermistor_c": ctrl.raw_thermistor_c,
                 "remote_sensor_mode": ctrl.remote_sensor_mode.name,
+                "local_comms_health": ctrl.local_comms_health.name,
                 "software_update_info_id": ctrl.software_update_info_id,
                 "firmware_update_info_id": ctrl.firmware_update_info_id,
                 "serial_number": ctrl.serial_number,
@@ -282,6 +283,7 @@ def _snapshot_payload(snap: SystemSnapshot) -> dict[str, Any]:
                 "id": qsm.id,
                 "software_update_info_id": qsm.software_update_info_id,
                 "firmware_update_info_id": qsm.firmware_update_info_id,
+                "local_comms_health": qsm.local_comms_health.name,
                 "sensors": (
                     {
                         "phase_detected_raw": qsm.sensors.phase_detected_raw,
@@ -348,9 +350,11 @@ def _print_snapshot_summary(data: dict[str, Any]) -> None:
 
     console.print("\n[bold]Controllers[/bold]")
     for ctrl in data["controllers"]:
+        lc = ctrl.get("local_comms_health", "UNSPECIFIED")
+        lc_str = f" local={lc}" if lc not in ("UNSPECIFIED", "HEALTHY") else ""
         console.print(
             f"  {ctrl['name']} ({ctrl['id']}) space={ctrl['space_name'] or ctrl['space_id']} "
-            f"ambient={ctrl['ambient_temperature_c']}°C"
+            f"ambient={ctrl['ambient_temperature_c']}°C{lc_str}"
         )
 
     console.print("\n[bold]Remote Sensors[/bold]")
@@ -740,7 +744,7 @@ def energy(
 @app.command(name="set")
 def set_space(
     space_name: str = typer.Argument(..., help="Exact name of the room to update"),
-    mode: str | None = typer.Option(None, help="HVAC mode: COOL, HEAT, AUTO, STANDBY"),
+    mode: str | None = typer.Option(None, help="HVAC mode: COOL, HEAT, AUTO, FAN, DRY, STANDBY"),
     heat: float | None = typer.Option(None, help="Heating setpoint in °C"),
     cool: float | None = typer.Option(None, help="Cooling setpoint in °C"),
     email: str | None = typer.Option(None, envvar="QUILT_EMAIL", help="Quilt account email"),

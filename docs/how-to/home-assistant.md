@@ -283,6 +283,7 @@ _MODE_MAP: dict[QHVACMode, HAHVACMode] = {
     QHVACMode.HEAT: HAHVACMode.HEAT,
     QHVACMode.AUTO: HAHVACMode.HEAT_COOL,
     QHVACMode.FAN: HAHVACMode.FAN_ONLY,
+    QHVACMode.DRY: HAHVACMode.DRY,  # v1.0.26: dehumidification mode
 }
 
 _HA_TO_QUILT: dict[HAHVACMode, QHVACMode] = {v: k for k, v in _MODE_MAP.items()}

@@ -21,6 +21,7 @@ from quilt_hp.models.enums import (
     FanSpeed,
     HVACMode,
     HVACState,
+    LocalCommsHealthStatus,
     LouverMode,
     OccupancyMode,
     RemoteSensorControlMode,
@@ -839,6 +840,124 @@ def test_wifi_info_zero_signal_is_preserved() -> None:
     )
     assert info.signal_dbm == 0
     assert info.connected is True
+
+
+def test_qsm_local_comms_health_populated() -> None:
+    """local_comms_health is decoded from the nested LocalCommsStatus (field 8, subfield 2)."""
+    proto = _ns(
+        header=_make_header("qsm-3"),
+        relationships=_ns(software_update_info_id="", firmware_update_info_id=""),
+        controls=_ns(led_color_code=0, updated_ts=None),
+        state=_ns(
+            updated_ts=None,
+            phase_detected_raw=0.0,
+            target_detected_raw=0.0,
+            als_illuminance_raw=0,
+            als_ir_raw=0,
+            als_both_raw=0,
+            accel_x_raw=0,
+            accel_y_raw=0,
+            accel_z_raw=0,
+        ),
+        hosted_wifi_state=_ns(ssid="", ipv4_address="", signal_level_dbm=0),
+        ap_wifi_state=_ns(ssid="", ipv4_address="", signal_level_dbm=0),
+        p2p_wifi_state=_ns(ssid="", ipv4_address="", signal_level_dbm=0),
+        local_comms_status=_ns(health=1),  # health subfield 2 = HEALTHY
+    )
+    qsm = QuiltSmartModule.from_proto(proto)
+    assert qsm.local_comms_health == LocalCommsHealthStatus.HEALTHY
+
+
+def test_qsm_local_comms_health_defaults_to_unspecified() -> None:
+    """Absent local_comms_status (stream diff / pre-1.0.26 firmware) defaults to UNSPECIFIED."""
+    proto = _ns(
+        header=_make_header("qsm-4"),
+        relationships=_ns(software_update_info_id="", firmware_update_info_id=""),
+        controls=_ns(led_color_code=0, updated_ts=None),
+        state=_ns(
+            updated_ts=None,
+            phase_detected_raw=0.0,
+            target_detected_raw=0.0,
+            als_illuminance_raw=0,
+            als_ir_raw=0,
+            als_both_raw=0,
+            accel_x_raw=0,
+            accel_y_raw=0,
+            accel_z_raw=0,
+        ),
+        hosted_wifi_state=_ns(ssid="", ipv4_address="", signal_level_dbm=0),
+        ap_wifi_state=_ns(ssid="", ipv4_address="", signal_level_dbm=0),
+        p2p_wifi_state=_ns(ssid="", ipv4_address="", signal_level_dbm=0),
+        # no local_comms_status → simulates old firmware / stream diff
+    )
+    qsm = QuiltSmartModule.from_proto(proto)
+    assert qsm.local_comms_health == LocalCommsHealthStatus.UNSPECIFIED
+
+
+def test_controller_local_comms_health_populated() -> None:
+    """local_comms_health is decoded from the nested LocalCommsStatus (field 9, subfield 2)."""
+    proto = _ns(
+        header=_make_header("ctrl-lch"),
+        relationships=_ns(
+            space_id="space-1",
+            software_update_info_id="",
+            firmware_update_info_id="",
+        ),
+        settings=_ns(name="Dial"),
+        state=_ns(
+            updated_ts=_ns(seconds=0),
+            ambient_temperature_c=20.0,
+            temperature_f3=33.0,
+            temperature_f4=47.0,
+            temperature_f5=20.0,
+        ),
+        hosted_wifi_state=_ns(
+            ssid="",
+            ipv4_address="",
+            signal_level_dbm=0,
+            frequency_mhz=0,
+            updated_ts=_ns(seconds=0),
+        ),
+        ap_wifi_state=_ns(ssid="", ipv4_address="", signal_level_dbm=0),
+        p2p_wifi_state=_ns(ssid="", ipv4_address="", signal_level_dbm=0),
+        controls=_ns(remote_sensor_control_mode=0),
+        local_comms_status=_ns(health=3),  # health subfield 2 = OFFLINE
+    )
+    ctrl = Controller.from_proto(proto)
+    assert ctrl.local_comms_health == LocalCommsHealthStatus.OFFLINE
+
+
+def test_controller_local_comms_health_defaults_to_unspecified() -> None:
+    """Absent local_comms_status on Controller defaults to UNSPECIFIED."""
+    proto = _ns(
+        header=_make_header("ctrl-no-lch"),
+        relationships=_ns(
+            space_id="space-1",
+            software_update_info_id="",
+            firmware_update_info_id="",
+        ),
+        settings=_ns(name="Dial"),
+        state=_ns(
+            updated_ts=_ns(seconds=0),
+            ambient_temperature_c=20.0,
+            temperature_f3=33.0,
+            temperature_f4=47.0,
+            temperature_f5=20.0,
+        ),
+        hosted_wifi_state=_ns(
+            ssid="",
+            ipv4_address="",
+            signal_level_dbm=0,
+            frequency_mhz=0,
+            updated_ts=_ns(seconds=0),
+        ),
+        ap_wifi_state=_ns(ssid="", ipv4_address="", signal_level_dbm=0),
+        p2p_wifi_state=_ns(ssid="", ipv4_address="", signal_level_dbm=0),
+        controls=_ns(remote_sensor_control_mode=0),
+        # no local_comms_status → simulates old firmware / stream diff
+    )
+    ctrl = Controller.from_proto(proto)
+    assert ctrl.local_comms_health == LocalCommsHealthStatus.UNSPECIFIED
 
 
 # ─── RemoteSensor ────────────────────────────────────────────────────────────

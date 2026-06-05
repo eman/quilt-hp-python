@@ -49,6 +49,7 @@ from quilt_hp.models.enums import (
     HVACState,
     LedAnimation,
     LightPreset,
+    LocalCommsHealthStatus,
     LouverMode,
     OccupancyMode,
     OccupancyState,
@@ -80,6 +81,7 @@ _MODE_STYLE: dict[HVACMode, str] = {
     HVACMode.COOL: "bold cyan",
     HVACMode.AUTO: "bold yellow",
     HVACMode.FAN: "bold green",
+    HVACMode.DRY: "bold blue",
     HVACMode.STANDBY: "dim",
     HVACMode.FALLBACK_AUTO: "bold yellow",
     HVACMode.FALLBACK_OFF: "dim",
@@ -91,11 +93,14 @@ _STATE_STYLE: dict[HVACState, str] = {
     HVACState.COOL: "cyan",
     HVACState.DRIFT: "yellow",
     HVACState.FAN: "green",
+    HVACState.DRY: "blue",
     HVACState.COOL_DEFERRED: "cyan",
     HVACState.HEAT_DEFERRED: "red",
     HVACState.FAN_DEFERRED: "green",
+    HVACState.DRY_DEFERRED: "blue",
     HVACState.COOL_PREPARING: "cyan",
     HVACState.HEAT_PREPARING: "red",
+    HVACState.DRY_PREPARING: "blue",
     HVACState.STANDBY: "dim",
     HVACState.UNSPECIFIED: "dim",
 }
@@ -105,6 +110,7 @@ _MODE_LABELS: dict[HVACMode, str] = {
     HVACMode.COOL: "COOL",
     HVACMode.AUTO: "AUTO",
     HVACMode.FAN: " FAN",
+    HVACMode.DRY: " DRY",
     HVACMode.STANDBY: "STBY",
     HVACMode.FALLBACK_AUTO: "FAUTO",
     HVACMode.FALLBACK_OFF: "FOFF",
@@ -116,11 +122,14 @@ _STATE_SYMBOLS: dict[HVACState, str] = {
     HVACState.COOL: "◉ Cooling",
     HVACState.DRIFT: "~ Drift",
     HVACState.FAN: "~ Fan",
+    HVACState.DRY: "◉ Drying",
     HVACState.COOL_DEFERRED: "○ Cool (deferred)",
     HVACState.HEAT_DEFERRED: "○ Heat (deferred)",
     HVACState.FAN_DEFERRED: "○ Fan (deferred)",
+    HVACState.DRY_DEFERRED: "○ Dry (deferred)",
     HVACState.COOL_PREPARING: "⋯ Preparing to Cool",
     HVACState.HEAT_PREPARING: "⋯ Preparing to Heat",
+    HVACState.DRY_PREPARING: "⋯ Preparing to Dry",
     HVACState.STANDBY: "◌ Standby",
     HVACState.UNSPECIFIED: "--",
 }
@@ -138,6 +147,7 @@ _MODE_CYCLE = [
     HVACMode.COOL,
     HVACMode.AUTO,
     HVACMode.FAN,
+    HVACMode.DRY,
     HVACMode.STANDBY,
 ]
 _LOUVER_CYCLE = [
@@ -225,6 +235,30 @@ def _occ_glyph(occ: OccupancyState | int | None) -> str:
     if state == OccupancyState.UNDETECTED:
         return "[dim]○[/dim]"
     return "[dim]?[/dim]"
+
+
+_LOCAL_COMMS_STYLE: dict[LocalCommsHealthStatus, str] = {
+    LocalCommsHealthStatus.HEALTHY: "green",
+    LocalCommsHealthStatus.STARTING_UP: "green",  # transient — treat as healthy
+    LocalCommsHealthStatus.DEGRADED: "bold yellow",
+    LocalCommsHealthStatus.OFFLINE: "bold red",
+    LocalCommsHealthStatus.UNSPECIFIED: "dim",
+}
+_LOCAL_COMMS_LABELS: dict[LocalCommsHealthStatus, str] = {
+    LocalCommsHealthStatus.HEALTHY: "● Healthy",
+    LocalCommsHealthStatus.STARTING_UP: "⋯ Starting",
+    LocalCommsHealthStatus.DEGRADED: "⚠ Degraded",
+    LocalCommsHealthStatus.OFFLINE: "✗ Offline",
+    LocalCommsHealthStatus.UNSPECIFIED: "--",
+}
+
+
+def _fmt_local_comms(health: LocalCommsHealthStatus) -> tuple[str, str]:
+    """Return (label, style) for a LocalCommsHealthStatus value."""
+    return (
+        _LOCAL_COMMS_LABELS.get(health, health.name),
+        _LOCAL_COMMS_STYLE.get(health, ""),
+    )
 
 
 def _fmt_mode(mode: HVACMode) -> Text:
@@ -834,6 +868,7 @@ class RoomScreen(Screen):
                 yield _KVStatic(id="dial-crs-humidity")
                 yield _KVStatic(id="dial-crs-battery")
                 yield _KVStatic(id="dial-crs-signal")
+                yield _KVStatic(id="dial-local-comms")
             # QSM panel
             with Vertical(classes="panel qsm-panel") as v:
                 v.border_title = "QSM (Smart Module)"
@@ -843,6 +878,7 @@ class RoomScreen(Screen):
                 yield _KVStatic(id="qsm-presence")
                 yield _KVStatic(id="qsm-als")
                 yield _KVStatic(id="qsm-accel")
+                yield _KVStatic(id="qsm-local-comms")
 
     def _compose_perf(self) -> ComposeResult:
         with Horizontal(classes="perf-row"):
@@ -1360,6 +1396,8 @@ class RoomScreen(Screen):
                 self._kv("dial-crs-humidity", "  Zone Humidity", "--")
                 self._kv("dial-crs-battery", "  Battery", "--")
                 self._kv("dial-crs-signal", "  Signal", "--")
+            lc_label, lc_style = _fmt_local_comms(ctrl.local_comms_health)
+            self._kv("dial-local-comms", "Local Control", lc_label, lc_style)
         else:
             for nid in (
                 "dial-model",
@@ -1378,6 +1416,7 @@ class RoomScreen(Screen):
                 "dial-crs-humidity",
                 "dial-crs-battery",
                 "dial-crs-signal",
+                "dial-local-comms",
             ):
                 self._kv(
                     nid,
@@ -1416,6 +1455,8 @@ class RoomScreen(Screen):
                     ("qsm-accel", "Accel"),
                 ]:
                     self._kv(nid, lbl, "--")
+            lc_label, lc_style = _fmt_local_comms(qsm.local_comms_health)
+            self._kv("qsm-local-comms", "Local Control", lc_label, lc_style)
         else:
             for nid, lbl in [
                 ("qsm-wifi-hosted", "WiFi (hosted)"),
@@ -1424,6 +1465,7 @@ class RoomScreen(Screen):
                 ("qsm-presence", "Presence"),
                 ("qsm-als", "ALS"),
                 ("qsm-accel", "Accel"),
+                ("qsm-local-comms", "Local Control"),
             ]:
                 self._kv(nid, lbl, "no QSM")
 
