@@ -111,6 +111,6 @@ class QuiltSmartModule:
                 proto.relationships.firmware_update_info_id or None  # type: ignore[attr-defined]
             ),
             local_comms_health=LocalCommsHealthStatus(
-                getattr(getattr(proto, "local_comms_status", None), "health", 0)  # type: ignore[attr-defined]
+                getattr(getattr(proto, "local_comms_status", None), "health", 0)
             ),
         )
