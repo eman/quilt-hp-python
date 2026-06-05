@@ -50,8 +50,8 @@ class IndoorUnitControls:
         - ON  → True
         - OFF → False (brightness is preserved server-side, so > 0 does not
           mean on)
-        Fallback when UNSPECIFIED: matches KMP ``Light.isOn`` logic:
-        isBlack = led_color_code == 0; isOn = !isBlack && brightness > 0.
+        Fallback when UNSPECIFIED: uses brightness-based detection —
+        isOn = led_color_code != 0 and brightness > 0.
         """
         if self.led_state == LightState.ON:
             return True
@@ -225,7 +225,7 @@ class IndoorUnit:
     id: str
     system_id: str
     space_id: str
-    outdoor_unit_id: str | None  # APK: IndoorUnitRelationships.outdoor_unit_id field 3
+    outdoor_unit_id: str | None  # linked outdoor unit, if any
     hardware_id: str
     qsm_id: str | None  # QuiltSmartModule embedded in this unit
     settings: IndoorUnitSettings
@@ -247,9 +247,7 @@ class IndoorUnit:
 
     @property
     def is_online(self) -> bool:
-        """True if the IDU has sent a state update within the last 5 minutes.
-
-        Matches KMP SpaceViewNode.isOnlineByUpdatedTimestamp.
+        """        True if the IDU has sent a state update within the last 5 minutes.
         An offline IDU may have stale controls data — treat LED as off.
         """
         ts = self.state.updated_at
@@ -261,19 +259,17 @@ class IndoorUnit:
 
     @property
     def led_on(self) -> bool:
-        """True if the LED is currently illuminated.
+        """        True if the LED is currently illuminated.
 
-        Applies the online gate: KMP's ``getLight()`` calls ``filterOnline()``
-        and returns ``Light.OFF`` for offline IDUs.  An offline IDU's controls
-        data is stale and must not be used for LED state.
+        Applies the online gate: offline IDUs have stale controls data and
+        must not be used for LED state.
         """
         return self.is_online and self.controls.light_on
 
     @property
     def effective_occupancy_state(self) -> int | None:
-        """Occupancy state proto value, or None if the IDU is offline.
+        """        Occupancy state proto value, or None if the IDU is offline.
 
-        KMP reads presence/occupancy only from online IDUs (``filterOnline()``).
         An offline IDU's last-known ``occupancy_state`` is stale and must not
         be displayed as current. Returns None when offline or no occupancy data.
         """

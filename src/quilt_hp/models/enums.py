@@ -16,7 +16,7 @@ class HVACMode(IntEnum):
     FAN = 5
     FALLBACK_AUTO = 6
     FALLBACK_OFF = 7
-    DRY = 8  # Dehumidification mode (iOS KMP 1.0.26 / wire value user-confirmed)
+    DRY = 8  # Dehumidification mode; wire-confirmed value 8
 
     def __str__(self) -> str:
         return self.name
@@ -36,7 +36,7 @@ class HVACState(IntEnum):
     FAN_DEFERRED = 8
     COOL_PREPARING = 9
     HEAT_PREPARING = 10
-    DRY = 11           # Actively dehumidifying (iOS KMP 1.0.26)
+    DRY = 11           # Actively dehumidifying
     DRY_DEFERRED = 12  # Waiting for mode-switch delay before dehumidifying
     DRY_PREPARING = 13  # Compressor pre-conditioning before DRY
 

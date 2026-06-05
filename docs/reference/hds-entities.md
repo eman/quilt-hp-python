@@ -49,7 +49,7 @@ The Quilt apps use several placeholder values to represent "not set", "ignored i
 | `comfort_setting_id=""` | Manual/direct-control mode (no preset bound) | `SpaceControls.has_linked_comfort_setting`, `SpaceControls.comfort_setting_id_or_none` |
 | `louver_fixed_position=0.0` with non-`FIXED` mode | Louver position ignored for AUTO/SWEEP/CLOSED | `IndoorUnitControls.louver_position_is_placeholder`, `ComfortSetting.louver_position_is_placeholder` |
 | `fan_speed_mode=0` | Proto3 default = fan fields absent / unknown in sparse diff | `IndoorUnitControls.fan_speed_is_placeholder` |
-| `fanSpeedMaxRpm=0.0` | Indoor-unit hardware spec missing/unpopulated (KMP model) | Reserved constant: `UNSET_MAX_FAN_SPEED_RPM_SENTINEL` |
+| `fanSpeedMaxRpm=0.0` | Indoor-unit hardware spec missing/unpopulated | Reserved constant: `UNSET_MAX_FAN_SPEED_RPM_SENTINEL` |
 | `NaN` in temperatures/energy | Missing or invalid measurement samples | `SpaceState.has_missing_ambient_temperature`, `SpaceState.has_missing_setpoint`, `EnergyBucket.has_missing_energy_value` |
 | timestamp seconds `0` | Proto timestamp unset (no check-in yet) | Parsed as `None` for model datetimes (`updated_at`, `wifi_last_seen`) |
 | unknown schedule weekday | Invalid/unknown day in ordering logic | `ScheduleWeekDay.weekday_sort_order` maps to tail sentinel |
