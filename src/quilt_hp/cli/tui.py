@@ -1234,8 +1234,6 @@ class RoomScreen(Screen):
         self._kv("sen-occ-state", "Occupancy", occ_str, occ_style)
 
         # Presence sensors — binary DETECTED / UNDETECTED per radar sensor.
-        # KMP uses sensor0Presence / sensor1Presence as Presence enum
-        # (DETECTED/UNDETECTED); these are NOT analog values.
         if idu and idu.presence:
             from quilt_hp.models.enums import Presence
 

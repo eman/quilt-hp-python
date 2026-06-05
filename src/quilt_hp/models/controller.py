@@ -11,7 +11,7 @@ from quilt_hp.models._helpers import lookup_hardware, parse_wifi_state
 from quilt_hp.models.enums import LocalCommsHealthStatus, RemoteSensorControlMode
 from quilt_hp.models.qsm import WifiInfo
 
-_ONLINE_THRESHOLD_S = 5 * 60  # 5 minutes, matching KMP IS_ONLINE_THRESHOLD_MINUTES
+_ONLINE_THRESHOLD_S = 5 * 60  # 5-minute online detection window
 
 
 @dataclass(slots=True)
@@ -71,7 +71,7 @@ class Controller:
         """True if the controller is known to be online.
 
         Uses ``ControllerState.updated_ts`` if available, with a 5-minute
-        threshold matching KMP ``IS_ONLINE_THRESHOLD_MINUTES = 5``.
+        threshold.
 
         The server does not currently send ``ControllerState.updated_ts``
         (confirmed from wire captures — field 1 always absent).  When no
