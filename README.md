@@ -74,6 +74,10 @@ quilt energy --period week
 quilt set "Living Room" --mode cool --cool 22
 ```
 
+## Related Projects
+
+- **[homeassistant-quilt-hp](https://github.com/eman/homeassistant-quilt-hp)** — Home Assistant custom integration built on this library. Exposes Quilt spaces, indoor/outdoor units, sensors, and schedules as HA entities with full climate control.
+
 ## Development
 
 ```bash
