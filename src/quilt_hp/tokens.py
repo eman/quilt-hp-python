@@ -136,8 +136,9 @@ async def invoke_refresh_callback(
 ) -> None:
     """Invoke a refresh callback, passing context only if it accepts a parameter.
 
-    Results are cached per-callable in a WeakKeyDictionary so that
-    ``inspect.signature`` is only called once per unique callback object.
+    Whether each callback accepts a ``TokenRefreshContext`` argument is cached
+    per-callable in a WeakKeyDictionary so that ``inspect.signature`` is only
+    called once per unique callback object.
     """
     try:
         has_params = _REFRESH_CALLBACK_HAS_PARAMS.get(refresh_callback)

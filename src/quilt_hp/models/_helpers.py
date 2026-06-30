@@ -1,6 +1,20 @@
 from __future__ import annotations
 
 
+def _id_variant_keys(raw: str) -> tuple[str, ...]:
+    """Return ID variant keys in deterministic priority order (exact → tail → casefold)."""
+    tail_slash = raw.rsplit("/", 1)[-1]
+    tail_colon = raw.rsplit(":", 1)[-1]
+    return (
+        raw,
+        tail_slash,
+        tail_colon,
+        raw.casefold(),
+        tail_slash.casefold(),
+        tail_colon.casefold(),
+    )
+
+
 def _id_variants(value: str | None) -> set[str]:
     """Return raw and normalized ID variants for matching resource IDs."""
     if not value:
@@ -8,17 +22,22 @@ def _id_variants(value: str | None) -> set[str]:
     raw = value.strip()
     if not raw:
         return set()
-    tail_slash = raw.rsplit("/", 1)[-1]
-    tail_colon = raw.rsplit(":", 1)[-1]
-    variants = {raw, tail_slash, tail_colon, raw.casefold()}
-    variants.add(tail_slash.casefold())
-    variants.add(tail_colon.casefold())
-    return {v for v in variants if v}
+    return {v for v in _id_variant_keys(raw) if v}
 
 
 def lookup_hardware(hw_map: dict[str, object], hardware_id: str | None) -> object | None:
-    """Resolve hardware objects across common ID formats."""
-    for key in _id_variants(hardware_id):
+    """Resolve hardware objects across common ID formats.
+
+    Keys are tried in deterministic priority order: exact → tail (after last
+    ``/`` or ``:`` separator) → casefold variants, matching the behaviour of
+    the original implementation.
+    """
+    if not hardware_id:
+        return None
+    raw = hardware_id.strip()
+    if not raw:
+        return None
+    for key in _id_variant_keys(raw):
         hw = hw_map.get(key)
         if hw is not None:
             return hw
