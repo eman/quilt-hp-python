@@ -59,15 +59,7 @@ class FanSpeed(IntEnum):
 
     def to_wire(self) -> tuple[int, float]:
         """Return (fan_speed_mode, fan_speed_percent) for the wire protocol."""
-        _MAP: dict[FanSpeed, tuple[int, float]] = {
-            FanSpeed.AUTO: (1, 0.0),  # FAN_SPEED_MODE_AUTO
-            FanSpeed.QUIET: (2, 0.20),  # FAN_SPEED_MODE_SETPOINT
-            FanSpeed.LOW: (2, 0.40),
-            FanSpeed.MEDIUM: (2, 0.60),
-            FanSpeed.HIGH: (2, 0.80),
-            FanSpeed.BLAST: (2, 1.00),
-        }
-        return _MAP[self]
+        return _FAN_SPEED_WIRE_MAP[self.value]
 
     @classmethod
     def from_wire(cls, mode: int, percent: float) -> FanSpeed:
@@ -83,6 +75,16 @@ class FanSpeed(IntEnum):
         if percent <= 0.81:
             return cls.HIGH
         return cls.BLAST
+
+
+_FAN_SPEED_WIRE_MAP: dict[int, tuple[int, float]] = {
+    0: (1, 0.0),  # AUTO  → FAN_SPEED_MODE_AUTO
+    1: (2, 0.20),  # QUIET → FAN_SPEED_MODE_SETPOINT
+    2: (2, 0.40),  # LOW
+    3: (2, 0.60),  # MEDIUM
+    4: (2, 0.80),  # HIGH
+    5: (2, 1.00),  # BLAST
+}
 
 
 class LouverMode(IntEnum):
@@ -129,7 +131,7 @@ class LouverAngle(IntEnum):
 
     def to_wire(self) -> float:
         """Return the louver_fixed_position float for the wire."""
-        return {1: 0.20, 2: 0.40, 3: 0.60, 4: 0.80, 5: 1.00}[self.value]
+        return _LOUVER_ANGLE_WIRE_MAP[self.value]
 
     @classmethod
     def from_wire(cls, position: float) -> LouverAngle:
@@ -143,6 +145,9 @@ class LouverAngle(IntEnum):
         if position <= 0.81:
             return cls.ANGLE4
         return cls.ANGLE5
+
+
+_LOUVER_ANGLE_WIRE_MAP: dict[int, float] = {1: 0.20, 2: 0.40, 3: 0.60, 4: 0.80, 5: 1.00}
 
 
 class LightPreset(IntEnum):

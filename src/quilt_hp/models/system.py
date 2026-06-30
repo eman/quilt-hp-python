@@ -5,6 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any, cast
 
+from quilt_hp.models._helpers import _id_variants
 from quilt_hp.models.comfort import ComfortSetting
 from quilt_hp.models.controller import Controller
 from quilt_hp.models.enums import (
@@ -22,21 +23,6 @@ from quilt_hp.models.schedule import ScheduleDay, ScheduleWeek
 from quilt_hp.models.sensor import ControllerRemoteSensor, RemoteSensor
 from quilt_hp.models.software_update import SoftwareUpdateInfo
 from quilt_hp.models.space import Space
-
-
-def _id_variants(value: str | None) -> set[str]:
-    """Return raw and normalized ID variants for matching resource IDs."""
-    if not value:
-        return set()
-    raw = value.strip()
-    if not raw:
-        return set()
-    tail_slash = raw.rsplit("/", 1)[-1]
-    tail_colon = raw.rsplit(":", 1)[-1]
-    variants = {raw, tail_slash, tail_colon, raw.casefold()}
-    variants.add(tail_slash.casefold())
-    variants.add(tail_colon.casefold())
-    return {v for v in variants if v}
 
 
 @dataclass(slots=True)
@@ -283,17 +269,17 @@ class SystemSnapshot:
 
         for i, u in enumerate(self.outdoor_units):
             if u.id == odu.id:
+                updates: dict[str, Any] = {}
                 # Preserve hvac_state when stream diff has a default-zero state
                 if not odu.hvac_state and u.hvac_state:
-                    odu = replace(odu, hvac_state=u.hvac_state)
+                    updates["hvac_state"] = u.hvac_state
                 # Preserve hardware info — stream diffs are parsed without hw_map
                 if odu.model_sku is None and u.model_sku is not None:
-                    odu = replace(
-                        odu,
-                        model_sku=u.model_sku,
-                        serial_number=u.serial_number,
-                        firmware_version=u.firmware_version,
-                    )
+                    updates["model_sku"] = u.model_sku
+                    updates["serial_number"] = u.serial_number
+                    updates["firmware_version"] = u.firmware_version
+                if updates:
+                    odu = replace(odu, **updates)
                 self.outdoor_units[i] = odu
                 return odu
         self.outdoor_units.append(odu)
