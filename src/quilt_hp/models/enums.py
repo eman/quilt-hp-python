@@ -78,7 +78,7 @@ class FanSpeed(IntEnum):
 
 
 _FAN_SPEED_WIRE_MAP: dict[int, tuple[int, float]] = {
-    0: (1, 0.0),   # AUTO  → FAN_SPEED_MODE_AUTO
+    0: (1, 0.0),  # AUTO  → FAN_SPEED_MODE_AUTO
     1: (2, 0.20),  # QUIET → FAN_SPEED_MODE_SETPOINT
     2: (2, 0.40),  # LOW
     3: (2, 0.60),  # MEDIUM
