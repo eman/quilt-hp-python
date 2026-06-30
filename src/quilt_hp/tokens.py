@@ -19,9 +19,7 @@ _TOKEN_BUFFER_S = 300  # treat tokens as expired 5 min before actual expiry
 
 # Cache whether a refresh callback accepts a TokenRefreshContext argument,
 # so inspect.signature is only called once per unique callable.
-_REFRESH_CALLBACK_HAS_PARAMS: weakref.WeakKeyDictionary[object, bool] = (
-    weakref.WeakKeyDictionary()
-)
+_REFRESH_CALLBACK_HAS_PARAMS: weakref.WeakKeyDictionary[object, bool] = weakref.WeakKeyDictionary()
 
 
 @dataclass(slots=True)
