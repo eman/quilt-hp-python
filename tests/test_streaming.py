@@ -12,10 +12,10 @@ from quilt_hp.services.streaming import (
     NotifierStream,
     _dispatch,
     _get_len_field,
-    _invoke_refresh_callback,
     _parse_varint,
 )
 from quilt_hp.tokens import TokenRefreshContext, TokenRefreshReason
+from quilt_hp.tokens import invoke_refresh_callback as _invoke_refresh_callback
 
 
 class _FakeRpcError(grpc.aio.AioRpcError):

@@ -9,7 +9,6 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
-import inspect
 import logging
 import time
 from collections.abc import AsyncIterator, Awaitable, Callable, Sequence
@@ -30,7 +29,7 @@ from quilt_hp.models.qsm import QuiltSmartModule
 from quilt_hp.models.sensor import ControllerRemoteSensor, RemoteSensor
 from quilt_hp.models.software_update import SoftwareUpdateInfo
 from quilt_hp.models.space import Space
-from quilt_hp.tokens import TokenRefreshContext, TokenRefreshReason
+from quilt_hp.tokens import TokenRefreshContext, TokenRefreshReason, invoke_refresh_callback
 
 logger = logging.getLogger(__name__)
 
@@ -58,21 +57,6 @@ RefreshCallback = Callable[[], Awaitable[None]] | Callable[[TokenRefreshContext]
 
 type _EventKey = tuple[str, str]
 type _AnyCallback = Callable[[Any], Awaitable[None] | None]
-
-
-async def _invoke_refresh_callback(
-    refresh_callback: RefreshCallback, context: TokenRefreshContext
-) -> None:
-    try:
-        has_params = bool(inspect.signature(refresh_callback).parameters)
-    except TypeError:
-        has_params = False
-    except ValueError:
-        has_params = False
-    if has_params:
-        await cast("Callable[[TokenRefreshContext], Awaitable[None]]", refresh_callback)(context)
-        return
-    await cast("Callable[[], Awaitable[None]]", refresh_callback)()
 
 
 def _parse_varint(data: bytes, pos: int) -> tuple[int, int]:
@@ -624,7 +608,7 @@ class NotifierStream:
                             source="streaming",
                             attempt=attempt + 1,
                         )
-                        await _invoke_refresh_callback(self._authenticate, context)
+                        await invoke_refresh_callback(self._authenticate, context)
                     except Exception:
                         logger.exception("Token refresh failed; giving up stream")
                         self._error = exc
