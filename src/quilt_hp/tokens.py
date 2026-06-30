@@ -7,12 +7,19 @@ protocol. Persistence is the caller's responsibility — the CLI provides
 
 from __future__ import annotations
 
+import inspect
 import time
+import weakref
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from enum import StrEnum
-from typing import Protocol
+from typing import Protocol, cast
 
 _TOKEN_BUFFER_S = 300  # treat tokens as expired 5 min before actual expiry
+
+# Cache whether a refresh callback accepts a TokenRefreshContext argument,
+# so inspect.signature is only called once per unique callable.
+_REFRESH_CALLBACK_HAS_PARAMS: weakref.WeakKeyDictionary[object, bool] = weakref.WeakKeyDictionary()
 
 
 @dataclass(slots=True)
@@ -117,3 +124,36 @@ class TokenRefreshPolicy(Protocol):
     ) -> RefreshFailureAction:
         """Return fallback strategy when refresh fails."""
         ...
+
+
+type _RefreshCallback = (
+    Callable[[], Awaitable[None]] | Callable[[TokenRefreshContext], Awaitable[None]]
+)
+
+
+async def invoke_refresh_callback(
+    refresh_callback: _RefreshCallback, context: TokenRefreshContext
+) -> None:
+    """Invoke a refresh callback, passing context only if it accepts a parameter.
+
+    Whether each callback accepts a ``TokenRefreshContext`` argument is cached
+    per-callable in a WeakKeyDictionary so that ``inspect.signature`` is only
+    called once per unique callback object.
+    """
+    try:
+        has_params = _REFRESH_CALLBACK_HAS_PARAMS.get(refresh_callback)
+    except TypeError:
+        has_params = None  # non-weakrefable callable — skip cache
+    if has_params is None:
+        try:
+            has_params = bool(inspect.signature(refresh_callback).parameters)
+        except TypeError, ValueError:
+            has_params = False
+        try:
+            _REFRESH_CALLBACK_HAS_PARAMS[refresh_callback] = has_params
+        except TypeError:
+            pass  # non-weakrefable callable — skip caching
+    if has_params:
+        await cast("Callable[[TokenRefreshContext], Awaitable[None]]", refresh_callback)(context)
+        return
+    await cast("Callable[[], Awaitable[None]]", refresh_callback)()
