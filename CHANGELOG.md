@@ -2,6 +2,29 @@
 
 ## [Unreleased]
 
+### Fixed
+- `SpaceControls.display_setpoint_str()` — removed dead unreachable code in the
+  fallback branch; `temperature_setpoint_c` is typed `float` so the `None`-guard
+  lines were never executed (confirmed by coverage)
+- `SystemSnapshot.apply_outdoor_unit()` — refactored to collect field patches into
+  an `updates` dict and call `dataclasses.replace()` once, consistent with all other
+  `apply_*` methods; previously called `replace()` twice in sequence, creating an
+  unnecessary intermediate object
+- `QuiltClient.close()` now sets `self._token = None`; previously left a stale token
+  accessible via `get_current_token()` after the channel was closed
+
+### Changed
+- `invoke_refresh_callback` (formerly `_invoke_refresh_callback`) extracted from
+  `transport.py` and `services/streaming.py` into a single shared implementation in
+  `tokens.py`; the streaming copy lacked the `WeakKeyDictionary` signature cache,
+  causing `inspect.signature()` to be called on every token-refresh event
+- `FanSpeed.to_wire()` and `LouverAngle.to_wire()` now reference module-level
+  constant dicts (`_FAN_SPEED_WIRE_MAP`, `_LOUVER_ANGLE_WIRE_MAP`) instead of
+  re-allocating the mapping on every call
+- `_id_variants()` moved from `models/system.py` into `models/_helpers.py` and
+  reused by `lookup_hardware()`; eliminates duplicated ID-normalisation logic
+- `QuiltClient.invalidate_snapshot()` log level changed from `WARNING` to `DEBUG`
+
 ## [0.5.0] - 2026-06-04
 
 ### Added protocol support
