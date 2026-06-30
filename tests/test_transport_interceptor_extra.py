@@ -6,7 +6,7 @@ from unittest.mock import MagicMock
 import grpc
 import pytest
 
-from quilt_hp import transport
+from quilt_hp import tokens, transport
 from quilt_hp.const import Environment
 from quilt_hp.exceptions import QuiltAuthError
 
@@ -32,12 +32,12 @@ async def test_invoke_refresh_callback_handles_signature_fallback(
     async def _legacy() -> None:
         called.append("legacy")
 
-    monkeypatch.setattr(transport.inspect, "signature", MagicMock(side_effect=TypeError("bad")))
+    monkeypatch.setattr(tokens.inspect, "signature", MagicMock(side_effect=TypeError("bad")))
 
-    await transport._invoke_refresh_callback(
+    await tokens.invoke_refresh_callback(
         _legacy,
-        transport.TokenRefreshContext(
-            reason=transport.TokenRefreshReason.TRANSPORT_UNAUTHENTICATED,
+        tokens.TokenRefreshContext(
+            reason=tokens.TokenRefreshReason.TRANSPORT_UNAUTHENTICATED,
             source="test",
         ),
     )
@@ -48,10 +48,10 @@ async def test_invoke_refresh_callback_handles_signature_fallback(
 async def test_invoke_refresh_callback_caches_signature(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    transport._REFRESH_CALLBACK_HAS_PARAMS.clear()
-    called: list[transport.TokenRefreshContext] = []
+    tokens._REFRESH_CALLBACK_HAS_PARAMS.clear()
+    called: list[tokens.TokenRefreshContext] = []
 
-    async def _with_context(context: transport.TokenRefreshContext) -> None:
+    async def _with_context(context: tokens.TokenRefreshContext) -> None:
         called.append(context)
 
     signature = inspect.Signature(
@@ -63,14 +63,14 @@ async def test_invoke_refresh_callback_caches_signature(
         ]
     )
     inspect_signature = MagicMock(return_value=signature)
-    monkeypatch.setattr(transport.inspect, "signature", inspect_signature)
+    monkeypatch.setattr(tokens.inspect, "signature", inspect_signature)
 
-    context = transport.TokenRefreshContext(
-        reason=transport.TokenRefreshReason.TRANSPORT_UNAUTHENTICATED,
+    context = tokens.TokenRefreshContext(
+        reason=tokens.TokenRefreshReason.TRANSPORT_UNAUTHENTICATED,
         source="test",
     )
-    await transport._invoke_refresh_callback(_with_context, context)
-    await transport._invoke_refresh_callback(_with_context, context)
+    await tokens.invoke_refresh_callback(_with_context, context)
+    await tokens.invoke_refresh_callback(_with_context, context)
 
     assert called == [context, context]
     assert inspect_signature.call_count == 1

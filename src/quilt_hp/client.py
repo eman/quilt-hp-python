@@ -273,7 +273,7 @@ class QuiltClient:
 
     def invalidate_snapshot(self) -> None:
         """Discard the cached snapshot so the next call fetches fresh data."""
-        logger.warning("Invalidating snapshot cache")
+        logger.debug("Invalidating snapshot cache")
         self._snapshot_cache = None
         self._snapshot_cached_at = 0.0
 
@@ -640,6 +640,7 @@ class QuiltClient:
         if self._channel is not None:
             await self._channel.close()
             self._channel = None
+        self._token = None
         self._hds = None
         self._sysinfo = None
         self._user_svc = None

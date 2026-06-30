@@ -2,11 +2,8 @@
 
 from __future__ import annotations
 
-import inspect
 import logging
-import weakref
 from collections.abc import Awaitable, Callable
-from typing import cast
 
 import grpc
 import grpc.aio
@@ -18,7 +15,12 @@ from quilt_hp.const import (
     grpc_host,
 )
 from quilt_hp.exceptions import QuiltAuthError
-from quilt_hp.tokens import CurrentTokenProvider, TokenRefreshContext, TokenRefreshReason
+from quilt_hp.tokens import (
+    CurrentTokenProvider,
+    TokenRefreshContext,
+    TokenRefreshReason,
+    invoke_refresh_callback,
+)
 
 type RefreshCallback = (
     Callable[[], Awaitable[None]] | Callable[[TokenRefreshContext], Awaitable[None]]
@@ -26,35 +28,12 @@ type RefreshCallback = (
 type TokenProviderLike = Callable[[], str] | CurrentTokenProvider
 
 logger = logging.getLogger(__name__)
-_REFRESH_CALLBACK_HAS_PARAMS: weakref.WeakKeyDictionary[object, bool] = weakref.WeakKeyDictionary()
 
 
 def _resolve_token_provider(token_provider: TokenProviderLike) -> Callable[[], str]:
     if callable(token_provider):
         return token_provider
     return token_provider.get_current_token
-
-
-async def _invoke_refresh_callback(
-    refresh_callback: RefreshCallback, context: TokenRefreshContext
-) -> None:
-    try:
-        has_params = _REFRESH_CALLBACK_HAS_PARAMS.get(refresh_callback)
-    except TypeError:
-        has_params = None  # non-weakrefable callable — skip cache
-    if has_params is None:
-        try:
-            has_params = bool(inspect.signature(refresh_callback).parameters)
-        except TypeError, ValueError:
-            has_params = False
-        try:
-            _REFRESH_CALLBACK_HAS_PARAMS[refresh_callback] = has_params
-        except TypeError:
-            pass  # non-weakrefable callable — skip caching
-    if has_params:
-        await cast("Callable[[TokenRefreshContext], Awaitable[None]]", refresh_callback)(context)
-        return
-    await cast("Callable[[], Awaitable[None]]", refresh_callback)()
 
 
 class _AuthInterceptor(
@@ -109,7 +88,7 @@ class _AuthInterceptor(
                 or the credentials are otherwise invalid.
         """
         if self._refresh_callback is not None:
-            await _invoke_refresh_callback(
+            await invoke_refresh_callback(
                 self._refresh_callback,
                 TokenRefreshContext(
                     reason=TokenRefreshReason.TRANSPORT_UNAUTHENTICATED,

@@ -6,7 +6,7 @@ import pytest
 
 from quilt_hp import transport
 from quilt_hp.const import APP_VERSION, Environment, grpc_host
-from quilt_hp.tokens import TokenRefreshContext, TokenRefreshReason
+from quilt_hp.tokens import TokenRefreshContext, TokenRefreshReason, invoke_refresh_callback
 
 
 def test_grpc_host_prod() -> None:
@@ -45,7 +45,7 @@ async def test_invoke_refresh_callback_passes_context() -> None:
         reason=TokenRefreshReason.TRANSPORT_UNAUTHENTICATED,
         source="test",
     )
-    await transport._invoke_refresh_callback(_with_context, context)
+    await invoke_refresh_callback(_with_context, context)
     assert captured == [context]
 
 
@@ -60,5 +60,5 @@ async def test_invoke_refresh_callback_supports_legacy_signature() -> None:
         reason=TokenRefreshReason.TRANSPORT_UNAUTHENTICATED,
         source="test",
     )
-    await transport._invoke_refresh_callback(_legacy, context)
+    await invoke_refresh_callback(_legacy, context)
     assert calls == ["called"]
