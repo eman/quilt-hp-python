@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [0.5.1] - 2026-06-30
+
 ### Fixed
 - `SpaceControls.display_setpoint_str()` — removed dead unreachable code in the
   fallback branch; `temperature_setpoint_c` is typed `float` so the `None`-guard
