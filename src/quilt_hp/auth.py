@@ -15,6 +15,8 @@ from functools import partial
 from typing import Protocol, cast
 
 import boto3
+import botocore.session
+from botocore.config import Config
 from botocore.exceptions import ClientError
 
 from quilt_hp.const import COGNITO_CLIENT_ID, COGNITO_REGION
@@ -66,10 +68,24 @@ def _expires_in_s(result: CognitoAuthResult) -> int:
 
 
 def _make_cognito_client() -> _CognitoClient:
-    """Create a boto3 Cognito Identity Provider client."""
+    """Create a boto3 Cognito Identity Provider client.
+
+    Creates a botocore session with IMDS credential discovery disabled.
+    The EC2 instance metadata service (169.254.169.254) can hang on
+    non-EC2 hosts that accept the TCP connection but never respond,
+    blocking the thread for the full OS-level TCP timeout. Cognito
+    user-pool auth flows (CUSTOM_AUTH, REFRESH_TOKEN_AUTH) don't
+    require AWS IAM credentials, so skipping IMDS is safe here.
+    """
+    session = botocore.session.get_session()
+    session.set_config_variable("metadata_service_num_attempts", 0)
     return cast(
         "_CognitoClient",
-        boto3.client("cognito-idp", region_name=COGNITO_REGION),
+        boto3.Session(botocore_session=session).client(
+            "cognito-idp",
+            region_name=COGNITO_REGION,
+            config=Config(connect_timeout=5, read_timeout=15),
+        ),
     )
 
 

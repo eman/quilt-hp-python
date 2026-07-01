@@ -2,6 +2,16 @@
 
 ## [Unreleased]
 
+## [0.5.2] - 2026-06-30
+
+### Fixed
+- `_make_cognito_client()` now creates the boto3 client with EC2 instance
+  metadata (IMDS) credential discovery disabled and explicit connect/read
+  timeouts. On non-EC2 hosts (e.g., Home Assistant Yellow) the IMDS endpoint
+  at 169.254.169.254 may accept TCP connections but never respond, causing the
+  calling thread to block for the full OS-level TCP timeout — well beyond the
+  20-second setup window — and triggering a spurious `ConfigEntryNotReady`.
+
 ## [0.5.1] - 2026-06-30
 
 ### Fixed
