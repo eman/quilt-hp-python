@@ -162,11 +162,11 @@ async def test_unsubscribe_removes_topics() -> None:
 @pytest.mark.asyncio
 async def test_subscribe_after_queue_reset_resubscribes_from_topics() -> None:
     stream = _make_stream(["topic-a"])
+    stream._running = True  # simulate a live stream mid-reconnect
     stream._request_queue = asyncio.Queue()
 
     await stream.subscribe(["topic-b"])
 
-    stream._running = True
     request_iterator = stream._request_iterator(list(stream._topics), stream._request_queue)
     initial = await anext(request_iterator)
     queued = await anext(request_iterator)
@@ -174,6 +174,18 @@ async def test_subscribe_after_queue_reset_resubscribes_from_topics() -> None:
 
     assert [sub.topic for sub in initial.append.subscriptions] == ["topic-a", "topic-b"]
     assert [sub.topic for sub in queued.append.subscriptions] == ["topic-b"]
+
+
+@pytest.mark.asyncio
+async def test_subscribe_before_start_does_not_queue_duplicate_request() -> None:
+    stream = _make_stream(["topic-a"])
+
+    await stream.subscribe(["topic-b"])
+
+    # Before start, only _topics is extended; the initial request snapshots
+    # it, so queueing as well would send topic-b twice on the first stream.
+    assert stream._topics == ["topic-a", "topic-b"]
+    assert stream._request_queue.empty()
 
 
 # ─── lifecycle ───────────────────────────────────────────────────────────────
