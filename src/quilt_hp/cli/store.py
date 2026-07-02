@@ -80,7 +80,10 @@ class FileStore:
         """
         path = self._token_path()
         timestamp = datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ")
-        backup = path.with_name(f"{path.name}.corrupt-{timestamp}-{reason}")
+        # uuid suffix: timestamps have 1s resolution, so concurrent or
+        # repeated recoveries must not collide on the backup name (a failed
+        # replace would leave the corrupt file in place forever).
+        backup = path.with_name(f"{path.name}.corrupt-{timestamp}-{uuid4().hex[:8]}-{reason}")
         logger.warning(
             "Token store %s is corrupt (%s); moving it to %s and starting empty",
             path,

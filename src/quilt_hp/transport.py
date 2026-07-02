@@ -157,7 +157,16 @@ class _AuthInterceptor(
             if exc.code() == grpc.StatusCode.UNAUTHENTICATED and self._refresh_callback:
                 logger.warning("Retrying streaming RPC setup after UNAUTHENTICATED response")
                 await self._refresh()
-                return await continuation(self._patch(client_call_details), request)
+                retried = await continuation(self._patch(client_call_details), request)
+                try:
+                    await cast("Any", retried).wait_for_connection()
+                except grpc.aio.AioRpcError as retry_exc:
+                    if retry_exc.code() == grpc.StatusCode.UNAUTHENTICATED:
+                        raise QuiltAuthError(
+                            "Token refresh did not restore authentication; re-login required"
+                        ) from retry_exc
+                    raise
+                return retried
             raise
         return call
 

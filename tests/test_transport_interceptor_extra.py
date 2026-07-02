@@ -234,3 +234,32 @@ def test_create_channel_and_provider_resolution(monkeypatch: pytest.MonkeyPatch)
     channel = transport.create_channel(lambda: "Bearer x", environment=Environment.STAGING)
     assert channel == "channel"
     secure.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_unary_stream_retry_still_unauthenticated_raises_auth_error() -> None:
+    """A retried streaming call that is still UNAUTHENTICATED must surface a
+    clear QuiltAuthError at interception time, matching the unary path."""
+    refreshed: list[str] = []
+
+    async def _refresh(_context: transport.TokenRefreshContext) -> None:
+        refreshed.append("yes")
+
+    interceptor = transport._AuthInterceptor(lambda: "stale", refresh_callback=_refresh)
+    details = grpc.aio.ClientCallDetails(
+        method="/svc/method",
+        timeout=1,
+        metadata=None,
+        credentials=None,
+        wait_for_ready=False,
+    )
+
+    async def _always_unauthenticated(
+        _call_details: grpc.aio.ClientCallDetails, _request: object
+    ) -> object:
+        return _FakeCall(error=_FakeRpcError(grpc.StatusCode.UNAUTHENTICATED, "expired"))
+
+    with pytest.raises(QuiltAuthError, match="re-login required"):
+        await interceptor.intercept_unary_stream(_always_unauthenticated, details, "req")
+
+    assert refreshed == ["yes"]
