@@ -10,7 +10,7 @@ from typing import Any, cast
 import grpc
 import grpc.aio
 
-from quilt_hp.exceptions import QuiltConnectionError, QuiltError
+from quilt_hp.exceptions import QuiltConnectionError, QuiltError, QuiltNotFoundError
 
 logger = logging.getLogger(__name__)
 
@@ -40,6 +40,11 @@ class _GrpcCallContext:
     async def __aexit__(self, exc_type: object, exc: BaseException | None, tb: object) -> bool:
         del exc_type, tb
         if exc is None:
+            return False
+        # Never translate CancelledError / KeyboardInterrupt / SystemExit —
+        # swallowing cancellation breaks asyncio.timeout() and task
+        # cancellation semantics for the caller.
+        if not isinstance(exc, Exception):
             return False
         translated = self._translate_exception(exc)
         if translated is exc:
@@ -83,6 +88,8 @@ class _GrpcCallContext:
         if isinstance(exc, grpc.aio.AioRpcError):
             if exc.code() in _TRANSIENT_GRPC_CODES:
                 return QuiltConnectionError(f"{self._operation} failed: {exc.details()}")
+            if exc.code() == grpc.StatusCode.NOT_FOUND:
+                return QuiltNotFoundError(f"{self._operation} failed: {exc.details()}")
             return QuiltError(f"{self._operation} failed: {exc.details()}")
         logger.debug("Unexpected error in %s: %s", self._operation, exc)
         return QuiltError(f"{self._operation} failed: {exc}")
