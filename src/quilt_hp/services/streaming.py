@@ -491,7 +491,9 @@ class NotifierStream:
         arg: T,
         error_message: str,
     ) -> None:
-        for callback in callbacks:
+        # Iterate a snapshot: a callback may unsubscribe itself (or others)
+        # while being dispatched.
+        for callback in list(callbacks):
             try:
                 await _dispatch(callback, arg)
             except Exception:
@@ -617,7 +619,9 @@ class NotifierStream:
             )
             self._active_call = call
         self._stream_state = "connected"
-        for connected_cb in self._connected_callbacks:
+        # Iterate a snapshot: a callback may unsubscribe itself (or others)
+        # while being dispatched.
+        for connected_cb in list(self._connected_callbacks):
             try:
                 result = connected_cb()
                 if asyncio.iscoroutine(result):
@@ -784,7 +788,7 @@ class NotifierStream:
             self._stream_state = "stopped"
 
         if self._error is not None:
-            for cb in self._error_callbacks:
+            for cb in list(self._error_callbacks):
                 try:
                     await _dispatch(cb, self._error)
                 except Exception:
