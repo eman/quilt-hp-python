@@ -11,6 +11,7 @@ from quilt_hp.const import (
     STANDBY_COOL_SENTINEL_C,
     STANDBY_HEAT_SENTINEL_C,
 )
+from quilt_hp.models._helpers import present_submsg
 from quilt_hp.models.enums import (
     BoostMode,
     ComfortSettingOverride,
@@ -77,7 +78,9 @@ class SpaceControls:
             return f"{val_c:.1f}°C"
 
         mode = self.hvac_mode
-        if mode in (HVACMode.STANDBY, HVACMode.UNSPECIFIED, HVACMode.FAN):
+        if mode in (HVACMode.STANDBY, HVACMode.UNSPECIFIED, HVACMode.FAN, HVACMode.DRY):
+            # DRY has no user-configurable setpoint; temperature_setpoint_c may
+            # hold a stale mirror value in that mode.
             return "--"
         if mode == HVACMode.COOL:
             return fmt(self.cooling_setpoint_c)
@@ -208,15 +211,18 @@ class Space:
 
 
 def _space_from_proto(proto: object) -> Space:
-    """Internal: convert a proto Space to our model."""
+    """Internal: convert a proto Space to our model.
+
+    Sub-messages absent from a sparse stream diff parse to sentinel values
+    (``settings.name == ""``, ``controls.hvac_mode == UNSPECIFIED``,
+    ``state.ambient_temperature_c is None``) that
+    ``SystemSnapshot.apply_space`` uses to preserve existing snapshot data.
+    """
     p = cast("Any", proto)
-    sg = p.settings
-    return Space(
-        id=p.header.object_id,
-        system_id=p.header.system_id,
-        name=sg.name,
-        parent_space_id=p.relationships.parent_space_id or None,
-        settings=SpaceSettings(
+
+    sg = cast("Any", present_submsg(p, "settings"))
+    if sg is not None:
+        settings = SpaceSettings(
             name=sg.name,
             timezone=sg.timezone,
             occupancy_mode=OccupancyMode(sg.occupancy),
@@ -224,20 +230,61 @@ def _space_from_proto(proto: object) -> Space:
             unoccupied_timeout_s=sg.unoccupied_timeout_s,
             safety_heating=SafetyHeatingMode(sg.safety_heating),
             hvac_controller_type=HvacControllerType(sg.hvac_controller_type),
-        ),
-        controls=SpaceControls(
-            hvac_mode=HVACMode(p.controls.hvac_mode),
-            temperature_setpoint_c=p.controls.temperature_setpoint_c,
-            cooling_setpoint_c=p.controls.cooling_temperature_setpoint_c,
-            heating_setpoint_c=p.controls.heating_temperature_setpoint_c,
-            comfort_setting_id=p.controls.comfort_setting_id_string,
-            comfort_setting_override=ComfortSettingOverride(p.controls.comfort_setting_override),
-            boost_mode=BoostMode(p.controls.boost_mode),
-        ),
-        state=SpaceState(
-            ambient_temperature_c=p.state.ambient_temperature_c if p.state.updated_ts else None,
-            hvac_state=HVACState(p.state.hvac_state),
-            setpoint_c=p.state.setpoint_temperature_c if p.state.updated_ts else None,
-            comfort_setting_id=p.state.comfort_setting_id,
-        ),
+        )
+    else:
+        settings = SpaceSettings(
+            name="",
+            timezone="",
+            occupancy_mode=OccupancyMode.UNSPECIFIED,
+            occupied_timeout_s=0.0,
+            unoccupied_timeout_s=0.0,
+            safety_heating=SafetyHeatingMode.UNSPECIFIED,
+        )
+
+    c = cast("Any", present_submsg(p, "controls"))
+    if c is not None:
+        controls = SpaceControls(
+            hvac_mode=HVACMode(c.hvac_mode),
+            temperature_setpoint_c=c.temperature_setpoint_c,
+            cooling_setpoint_c=c.cooling_temperature_setpoint_c,
+            heating_setpoint_c=c.heating_temperature_setpoint_c,
+            comfort_setting_id=c.comfort_setting_id_string,
+            comfort_setting_override=ComfortSettingOverride(c.comfort_setting_override),
+            boost_mode=BoostMode(c.boost_mode),
+        )
+    else:
+        controls = SpaceControls(
+            hvac_mode=HVACMode.UNSPECIFIED,
+            temperature_setpoint_c=0.0,
+            cooling_setpoint_c=0.0,
+            heating_setpoint_c=0.0,
+            comfort_setting_id="",
+            comfort_setting_override=ComfortSettingOverride.UNSPECIFIED,
+        )
+
+    st = cast("Any", present_submsg(p, "state"))
+    if st is not None:
+        state = SpaceState(
+            ambient_temperature_c=st.ambient_temperature_c,
+            hvac_state=HVACState(st.hvac_state),
+            setpoint_c=st.setpoint_temperature_c,
+            comfort_setting_id=st.comfort_setting_id,
+        )
+    else:
+        state = SpaceState(
+            ambient_temperature_c=None,
+            hvac_state=HVACState.UNSPECIFIED,
+            setpoint_c=None,
+            comfort_setting_id="",
+        )
+
+    rel = cast("Any", present_submsg(p, "relationships"))
+    return Space(
+        id=p.header.object_id,
+        system_id=p.header.system_id,
+        name=settings.name,
+        parent_space_id=(rel.parent_space_id or None) if rel is not None else None,
+        settings=settings,
+        controls=controls,
+        state=state,
     )

@@ -33,7 +33,15 @@ class ComfortSetting:
     cooling_setpoint_c: float
     fan_speed: FanSpeed
     louver_mode: LouverMode = LouverMode.UNSPECIFIED
-    louver_fixed_position: float = 0.0  # degrees, used when louver_mode=FIXED
+    # Position fraction 0.20–1.00 (see LouverAngle.to_wire), used when
+    # louver_mode=FIXED.  0.0 is the "not applicable" placeholder.
+    louver_fixed_position: float = 0.0
+    # Raw wire FAN_SPEED_MODE / FAN_SPEED_PERCENT values.  Needed because
+    # FanSpeed.from_wire(0, 0.0) (absent) and from_wire(1, 0.0) (AUTO) both
+    # decode to FanSpeed.AUTO; echoing the raw values back on update avoids
+    # converting "absent" into an explicit AUTO write.
+    fan_speed_mode_raw: int = 0
+    fan_speed_percent_raw: float = 0.0
 
     @property
     def has_standby_sentinel_setpoints(self) -> bool:
@@ -79,6 +87,8 @@ class ComfortSetting:
             heating_setpoint_c=a.heating_temperature_setpoint_c,
             cooling_setpoint_c=a.cooling_temperature_setpoint_c,
             fan_speed=FanSpeed.from_wire(a.fan_speed_mode, a.fan_speed_percent),
+            fan_speed_mode_raw=a.fan_speed_mode,
+            fan_speed_percent_raw=a.fan_speed_percent,
             louver_mode=LouverMode(a.louver_mode) if a.louver_mode else LouverMode.UNSPECIFIED,
             louver_fixed_position=a.louver_fixed_position,
         )
