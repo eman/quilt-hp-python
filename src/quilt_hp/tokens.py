@@ -137,11 +137,16 @@ async def invoke_refresh_callback(
     """Invoke a refresh callback, passing context only if it accepts a parameter.
 
     Whether each callback accepts a ``TokenRefreshContext`` argument is cached
-    per-callable in a WeakKeyDictionary so that ``inspect.signature`` is only
-    called once per unique callback object.
+    per underlying function in a WeakKeyDictionary so that
+    ``inspect.signature`` is only called once per callback.  Bound methods are
+    cached by their ``__func__`` — each attribute access creates a new bound
+    method object, which would never hit an identity-keyed cache; the
+    parameter count (computed from the bound signature, which excludes
+    ``self``) is identical for all instances of the same class.
     """
+    cache_key = getattr(refresh_callback, "__func__", refresh_callback)
     try:
-        has_params = _REFRESH_CALLBACK_HAS_PARAMS.get(refresh_callback)
+        has_params = _REFRESH_CALLBACK_HAS_PARAMS.get(cache_key)
     except TypeError:
         has_params = None  # non-weakrefable callable — skip cache
     if has_params is None:
@@ -150,7 +155,7 @@ async def invoke_refresh_callback(
         except TypeError, ValueError:
             has_params = False
         try:
-            _REFRESH_CALLBACK_HAS_PARAMS[refresh_callback] = has_params
+            _REFRESH_CALLBACK_HAS_PARAMS[cache_key] = has_params
         except TypeError:
             pass  # non-weakrefable callable — skip caching
     if has_params:
