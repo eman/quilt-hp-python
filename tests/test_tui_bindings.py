@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from typing import ClassVar
+
 import pytest
 
 pytest.importorskip("textual")
@@ -68,3 +70,53 @@ def test_dashboard_odu_for_falls_back_to_space_id_match() -> None:
     screen = DashboardScreen(snapshot=_Snap(), client=object())
     odu = screen._odu_for("space/space-1", idu=object())
     assert odu is not None
+
+
+def test_room_screen_has_no_occupancy_cycle_binding() -> None:
+    keymap = _key_action_map()
+    assert "o" not in keymap
+    assert not hasattr(RoomScreen, "action_cycle_occupancy")
+
+
+def test_setpoint_clamp_constants() -> None:
+    from quilt_hp.cli.constants import SETPOINT_MAX_C, SETPOINT_MIN_C, clamp_setpoint_c
+
+    assert clamp_setpoint_c(SETPOINT_MIN_C - 5) == SETPOINT_MIN_C
+    assert clamp_setpoint_c(SETPOINT_MAX_C + 5) == SETPOINT_MAX_C
+    assert clamp_setpoint_c(21.5) == 21.5
+
+
+def test_patch_schedule_paused_replaces_location_in_place() -> None:
+    from dataclasses import dataclass
+
+    from quilt_hp.cli.tui import _patch_schedule_paused
+
+    @dataclass
+    class _Loc:
+        schedule_paused: bool
+
+    class _Snap:
+        def __init__(self) -> None:
+            self.locations = [_Loc(schedule_paused=False)]
+
+        @property
+        def primary_location(self) -> _Loc | None:
+            return self.locations[0] if self.locations else None
+
+    snap = _Snap()
+    _patch_schedule_paused(snap, paused=True)  # type: ignore[arg-type]
+    assert snap.locations[0].schedule_paused is True
+
+
+def test_odu_for_space_prefers_idu_link() -> None:
+    from quilt_hp.cli.tui import _odu_for_space
+
+    sentinel = object()
+
+    class _Snap:
+        outdoor_units: ClassVar[list[object]] = []
+
+        def odu_for_idu(self, _idu: object) -> object:
+            return sentinel
+
+    assert _odu_for_space(_Snap(), "space/space-1", idu=object()) is sentinel  # type: ignore[arg-type]

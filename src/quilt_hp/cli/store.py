@@ -8,16 +8,27 @@ and can be passed directly to ``QuiltClient(token_store=store)``.
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import json
 import logging
 import os
 from dataclasses import asdict
+from datetime import UTC, datetime
 from pathlib import Path
+from typing import TYPE_CHECKING, Any
 from uuid import uuid4
 
 from quilt_hp._paths import app_config_dir
 from quilt_hp.exceptions import QuiltAuthError
 from quilt_hp.tokens import CachedTokens
+
+if TYPE_CHECKING:
+    from collections.abc import Iterator
+
+try:
+    import fcntl
+except ImportError:  # pragma: no cover - non-POSIX platforms
+    fcntl = None  # type: ignore[assignment]
 
 logger = logging.getLogger(__name__)
 
@@ -35,6 +46,69 @@ class FileStore:
     def _token_path(self) -> Path:
         return app_config_dir() / "tokens.json"
 
+    @contextlib.contextmanager
+    def _file_lock(self) -> Iterator[None]:
+        """Advisory inter-process lock around read-modify-write cycles.
+
+        Uses ``fcntl.flock`` on a sibling ``.lock`` file (Linux/macOS). On
+        platforms or filesystems without flock support this degrades to a
+        no-op — the atomic-replace write still prevents torn files.
+        """
+        if fcntl is None:
+            yield
+            return
+        lock_path = self._token_path().with_name("tokens.json.lock")
+        try:
+            lock_path.parent.mkdir(parents=True, exist_ok=True)
+            fd = os.open(lock_path, os.O_CREAT | os.O_WRONLY, 0o600)
+        except OSError:
+            yield
+            return
+        try:
+            with contextlib.suppress(OSError):
+                fcntl.flock(fd, fcntl.LOCK_EX)
+            yield
+        finally:
+            with contextlib.suppress(OSError):
+                fcntl.flock(fd, fcntl.LOCK_UN)
+            os.close(fd)
+
+    def _recover_corruption(self, reason: str) -> None:
+        """Move a corrupt token file aside so the store can start empty.
+
+        Worst case is one re-login instead of a permanent QuiltAuthError.
+        """
+        path = self._token_path()
+        timestamp = datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ")
+        backup = path.with_name(f"{path.name}.corrupt-{timestamp}-{reason}")
+        logger.warning(
+            "Token store %s is corrupt (%s); moving it to %s and starting empty",
+            path,
+            reason,
+            backup,
+        )
+        with contextlib.suppress(OSError):
+            path.replace(backup)
+
+    def _read_all(self) -> dict[str, Any]:
+        """Read the full token file, recovering from corruption."""
+        path = self._token_path()
+        logger.debug("Loading token file %s", path)
+        try:
+            data = json.loads(path.read_text())
+        except FileNotFoundError:
+            return {}
+        except json.JSONDecodeError:
+            self._recover_corruption("invalid-json")
+            return {}
+        except OSError as exc:
+            _warn_if_permission_error("reading", path, exc)
+            raise QuiltAuthError("Failed to read token store.") from exc
+        if not isinstance(data, dict):
+            self._recover_corruption("invalid-shape")
+            return {}
+        return data
+
     def _atomic_write(self, payload: dict[str, object]) -> None:
         path = self._token_path()
         path.parent.mkdir(parents=True, exist_ok=True)
@@ -45,6 +119,8 @@ class FileStore:
             fd = os.open(tmp, os.O_CREAT | os.O_WRONLY | os.O_TRUNC, 0o600)
             with os.fdopen(fd, "w") as f:
                 f.write(json.dumps(payload, indent=2))
+                f.flush()
+                os.fsync(f.fileno())
             os.replace(tmp, path)
             os.chmod(path, 0o600)
         except OSError:
@@ -59,18 +135,7 @@ class FileStore:
         return await asyncio.to_thread(self._load_sync, email)
 
     def _load_sync(self, email: str) -> CachedTokens | None:
-        path = self._token_path()
-        logger.debug("Loading token file %s", path)
-        try:
-            data = json.loads(path.read_text())
-        except FileNotFoundError:
-            return None
-        except json.JSONDecodeError as exc:
-            raise QuiltAuthError("Token store contains invalid JSON.") from exc
-        except OSError as exc:
-            _warn_if_permission_error("reading", path, exc)
-            raise QuiltAuthError("Failed to read token store.") from exc
-
+        data = self._read_all()
         try:
             entry = data[email]
             return CachedTokens(
@@ -89,56 +154,31 @@ class FileStore:
 
     def _save_sync(self, email: str, tokens: CachedTokens) -> None:
         path = self._token_path()
-        logger.debug("Saving token file %s", path)
-        try:
-            data = json.loads(path.read_text())
-        except FileNotFoundError:
-            data = {}
-        except json.JSONDecodeError as exc:
-            raise QuiltAuthError("Token store contains invalid JSON.") from exc
-        except OSError as exc:
-            _warn_if_permission_error("reading", path, exc)
-            raise QuiltAuthError("Failed to read token store.") from exc
-        data[email] = asdict(tokens)
-        try:
-            self._atomic_write(data)
-        except OSError as exc:
-            _warn_if_permission_error("writing", path, exc)
-            raise QuiltAuthError("Failed to persist token store.") from exc
+        with self._file_lock():
+            data = self._read_all()
+            data[email] = asdict(tokens)
+            logger.debug("Saving token file %s", path)
+            try:
+                self._atomic_write(data)
+            except OSError as exc:
+                _warn_if_permission_error("writing", path, exc)
+                raise QuiltAuthError("Failed to persist token store.") from exc
 
     def clear_tokens(self, email: str) -> None:
         """Remove cached tokens for *email*."""
         path = self._token_path()
-        logger.debug("Loading token file %s", path)
-        try:
-            data = json.loads(path.read_text())
-        except FileNotFoundError:
-            return
-        except json.JSONDecodeError as exc:
-            raise QuiltAuthError("Token store contains invalid JSON.") from exc
-        except OSError as exc:
-            _warn_if_permission_error("reading", path, exc)
-            raise QuiltAuthError("Failed to read token store.") from exc
-
-        data.pop(email, None)
-        logger.debug("Saving token file %s", path)
-        try:
-            self._atomic_write(data)
-        except OSError as exc:
-            _warn_if_permission_error("writing", path, exc)
-            raise QuiltAuthError("Failed to persist token store.") from exc
+        with self._file_lock():
+            data = self._read_all()
+            if email not in data:
+                return
+            data.pop(email, None)
+            logger.debug("Saving token file %s", path)
+            try:
+                self._atomic_write(data)
+            except OSError as exc:
+                _warn_if_permission_error("writing", path, exc)
+                raise QuiltAuthError("Failed to persist token store.") from exc
 
     def list_emails(self) -> list[str]:
         """All email addresses that have cached tokens."""
-        path = self._token_path()
-        logger.debug("Loading token file %s", path)
-        try:
-            data = json.loads(path.read_text())
-        except FileNotFoundError:
-            return []
-        except json.JSONDecodeError as exc:
-            raise QuiltAuthError("Token store contains invalid JSON.") from exc
-        except OSError as exc:
-            _warn_if_permission_error("reading", path, exc)
-            raise QuiltAuthError("Failed to read token store.") from exc
-        return [k for k in data if isinstance(k, str)]
+        return [k for k in self._read_all() if isinstance(k, str)]

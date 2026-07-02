@@ -4,6 +4,7 @@ from types import ModuleType, SimpleNamespace
 from typing import ClassVar
 from unittest.mock import patch
 
+import pytest
 from typer.testing import CliRunner
 
 from quilt_hp.cli import main as cli_main
@@ -125,10 +126,42 @@ def test_set_command_errors_for_unknown_room() -> None:
         patch.object(cli_main, "_resolve", return_value=("user@example.com", None)),
         patch.object(cli_main, "QuiltClient", _NoRoomClient),
     ):
-        result = runner.invoke(cli_main.app, ["set", "Missing Room"])
+        result = runner.invoke(cli_main.app, ["set", "Missing Room", "--mode", "COOL"])
 
     assert result.exit_code == 1
     assert "not found" in result.stdout
+
+
+def test_set_command_without_options_is_an_error() -> None:
+    result = runner.invoke(cli_main.app, ["set", "Living Room"])
+
+    assert result.exit_code == 1
+    assert "Nothing to update" in result.stdout
+
+
+def test_set_command_rejects_fallback_modes() -> None:
+    with (
+        patch.object(cli_main, "_resolve", return_value=("user@example.com", None)),
+        patch.object(cli_main, "QuiltClient", _FakeClient),
+    ):
+        result = runner.invoke(cli_main.app, ["set", "Living Room", "--mode", "FALLBACK_AUTO"])
+
+    assert result.exit_code == 1
+    assert "Invalid mode" in result.stdout
+
+
+@pytest.mark.parametrize("option", ["--heat", "--cool"])
+@pytest.mark.parametrize("value", ["7.9", "32.1"])
+def test_set_command_rejects_out_of_range_setpoints(option: str, value: str) -> None:
+    result = runner.invoke(cli_main.app, ["set", "Living Room", option, value])
+
+    assert result.exit_code == 2
+
+
+def test_energy_command_rejects_unknown_period() -> None:
+    result = runner.invoke(cli_main.app, ["energy", "--period", "fortnight"])
+
+    assert result.exit_code == 2
 
 
 def test_tui_command_handles_missing_optional_dependency(monkeypatch) -> None:  # type: ignore[no-untyped-def]
