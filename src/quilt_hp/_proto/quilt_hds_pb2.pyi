@@ -1039,7 +1039,7 @@ class IndoorUnitControls(_message.Message):
     f1,f2=absent; f3=ledColorCode(varint/uint32), f4=ledColorBrightnessPercent(float),
     f5=fanSpeedMode(varint), f6=fanSpeedPercent(float), f7=updatedTs(Timestamp),
     f8,f9=absent; f10=louverMode(varint), f11=louverFixedPosition(float),
-    f12=lightState(varint), f13=lightAnimation(varint).
+    f12=lightAnimation(varint), f13=lightState(varint).
     NOTE: These are FLAT fields, NOT nested sub-messages.
     """
 
@@ -1066,7 +1066,7 @@ class IndoorUnitControls(_message.Message):
     louver_mode: Global___IndoorUnitLouverMode.ValueType
     """f8, f9: uuid-string field confirmed at f9 in captures; purpose TBD"""
     louver_fixed_position: _builtins.float
-    """degrees, used when louver_mode=FIXED"""
+    """position fraction 0.20–1.00 (see LouverAngle.to_wire), used when louver_mode=FIXED; 0.0 = not applicable"""
     led_animation: Global___LightAnimation.ValueType
     """LED_ANIMATION_FIELD_NUMBER=12; wire-confirmed"""
     led_state: Global___LightState.ValueType
