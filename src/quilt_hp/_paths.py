@@ -20,7 +20,11 @@ _APP = "quilt-hp"
 
 
 def app_config_dir() -> Path:
-    """Return the platform-appropriate config directory, creating if needed."""
+    """Return the platform-appropriate config directory, creating if needed.
+
+    The directory is created user-only (0o700) because it holds cached
+    authentication tokens.
+    """
     d = Path(user_config_dir(_APP))
-    d.mkdir(parents=True, exist_ok=True)
+    d.mkdir(parents=True, exist_ok=True, mode=0o700)
     return d
