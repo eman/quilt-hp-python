@@ -115,7 +115,11 @@ class QuiltClient:
         self._streams: list[NotifierStream] = []
 
     def get_current_token(self) -> str:
-        """Token provider callable for the transport interceptor."""
+        """Token provider callable for the transport interceptor.
+
+        Internal transport hook (implements ``CurrentTokenProvider``) — not
+        intended for application use.
+        """
         if self._token is None:
             raise QuiltAuthError("Not authenticated. Call login() first.")
         return self._token
