@@ -191,9 +191,9 @@ def test_space_ambient_temperature_f() -> None:
 
 
 def test_space_ambient_none() -> None:
-    # When state.updated_ts is falsy (no server state data), temps are None.
+    # When the state sub-message is absent from the wire, temps are None.
     proto = _make_space_proto(ambient_c=22.0)
-    proto.state.updated_ts = None  # simulate empty state sub-message
+    proto.state = None  # simulate absent state sub-message
     space = Space.from_proto(proto)
     assert space.state.ambient_temperature_c is None
     assert space.ambient_temperature_f is None
@@ -539,7 +539,9 @@ def test_idu_offline_when_state_timestamp_stale() -> None:
 
 def test_idu_no_perf_data() -> None:
     proto = _make_idu_proto()
-    # performance_data.updated_ts=None → no perf data regardless of field values
+    # performance sub-messages absent from the wire → no perf data
+    proto.performance_data = None
+    proto.performance_metrics = None
     idu = IndoorUnit.from_proto(proto)
     assert idu.performance_data is None
     assert idu.performance_metrics is None
@@ -814,17 +816,7 @@ def test_qsm_from_proto_no_sensors() -> None:
         header=_make_header("qsm-2"),
         relationships=_ns(software_update_info_id="", firmware_update_info_id=""),
         controls=_ns(led_color_code=0, updated_ts=None),
-        state=_ns(
-            updated_ts=None,
-            phase_detected_raw=0.0,
-            target_detected_raw=0.0,
-            als_illuminance_raw=0,
-            als_ir_raw=0,
-            als_both_raw=0,
-            accel_x_raw=0,
-            accel_y_raw=0,
-            accel_z_raw=0,
-        ),
+        state=None,  # absent state sub-message → no sensor data
         hosted_wifi_state=_ns(ssid="", ipv4_address="", signal_level_dbm=0),
         ap_wifi_state=_ns(ssid="", ipv4_address="", signal_level_dbm=0),
         p2p_wifi_state=_ns(ssid="", ipv4_address="", signal_level_dbm=0),
