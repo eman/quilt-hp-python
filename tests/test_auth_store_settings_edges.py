@@ -12,6 +12,11 @@ from quilt_hp.exceptions import QuiltAuthError
 from quilt_hp.tokens import CachedTokens, RefreshFailureAction, TokenRefreshContext
 
 
+def _corrupt_backups(directory: Path) -> list[Path]:
+    """Sync helper so async tests avoid direct Path.glob (ASYNC240)."""
+    return sorted(directory.glob("tokens.json.corrupt-*"))
+
+
 class _RaisePolicy:
     def on_refresh_failure(
         self, _context: TokenRefreshContext, _error: Exception
@@ -80,13 +85,51 @@ async def test_filestore_malformed_entry_and_clear_json_errors(tmp_path: Path) -
         m.setattr(store, "_token_path", lambda: path)
         await store.load("user@example.com")
 
+    # Corrupt JSON no longer raises: the file is quarantined and the store
+    # starts empty, so the worst case is one re-login.
     path.write_text("{bad-json")
-    with (
-        pytest.raises(QuiltAuthError, match="invalid JSON"),
-        pytest.MonkeyPatch.context() as m,
-    ):
+    with pytest.MonkeyPatch.context() as m:
         m.setattr(store, "_token_path", lambda: path)
         store.clear_tokens("user@example.com")
+
+    assert not path.exists()
+    backups = _corrupt_backups(tmp_path)
+    assert len(backups) == 1
+    assert backups[0].read_text() == "{bad-json"
+
+
+async def test_filestore_recovers_from_corrupt_file_on_load(tmp_path: Path) -> None:
+    store = FileStore()
+    path = tmp_path / "tokens.json"
+    path.write_text("{bad-json")
+
+    with pytest.MonkeyPatch.context() as m:
+        m.setattr(store, "_token_path", lambda: path)
+        assert await store.load("user@example.com") is None
+        # File was quarantined; a subsequent save works and round-trips.
+        tokens = CachedTokens(
+            id_token="id",
+            refresh_token="ref",
+            expires_at=9999999999.0,
+        )
+        await store.save("user@example.com", tokens)
+        loaded = await store.load("user@example.com")
+
+    assert loaded is not None
+    assert loaded.refresh_token == "ref"
+    assert _corrupt_backups(tmp_path)
+
+
+async def test_filestore_recovers_from_non_dict_payload(tmp_path: Path) -> None:
+    store = FileStore()
+    path = tmp_path / "tokens.json"
+    path.write_text(json.dumps(["not", "a", "dict"]))
+
+    with pytest.MonkeyPatch.context() as m:
+        m.setattr(store, "_token_path", lambda: path)
+        assert await store.load("user@example.com") is None
+
+    assert _corrupt_backups(tmp_path)
 
 
 def test_settings_store_corruption_and_schema_edges(tmp_path: Path) -> None:

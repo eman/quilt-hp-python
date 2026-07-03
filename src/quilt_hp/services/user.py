@@ -6,13 +6,14 @@ import logging
 from collections.abc import Callable
 from dataclasses import dataclass
 from enum import IntEnum
-from typing import Any, Protocol, cast
+from typing import TYPE_CHECKING, Any, Protocol, cast
 
-import grpc.aio
+if TYPE_CHECKING:
+    import grpc.aio
 
 from quilt_hp._proto import quilt_services_pb2 as svc
 from quilt_hp._proto import quilt_services_pb2_grpc as svc_grpc
-from quilt_hp.exceptions import QuiltError
+from quilt_hp.services import grpc_call
 
 logger = logging.getLogger(__name__)
 
@@ -79,13 +80,11 @@ class UserService:
     async def get_current_user(self) -> User:
         """Get the currently authenticated user."""
         logger.debug("Getting current user")
-        try:
+        async with grpc_call("GetLoggedInUser"):
             response = cast(
                 "Any",
                 await self._stub.GetLoggedInUser(svc.GetLoggedInUserRequest()),
             )
-        except grpc.aio.AioRpcError as exc:
-            raise QuiltError(f"GetLoggedInUser failed: {exc.details()}") from exc
         return _to_user(response)
 
     async def update_current_user(
@@ -95,33 +94,36 @@ class UserService:
         last_name: str,
         phone_number: str | None = None,
     ) -> User:
-        """Update first/last name and optional phone number for current user."""
+        """Update first/last name and optional phone number for current user.
+
+        ``phone_number=None`` means "leave unchanged": the current value is
+        fetched and echoed back, because the wire field has no presence and
+        an empty string would clear the stored number server-side.
+        """
         logger.debug("Updating current user")
-        try:
+        if phone_number is None:
+            phone_number = (await self.get_current_user()).phone_number
+        async with grpc_call("UpdateLoggedInUser"):
             response = cast(
                 "Any",
                 await self._stub.UpdateLoggedInUser(
                     svc.UpdateLoggedInUserRequest(
                         first_name=first_name,
                         last_name=last_name,
-                        phone_number=phone_number or "",
+                        phone_number=phone_number,
                     )
                 ),
             )
-        except grpc.aio.AioRpcError as exc:
-            raise QuiltError(f"UpdateLoggedInUser failed: {exc.details()}") from exc
         return _to_user(response)
 
     async def get_user_attributes(self) -> UserAttributes:
         """Get current user's additional attributes."""
         logger.debug("Getting user attributes")
-        try:
+        async with grpc_call("GetUserAttributes"):
             response = cast(
                 "Any",
                 await self._stub.GetUserAttributes(svc.GetUserAttributesRequest()),
             )
-        except grpc.aio.AioRpcError as exc:
-            raise QuiltError(f"GetUserAttributes failed: {exc.details()}") from exc
         return _to_user_attributes(response)
 
     async def patch_user_attributes(
@@ -131,7 +133,7 @@ class UserService:
     ) -> UserAttributes:
         """Patch user attributes for the current user."""
         logger.debug("Patching user attributes")
-        try:
+        async with grpc_call("PatchUserAttributes"):
             response = cast(
                 "Any",
                 await self._stub.PatchUserAttributes(
@@ -145,6 +147,4 @@ class UserService:
                     )
                 ),
             )
-        except grpc.aio.AioRpcError as exc:
-            raise QuiltError(f"PatchUserAttributes failed: {exc.details()}") from exc
         return _to_user_attributes(response)

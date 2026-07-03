@@ -102,6 +102,8 @@ async def test_hds_success_paths(monkeypatch: pytest.MonkeyPatch) -> None:
         heating_setpoint_c=20.0,
         cooling_setpoint_c=24.0,
         fan_speed=SimpleNamespace(to_wire=lambda: (1, 25)),
+        fan_speed_mode_raw=1,
+        fan_speed_percent_raw=25.0,
         type=SimpleNamespace(value=1),
     )
     assert await svc.update_comfort_setting(comfort, name="Sleep") == "comfort"

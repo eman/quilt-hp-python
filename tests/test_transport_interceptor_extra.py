@@ -76,6 +76,30 @@ async def test_invoke_refresh_callback_caches_signature(
     assert inspect_signature.call_count == 1
 
 
+class _FakeCall:
+    """Models a grpc.aio call object.
+
+    Errors surface when the call is awaited, not when the continuation is
+    awaited (which only constructs the call).
+    """
+
+    def __init__(self, result: object = None, error: Exception | None = None) -> None:
+        self._result = result
+        self._error = error
+
+    def __await__(self) -> object:
+        async def _run() -> object:
+            if self._error is not None:
+                raise self._error
+            return self._result
+
+        return _run().__await__()
+
+    async def wait_for_connection(self) -> None:
+        if self._error is not None:
+            raise self._error
+
+
 @pytest.mark.asyncio
 async def test_auth_interceptor_retry_paths() -> None:
     refreshed: list[str] = []
@@ -99,14 +123,16 @@ async def test_auth_interceptor_retry_paths() -> None:
         calls += 1
         assert ("authorization", "Bearer abc") in list(call_details.metadata or [])
         if calls == 1:
-            raise _FakeRpcError(grpc.StatusCode.UNAUTHENTICATED, "expired")
-        return request
+            return _FakeCall(error=_FakeRpcError(grpc.StatusCode.UNAUTHENTICATED, "expired"))
+        return _FakeCall(result=request)
 
     assert await interceptor.intercept_unary_unary(_continuation, details, "req") == "req"
-    assert (
-        await interceptor.intercept_unary_stream(_continuation, details, "stream-req")
-        == "stream-req"
-    )
+    assert refreshed == ["yes"]
+
+    calls = 0
+    refreshed.clear()
+    stream_call = await interceptor.intercept_unary_stream(_continuation, details, "stream-req")
+    assert await stream_call == "stream-req"  # type: ignore[misc]
     assert refreshed == ["yes"]
 
 
@@ -138,7 +164,7 @@ async def test_auth_interceptor_non_retry_paths() -> None:
     )
 
     async def _failing(_call_details: grpc.aio.ClientCallDetails, _request: object) -> object:
-        raise _FakeRpcError(grpc.StatusCode.INTERNAL, "boom")
+        return _FakeCall(error=_FakeRpcError(grpc.StatusCode.INTERNAL, "boom"))
 
     with pytest.raises(_FakeRpcError):
         await interceptor.intercept_unary_unary(_failing, details, "req")
@@ -164,12 +190,33 @@ async def test_auth_interceptor_raises_auth_error_when_retry_also_fails() -> Non
     async def _always_unauthenticated(
         _call_details: grpc.aio.ClientCallDetails, _request: object
     ) -> object:
-        raise _FakeRpcError(grpc.StatusCode.UNAUTHENTICATED, "Jwt is expired")
+        return _FakeCall(error=_FakeRpcError(grpc.StatusCode.UNAUTHENTICATED, "Jwt is expired"))
 
     with pytest.raises(QuiltAuthError, match="re-login required"):
         await interceptor.intercept_unary_unary(_always_unauthenticated, details, "req")
 
     assert refreshed == ["yes"], "refresh callback should have been called exactly once"
+
+
+@pytest.mark.asyncio
+async def test_auth_interceptor_does_not_duplicate_authorization_metadata() -> None:
+    interceptor = transport._AuthInterceptor(lambda: "fresh-value")
+    details = grpc.aio.ClientCallDetails(
+        method="/svc/method",
+        timeout=1,
+        metadata=[("authorization", "explicit-value"), ("x-test", "1")],
+        credentials=None,
+        wait_for_ready=False,
+    )
+
+    async def _continuation(call_details: grpc.aio.ClientCallDetails, request: object) -> object:
+        metadata = list(call_details.metadata or [])
+        auth_values = [v for k, v in metadata if k.lower() == "authorization"]
+        assert auth_values == ["explicit-value"], "explicit metadata must win, never duplicate"
+        assert ("x-quilt-app-version", transport.APP_VERSION) in metadata
+        return _FakeCall(result=request)
+
+    assert await interceptor.intercept_unary_unary(_continuation, details, "req") == "req"
 
 
 def test_create_channel_and_provider_resolution(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -187,3 +234,32 @@ def test_create_channel_and_provider_resolution(monkeypatch: pytest.MonkeyPatch)
     channel = transport.create_channel(lambda: "Bearer x", environment=Environment.STAGING)
     assert channel == "channel"
     secure.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_unary_stream_retry_still_unauthenticated_raises_auth_error() -> None:
+    """A retried streaming call that is still UNAUTHENTICATED must surface a
+    clear QuiltAuthError at interception time, matching the unary path."""
+    refreshed: list[str] = []
+
+    async def _refresh(_context: transport.TokenRefreshContext) -> None:
+        refreshed.append("yes")
+
+    interceptor = transport._AuthInterceptor(lambda: "stale", refresh_callback=_refresh)
+    details = grpc.aio.ClientCallDetails(
+        method="/svc/method",
+        timeout=1,
+        metadata=None,
+        credentials=None,
+        wait_for_ready=False,
+    )
+
+    async def _always_unauthenticated(
+        _call_details: grpc.aio.ClientCallDetails, _request: object
+    ) -> object:
+        return _FakeCall(error=_FakeRpcError(grpc.StatusCode.UNAUTHENTICATED, "expired"))
+
+    with pytest.raises(QuiltAuthError, match="re-login required"):
+        await interceptor.intercept_unary_stream(_always_unauthenticated, details, "req")
+
+    assert refreshed == ["yes"]
