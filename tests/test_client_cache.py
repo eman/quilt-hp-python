@@ -433,3 +433,91 @@ async def test_get_system_id_home_filter() -> None:
 
     sid = await client.get_system_id()
     assert sid == "sys-2"
+
+
+@pytest.mark.asyncio
+async def test_get_system_id_explicit_home_does_not_poison_default_cache() -> None:
+    from quilt_hp.models.system import SystemInfo
+
+    client, _ = _make_client()
+    client._system_id = None
+    client._home = "Beach"
+
+    mock_sysinfo = MagicMock()
+    mock_sysinfo.list_systems = AsyncMock(
+        return_value=[
+            SystemInfo(id="sys-beach", name="Beach House", timezone="UTC"),
+            SystemInfo(id="sys-lake", name="Lake House", timezone="UTC"),
+        ]
+    )
+    client._sysinfo = mock_sysinfo
+
+    assert await client.get_system_id() == "sys-beach"
+    # Explicit different home resolves without overwriting the default…
+    assert await client.get_system_id("Lake") == "sys-lake"
+    # …so a subsequent default call still targets the configured home.
+    assert await client.get_system_id() == "sys-beach"
+    assert client.system_name == "Beach House"
+    # Case-insensitive match against the configured home hits the cache.
+    calls_before = mock_sysinfo.list_systems.call_count
+    assert await client.get_system_id("beach") == "sys-beach"
+    assert mock_sysinfo.list_systems.call_count == calls_before
+
+
+@pytest.mark.asyncio
+async def test_refresh_token_is_single_flight(monkeypatch: pytest.MonkeyPatch) -> None:
+    import asyncio
+
+    client, _ = _make_client()
+    client._token = "old-token"
+    calls = 0
+
+    async def _fake_authenticate(*_args: object, **_kwargs: object) -> str:
+        nonlocal calls
+        calls += 1
+        await asyncio.sleep(0)  # let concurrent waiters pile up on the lock
+        return "new-token"
+
+    monkeypatch.setattr("quilt_hp.client.authenticate", _fake_authenticate)
+
+    await asyncio.gather(*(client.refresh_token() for _ in range(5)))
+
+    assert client._token == "new-token"
+    assert calls == 1  # only the first waiter hit Cognito
+
+
+@pytest.mark.asyncio
+async def test_concurrent_cold_snapshot_fetch_is_single_flight() -> None:
+    import asyncio
+
+    client, mock_hds = _make_client(ttl=60)
+    snapshot = _make_snapshot()
+
+    async def _slow_get_system(_sid: str) -> SystemSnapshot:
+        await asyncio.sleep(0)
+        return snapshot
+
+    mock_hds.get_system = AsyncMock(side_effect=_slow_get_system)
+
+    results = await asyncio.gather(*(client.get_snapshot() for _ in range(5)))
+
+    assert all(r is snapshot for r in results)
+    assert mock_hds.get_system.await_count == 1
+
+
+@pytest.mark.asyncio
+async def test_close_stops_tracked_streams() -> None:
+    client, _ = _make_client()
+    fake_stream = MagicMock()
+    fake_stream.stop = AsyncMock()
+    fake_stream.stream_state = "connected"
+    client._streams.append(fake_stream)
+
+    channel = client._channel
+    channel.close = AsyncMock()
+
+    await client.close()
+
+    fake_stream.stop.assert_awaited_once()
+    channel.close.assert_awaited_once()
+    assert client._streams == []

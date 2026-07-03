@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 from collections.abc import Awaitable, Callable
+from typing import Any, cast
 
 import grpc
 import grpc.aio
@@ -66,27 +67,23 @@ class _AuthInterceptor(
     def _patch(
         self, client_call_details: grpc.aio.ClientCallDetails
     ) -> grpc.aio.ClientCallDetails:
+        existing = list(client_call_details.metadata or [])
+        # Never duplicate keys: explicit per-call metadata (e.g. the notifier
+        # stream's metadata_provider) wins over interceptor-supplied values.
+        # Some proxies reject repeated authorization headers.
+        existing_keys = {key.lower() for key, _ in existing}
+        patched = existing + [
+            (key, value) for key, value in self._metadata() if key.lower() not in existing_keys
+        ]
         return grpc.aio.ClientCallDetails(
             method=client_call_details.method,
             timeout=client_call_details.timeout,
-            metadata=list(client_call_details.metadata or []) + self._metadata(),
+            metadata=patched,
             credentials=client_call_details.credentials,
             wait_for_ready=client_call_details.wait_for_ready,
         )
 
-    async def _refresh_and_retry(
-        self,
-        continuation: Callable[..., Awaitable[object]],
-        client_call_details: grpc.aio.ClientCallDetails,
-        *args: object,
-    ) -> object:
-        """Refresh the token and retry the call once.
-
-        Raises:
-            QuiltAuthError: If the retry still receives UNAUTHENTICATED after
-                the token refresh, indicating the refresh token is also expired
-                or the credentials are otherwise invalid.
-        """
+    async def _refresh(self) -> None:
         if self._refresh_callback is not None:
             await invoke_refresh_callback(
                 self._refresh_callback,
@@ -95,8 +92,24 @@ class _AuthInterceptor(
                     source="transport",
                 ),
             )
+
+    async def _refresh_and_retry_unary(
+        self,
+        continuation: Callable[..., Awaitable[object]],
+        client_call_details: grpc.aio.ClientCallDetails,
+        request: object,
+    ) -> object:
+        """Refresh the token and retry a unary RPC once.
+
+        Raises:
+            QuiltAuthError: If the retry still receives UNAUTHENTICATED after
+                the token refresh, indicating the refresh token is also expired
+                or the credentials are otherwise invalid.
+        """
+        await self._refresh()
+        call = await continuation(self._patch(client_call_details), request)
         try:
-            return await continuation(self._patch(client_call_details), *args)
+            return await cast("Awaitable[object]", call)
         except grpc.aio.AioRpcError as exc:
             if exc.code() == grpc.StatusCode.UNAUTHENTICATED:
                 raise QuiltAuthError(
@@ -113,12 +126,19 @@ class _AuthInterceptor(
         client_call_details: grpc.aio.ClientCallDetails,
         request: object,
     ) -> object:
+        # NOTE: awaiting the continuation only returns the *call* object; the
+        # RPC result (and any AioRpcError) surfaces when the call itself is
+        # awaited.  The call must be awaited here for UNAUTHENTICATED retry
+        # to work — returning the un-awaited call would make this dead code.
+        call = await continuation(self._patch(client_call_details), request)
         try:
-            return await continuation(self._patch(client_call_details), request)
+            return await cast("Awaitable[object]", call)
         except grpc.aio.AioRpcError as exc:
             if exc.code() == grpc.StatusCode.UNAUTHENTICATED and self._refresh_callback:
                 logger.warning("Retrying unary RPC after UNAUTHENTICATED response")
-                return await self._refresh_and_retry(continuation, client_call_details, request)
+                return await self._refresh_and_retry_unary(
+                    continuation, client_call_details, request
+                )
             raise
 
     async def intercept_unary_stream(
@@ -130,13 +150,25 @@ class _AuthInterceptor(
         client_call_details: grpc.aio.ClientCallDetails,
         request: object,
     ) -> object:
+        call = await continuation(self._patch(client_call_details), request)
         try:
-            return await continuation(self._patch(client_call_details), request)
+            await cast("Any", call).wait_for_connection()
         except grpc.aio.AioRpcError as exc:
             if exc.code() == grpc.StatusCode.UNAUTHENTICATED and self._refresh_callback:
                 logger.warning("Retrying streaming RPC setup after UNAUTHENTICATED response")
-                return await self._refresh_and_retry(continuation, client_call_details, request)
+                await self._refresh()
+                retried = await continuation(self._patch(client_call_details), request)
+                try:
+                    await cast("Any", retried).wait_for_connection()
+                except grpc.aio.AioRpcError as retry_exc:
+                    if retry_exc.code() == grpc.StatusCode.UNAUTHENTICATED:
+                        raise QuiltAuthError(
+                            "Token refresh did not restore authentication; re-login required"
+                        ) from retry_exc
+                    raise
+                return retried
             raise
+        return call
 
     async def intercept_stream_unary(
         self,
@@ -192,7 +224,9 @@ def create_channel(
 def auth_metadata(token_provider: TokenProviderLike) -> list[tuple[str, str]]:
     """Build gRPC metadata with auth headers.
 
-    Useful for stream-stream RPCs where the channel interceptor may not fire.
+    Used by the notifier stream to capture fresh credentials per (re)connect.
+    The channel interceptor skips keys already present in per-call metadata,
+    so headers built here are never duplicated on the wire.
     """
     resolved_provider = _resolve_token_provider(token_provider)
     logger.debug("Building auth metadata")

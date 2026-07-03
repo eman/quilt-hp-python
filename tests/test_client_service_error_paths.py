@@ -326,7 +326,7 @@ async def test_user_service_success_and_error_paths(monkeypatch: pytest.MonkeyPa
     with pytest.raises(QuiltError, match="GetLoggedInUser failed"):
         await svc_err.get_current_user()
     with pytest.raises(QuiltError, match="UpdateLoggedInUser failed"):
-        await svc_err.update_current_user(first_name="A", last_name="B")
+        await svc_err.update_current_user(first_name="A", last_name="B", phone_number="+1555")
     with pytest.raises(QuiltError, match="GetUserAttributes failed"):
         await svc_err.get_user_attributes()
     with pytest.raises(QuiltError, match="PatchUserAttributes failed"):

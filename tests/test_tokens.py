@@ -9,7 +9,6 @@ from unittest.mock import patch
 import pytest
 
 from quilt_hp.cli.store import FileStore
-from quilt_hp.exceptions import QuiltAuthError
 from quilt_hp.tokens import CachedTokens
 
 
@@ -89,15 +88,22 @@ async def test_list_emails(tmp_path: Path) -> None:
 
 
 @pytest.mark.asyncio
-async def test_load_invalid_json_raises(tmp_path: Path) -> None:
+async def test_load_invalid_json_recovers_with_backup(tmp_path: Path) -> None:
     store = FileStore()
     path = tmp_path / "tokens.json"
     path.write_text("{not-json")
-    with (
-        patch.object(store, "_token_path", return_value=path),
-        pytest.raises(QuiltAuthError, match="invalid JSON"),
-    ):
-        await store.load("user@test.com")
+    with patch.object(store, "_token_path", return_value=path):
+        # Corruption is quarantined (renamed to a .corrupt-* backup) and the
+        # store starts empty — worst case is one re-login, never a hard lock.
+        assert await store.load("user@test.com") is None
+    _assert_corrupt_backup(tmp_path, path)
+
+
+def _assert_corrupt_backup(tmp_path: Path, path: Path) -> None:
+    assert not path.exists()
+    backups = list(tmp_path.glob("tokens.json.corrupt-*"))
+    assert len(backups) == 1
+    assert backups[0].read_text() == "{not-json"
 
 
 def test_is_expired() -> None:

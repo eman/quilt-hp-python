@@ -223,6 +223,11 @@ class TokenRefreshReason(StrEnum):
 - `TRANSPORT_UNAUTHENTICATED`: The gRPC transport interceptor received `UNAUTHENTICATED` on a unary RPC.
 - `STREAM_UNAUTHENTICATED`: The `NotifierStream` received `UNAUTHENTICATED` and is refreshing before reconnecting.
 
+For the two `*_UNAUTHENTICATED` reasons, `authenticate()` does **not** trust a
+locally-unexpired cached IdToken — the server just rejected it, so a Cognito
+refresh is forced. If the Cognito response contains a rotated `RefreshToken`,
+the new value is persisted to the token store.
+
 ---
 
 ## `RefreshFailureAction`

@@ -4,12 +4,13 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import UTC, datetime
+from typing import Any, cast
 
 from quilt_hp.const import (
     ABSENT_FAN_SPEED_MODE_SENTINEL,
     LOUVER_FIXED_POSITION_SENTINEL,
-    PROTO_TIMESTAMP_UNSET_SECONDS,
 )
+from quilt_hp.models._helpers import present_submsg, timestamp_or_none
 from quilt_hp.models.enums import (
     FallbackControlCommand,
     FanSpeed,
@@ -279,17 +280,20 @@ class IndoorUnit:
 
 
 def _idu_from_proto(proto: object) -> IndoorUnit:
-    """Internal: convert a proto IndoorUnit to our model."""
+    """Internal: convert a proto IndoorUnit to our model.
+
+    Sub-messages absent from a sparse stream diff parse to ``None`` (for
+    optional model fields) or sentinel defaults (for ``controls``/``state``/
+    ``settings``) that ``SystemSnapshot.apply_indoor_unit`` uses to preserve
+    existing snapshot data.  Presence is detected with ``HasField`` — proto3
+    truthiness cannot detect absent sub-messages.
+    """
     from quilt_hp.models.enums import HVACMode, HVACState
 
-    c = proto.controls  # type: ignore[attr-defined]
-    s = proto.state  # type: ignore[attr-defined]
-    st = proto.settings  # type: ignore[attr-defined]
-    pd = proto.performance_data  # type: ignore[attr-defined]
-    pm = proto.performance_metrics  # type: ignore[attr-defined]
-
+    pd = present_submsg(proto, "performance_data")
     perf_data = None
-    if pd.updated_ts:
+    if pd is not None:
+        pd = cast("Any", pd)
         perf_data = IndoorUnitPerformanceData(
             measurement_interval_s=pd.measurement_interval_s,
             energy_measurement_j=pd.energy_measurement_j,
@@ -304,8 +308,10 @@ def _idu_from_proto(proto: object) -> IndoorUnit:
             liquid_pipe_temperature_c=pd.liquid_pipe_temperature_c,
         )
 
+    pm = present_submsg(proto, "performance_metrics")
     perf_metrics = None
-    if pm.updated_ts:
+    if pm is not None:
+        pm = cast("Any", pm)
         perf_metrics = IndoorUnitPerformanceMetrics(
             capacity_w=pm.capacity_w,
             coefficient_of_performance=pm.coefficient_of_performance,
@@ -320,8 +326,9 @@ def _idu_from_proto(proto: object) -> IndoorUnit:
         )
 
     hvac_inputs = None
-    hi = proto.hvac_inputs  # type: ignore[attr-defined]
-    if hi.updated_ts:
+    hi = present_submsg(proto, "hvac_inputs")
+    if hi is not None:
+        hi = cast("Any", hi)
         hvac_inputs = IndoorUnitHvacInputs(
             external_ambient_temperature_c=hi.external_ambient_temperature_c,
             ambient_temperature_source=hi.ambient_temperature_source,
@@ -332,15 +339,17 @@ def _idu_from_proto(proto: object) -> IndoorUnit:
         )
 
     commands = None
-    cmd = proto.commands  # type: ignore[attr-defined]
-    if cmd.updated_ts:
+    cmd = present_submsg(proto, "commands")
+    if cmd is not None:
+        cmd = cast("Any", cmd)
         commands = IndoorUnitCommands(
             fallback_control_command=FallbackControlCommand(cmd.fallback_control_command),
         )
 
     conditions = None
-    co = proto.conditions  # type: ignore[attr-defined]
-    if co.updated_ts:
+    co = present_submsg(proto, "conditions")
+    if co is not None:
+        co = cast("Any", co)
         conditions = IndoorUnitConditions(
             mode_conflict=co.mode_conflict,
             anti_cold_wind=co.anti_cold_wind,
@@ -356,26 +365,26 @@ def _idu_from_proto(proto: object) -> IndoorUnit:
         )
 
     presence_state = None
-    if hasattr(proto, "presence") and proto.presence.updated_ts:
+    pres = present_submsg(proto, "presence")
+    if pres is not None:
+        pres = cast("Any", pres)
         presence_state = IndoorUnitPresence(
-            sensor0_presence=Presence(proto.presence.sensor0_presence),
-            sensor1_presence=Presence(proto.presence.sensor1_presence),
+            sensor0_presence=Presence(pres.sensor0_presence),
+            sensor1_presence=Presence(pres.sensor1_presence),
         )
 
     occupancy_state = None
-    if hasattr(proto, "occupancy") and proto.occupancy.updated_ts:
+    occ = present_submsg(proto, "occupancy")
+    if occ is not None:
+        occ = cast("Any", occ)
         occupancy_state = IndoorUnitOccupancy(
-            occupancy_state=proto.occupancy.occupancy_state,
+            occupancy_state=occ.occupancy_state,
         )
 
-    return IndoorUnit(
-        id=proto.header.object_id,  # type: ignore[attr-defined]
-        system_id=proto.header.system_id,  # type: ignore[attr-defined]
-        space_id=proto.relationships.space_id,  # type: ignore[attr-defined]
-        outdoor_unit_id=proto.relationships.outdoor_unit_id or None,  # type: ignore[attr-defined]
-        hardware_id=proto.relationships.hardware_id,  # type: ignore[attr-defined]
-        qsm_id=proto.relationships.quilt_smart_module_id or None,  # type: ignore[attr-defined]
-        settings=IndoorUnitSettings(
+    st = present_submsg(proto, "settings")
+    if st is not None:
+        st = cast("Any", st)
+        settings = IndoorUnitSettings(
             name=st.name,
             description=st.description,
             light_brightness_default_percent=st.light_brightness_default_percent,
@@ -383,8 +392,22 @@ def _idu_from_proto(proto: object) -> IndoorUnit:
             presence_fence_right_m=st.presence_fence_right_m,
             presence_fence_forward_m=st.presence_fence_forward_m,
             radar_sensor_distance_from_floor_m=st.radar_sensor_distance_from_floor_m,
-        ),
-        controls=IndoorUnitControls(
+        )
+    else:
+        settings = IndoorUnitSettings(
+            name="",
+            description="",
+            light_brightness_default_percent=0.0,
+            presence_fence_left_m=0.0,
+            presence_fence_right_m=0.0,
+            presence_fence_forward_m=0.0,
+            radar_sensor_distance_from_floor_m=0.0,
+        )
+
+    c = present_submsg(proto, "controls")
+    if c is not None:
+        c = cast("Any", c)
+        controls = IndoorUnitControls(
             fan_speed=FanSpeed.from_wire(c.fan_speed_mode, c.fan_speed_percent),
             fan_speed_mode_raw=c.fan_speed_mode,
             fan_speed_percent_raw=c.fan_speed_percent,
@@ -396,8 +419,22 @@ def _idu_from_proto(proto: object) -> IndoorUnit:
             led_brightness=c.led_color_brightness_percent,
             led_animation=LedAnimation(c.led_animation),
             led_state=LightState(c.led_state),
-        ),
-        state=IndoorUnitState(
+        )
+    else:
+        # All-sentinel controls: apply_indoor_unit detects and preserves.
+        controls = IndoorUnitControls(
+            fan_speed=FanSpeed.from_wire(0, 0.0),
+            louver_mode=LouverMode.UNSPECIFIED,
+            louver_fixed_position=LOUVER_FIXED_POSITION_SENTINEL,
+            led_color_code=0,
+            led_brightness=0.0,
+            led_animation=LedAnimation.UNSPECIFIED,
+        )
+
+    s = present_submsg(proto, "state")
+    if s is not None:
+        s = cast("Any", s)
+        state = IndoorUnitState(
             hvac_mode=HVACMode(s.hvac_mode),
             hvac_state=HVACState(s.hvac_state),
             ambient_temperature_c=s.ambient_temperature_c,
@@ -411,12 +448,31 @@ def _idu_from_proto(proto: object) -> IndoorUnit:
             outlet_temperature_c=s.outlet_temperature_c,
             calculated_ambient_temperature_c=s.calculated_ambient_temperature_c,
             louver_angle_up_down_degrees=s.louver_angle_up_down_degrees,
-            updated_at=(
-                datetime.fromtimestamp(s.updated_ts.seconds, tz=UTC)
-                if s.updated_ts and s.updated_ts.seconds != PROTO_TIMESTAMP_UNSET_SECONDS
-                else None
-            ),
-        ),
+            updated_at=timestamp_or_none(getattr(s, "updated_ts", None)),
+        )
+    else:
+        state = IndoorUnitState(
+            hvac_mode=HVACMode.UNSPECIFIED,
+            hvac_state=HVACState.UNSPECIFIED,
+            ambient_temperature_c=0.0,
+            ambient_humidity_percent=0.0,
+            fan_speed_rpm=0.0,
+            fan_speed_setpoint_rpm=0.0,
+            presence_detection_level=0.0,
+        )
+
+    rel = cast("Any", present_submsg(proto, "relationships"))
+    p = cast("Any", proto)
+    return IndoorUnit(
+        id=p.header.object_id,
+        system_id=p.header.system_id,
+        space_id=rel.space_id if rel is not None else "",
+        outdoor_unit_id=(rel.outdoor_unit_id or None) if rel is not None else None,
+        hardware_id=rel.hardware_id if rel is not None else "",
+        qsm_id=(rel.quilt_smart_module_id or None) if rel is not None else None,
+        settings=settings,
+        controls=controls,
+        state=state,
         hvac_inputs=hvac_inputs,
         conditions=conditions,
         performance_data=perf_data,
@@ -424,7 +480,7 @@ def _idu_from_proto(proto: object) -> IndoorUnit:
         presence=presence_state,
         occupancy=occupancy_state,
         firmware_update_info_id=(
-            proto.relationships.firmware_update_info_id or None  # type: ignore[attr-defined]
+            (rel.firmware_update_info_id or None) if rel is not None else None
         ),
         commands=commands,
     )

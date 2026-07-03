@@ -84,7 +84,7 @@ stateDiagram-v2
     Fatal --> [*]
 ```
 
-The back-off starts at `reconnect_delay_s` (default 1 second), doubles on each failed attempt, and caps at 60 seconds. The request queue is reset before each reconnect so the server receives a fresh subscription request with the full topic list.
+The back-off starts at `reconnect_delay_s` (default 1 second), doubles on each consecutive failed attempt with ±50% jitter, and caps at 60 seconds. Both the back-off and the `max_reconnects` budget reset once a connection stays healthy for a while, so routine server-side stream recycling never escalates reconnect latency. After a successful token refresh the stream reconnects immediately. The request queue is reset before each reconnect so the server receives a fresh subscription request with the full topic list. `on_connected` callbacks fire on every successful (re)connect — use them to re-fetch a snapshot, since events published while disconnected are lost.
 
 The `UNAUTHENTICATED` path is special: the stream refreshes the token before waiting, because reconnecting immediately with a stale token would fail again. If the refresh itself fails, the stream gives up rather than entering an infinite retry loop with an invalid token.
 
