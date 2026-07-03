@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [0.5.4] - 2026-07-03
+
 Fixes all findings from a full architecture/code/performance/bug-hunt evaluation.
 
 ### Critical
