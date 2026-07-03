@@ -157,9 +157,7 @@ async def test_auth_interceptor_logs_unary_retry_at_info(
 
     calls = 0
 
-    async def _continuation(
-        _call_details: grpc.aio.ClientCallDetails, request: object
-    ) -> object:
+    async def _continuation(_call_details: grpc.aio.ClientCallDetails, request: object) -> object:
         nonlocal calls
         calls += 1
         if calls == 1:
@@ -199,9 +197,7 @@ async def test_auth_interceptor_logs_stream_setup_retry_at_info(
 
     calls = 0
 
-    async def _continuation(
-        _call_details: grpc.aio.ClientCallDetails, request: object
-    ) -> object:
+    async def _continuation(_call_details: grpc.aio.ClientCallDetails, request: object) -> object:
         nonlocal calls
         calls += 1
         if calls == 1:
@@ -214,8 +210,7 @@ async def test_auth_interceptor_logs_stream_setup_retry_at_info(
     matching = [
         record
         for record in caplog.records
-        if record.getMessage()
-        == "Retrying streaming RPC setup after UNAUTHENTICATED response"
+        if record.getMessage() == "Retrying streaming RPC setup after UNAUTHENTICATED response"
     ]
     assert matching
     assert all(record.levelno == logging.INFO for record in matching)
