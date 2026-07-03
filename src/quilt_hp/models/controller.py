@@ -30,6 +30,7 @@ class Controller:
     wifi_ip: str | None
     wifi_signal_dbm: int | None
     wifi_freq_mhz: int | None = None  # e.g. 5745 → 5 GHz; 2437 → 2.4 GHz
+    wifi_bssid: str | None = None  # AP MAC address the Dial is associated with
     wifi_last_seen: datetime | None = (
         None  # WifiState.updated_ts — when the dial last checked in over WiFi
     )
@@ -48,6 +49,20 @@ class Controller:
     Gate: ``mobile_local_control_health_enabled``.  UNSPECIFIED means the
     server has not yet reported a health value (pre-1.0.26 firmware or the
     gate is off).
+    """
+    local_comms_link_state: int | None = None
+    """Raw ``LocalCommsStatus.link_state`` value (wire-confirmed 2026-07-03,
+    meaning not yet decoded — observed constant at 9 across all healthy
+    devices in captures so far). Exposed raw pending enum discovery.
+    """
+    local_comms_connection_state: int | None = None
+    """Raw ``LocalCommsStatus.connection_state`` value (wire-confirmed
+    2026-07-03, observed constant at 1 across all healthy devices).
+    """
+    local_comms_version: int | None = None
+    """Raw ``LocalCommsStatus.version`` value (wire-confirmed 2026-07-03,
+    observed constant at 9 across all healthy devices — likely the local
+    mesh protocol/schema version).
     """
 
     @property
@@ -106,7 +121,7 @@ class Controller:
             info = WifiInfo.from_proto(wstate)
             return info if info.connected else None
 
-        wifi_ssid, wifi_ip, wifi_signal_dbm = parse_wifi_state(w)
+        wifi_ssid, wifi_ip, wifi_signal_dbm, wifi_bssid, wifi_freq_mhz = parse_wifi_state(w)
 
         serial: str | None = None
         model_sku: str | None = None
@@ -131,7 +146,8 @@ class Controller:
             wifi_ssid=wifi_ssid,
             wifi_ip=wifi_ip,
             wifi_signal_dbm=wifi_signal_dbm,
-            wifi_freq_mhz=w.frequency_mhz or None,
+            wifi_freq_mhz=wifi_freq_mhz,
+            wifi_bssid=wifi_bssid,
             wifi_last_seen=wifi_last_seen,
             ap_wifi=_wifi(p.ap_wifi_state),
             p2p_wifi=_wifi(p.p2p_wifi_state),
@@ -144,5 +160,14 @@ class Controller:
             state_updated_at=updated_at,
             local_comms_health=LocalCommsHealthStatus(
                 getattr(getattr(p, "local_comms_status", None), "health", 0)
+            ),
+            local_comms_link_state=getattr(
+                getattr(p, "local_comms_status", None), "link_state", None
+            ),
+            local_comms_connection_state=getattr(
+                getattr(p, "local_comms_status", None), "connection_state", None
+            ),
+            local_comms_version=getattr(
+                getattr(p, "local_comms_status", None), "version", None
             ),
         )

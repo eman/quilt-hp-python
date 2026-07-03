@@ -44,9 +44,20 @@ def lookup_hardware(hw_map: dict[str, object], hardware_id: str | None) -> objec
     return None
 
 
-def parse_wifi_state(proto: object) -> tuple[str | None, str | None, int | None]:
-    """Extract WiFi fields while preserving explicit zero signal values."""
+def parse_wifi_state(
+    proto: object,
+) -> tuple[str | None, str | None, int | None, str | None, int | None]:
+    """Extract WiFi fields while preserving explicit zero signal values.
+
+    Returns ``(ssid, ip, signal_dbm, bssid, frequency_mhz)``. ``bssid`` and
+    ``frequency_mhz`` are wire-present on the shared ``WifiState`` message
+    used by both QSM and Controller hosted-wifi state (confirmed via raw
+    proto capture 2026-07-03) and identify which physical AP radio/band a
+    device is associated with.
+    """
     ssid = getattr(proto, "ssid", "") or None
     ip = getattr(proto, "ipv4_address", None) or None
     signal = getattr(proto, "signal_level_dbm", None)
-    return ssid, ip, signal if signal is not None else None
+    bssid = getattr(proto, "bssid", "") or None
+    frequency_mhz = getattr(proto, "frequency_mhz", None) or None
+    return ssid, ip, (signal if signal is not None else None), bssid, frequency_mhz

@@ -22,15 +22,30 @@ class WifiInfo:
     ssid: str | None
     ip: str | None
     signal_dbm: int | None
+    bssid: str | None = None
+    frequency_mhz: int | None = None
 
     @property
     def connected(self) -> bool:
         return bool(self.ssid)
 
+    @property
+    def band(self) -> str | None:
+        """'5 GHz' or '2.4 GHz' based on frequency, or None if unknown."""
+        if self.frequency_mhz is None:
+            return None
+        return "5 GHz" if self.frequency_mhz > 5000 else "2.4 GHz"
+
     @classmethod
     def from_proto(cls, proto: object) -> WifiInfo:
-        ssid, ip, signal_dbm = parse_wifi_state(proto)
-        return cls(ssid=ssid, ip=ip, signal_dbm=signal_dbm)
+        ssid, ip, signal_dbm, bssid, frequency_mhz = parse_wifi_state(proto)
+        return cls(
+            ssid=ssid,
+            ip=ip,
+            signal_dbm=signal_dbm,
+            bssid=bssid,
+            frequency_mhz=frequency_mhz,
+        )
 
 
 @dataclass(slots=True)
@@ -72,6 +87,20 @@ class QuiltSmartModule:
     server has not yet reported a health value (pre-1.0.26 firmware or the
     gate is off).
     """
+    local_comms_link_state: int | None = None
+    """Raw ``LocalCommsStatus.link_state`` value (wire-confirmed 2026-07-03,
+    meaning not yet decoded — observed constant at 9 across all healthy
+    devices in captures so far). Exposed raw pending enum discovery.
+    """
+    local_comms_connection_state: int | None = None
+    """Raw ``LocalCommsStatus.connection_state`` value (wire-confirmed
+    2026-07-03, observed constant at 1 across all healthy devices).
+    """
+    local_comms_version: int | None = None
+    """Raw ``LocalCommsStatus.version`` value (wire-confirmed 2026-07-03,
+    observed constant at 9 across all healthy devices — likely the local
+    mesh protocol/schema version).
+    """
 
     @classmethod
     def from_proto(cls, proto: object) -> QuiltSmartModule:
@@ -112,5 +141,14 @@ class QuiltSmartModule:
             ),
             local_comms_health=LocalCommsHealthStatus(
                 getattr(getattr(proto, "local_comms_status", None), "health", 0)
+            ),
+            local_comms_link_state=getattr(
+                getattr(proto, "local_comms_status", None), "link_state", None
+            ),
+            local_comms_connection_state=getattr(
+                getattr(proto, "local_comms_status", None), "connection_state", None
+            ),
+            local_comms_version=getattr(
+                getattr(proto, "local_comms_status", None), "version", None
             ),
         )
