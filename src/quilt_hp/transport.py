@@ -135,7 +135,7 @@ class _AuthInterceptor(
             return await cast("Awaitable[object]", call)
         except grpc.aio.AioRpcError as exc:
             if exc.code() == grpc.StatusCode.UNAUTHENTICATED and self._refresh_callback:
-                logger.warning("Retrying unary RPC after UNAUTHENTICATED response")
+                logger.info("Retrying unary RPC after UNAUTHENTICATED response")
                 return await self._refresh_and_retry_unary(
                     continuation, client_call_details, request
                 )
@@ -155,7 +155,7 @@ class _AuthInterceptor(
             await cast("Any", call).wait_for_connection()
         except grpc.aio.AioRpcError as exc:
             if exc.code() == grpc.StatusCode.UNAUTHENTICATED and self._refresh_callback:
-                logger.warning("Retrying streaming RPC setup after UNAUTHENTICATED response")
+                logger.info("Retrying streaming RPC setup after UNAUTHENTICATED response")
                 await self._refresh()
                 retried = await continuation(self._patch(client_call_details), request)
                 try:
