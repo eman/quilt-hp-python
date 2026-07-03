@@ -39,7 +39,16 @@ jobs:
     runs-on: ubuntu-latest
     environment:
       name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
+      url: ${{ steps.deploy_retry.outputs.page_url || steps.deploy_primary.outputs.page_url }}
     steps:
-      - id: deployment
+      - id: deploy_primary
+        continue-on-error: true
         uses: actions/deploy-pages@v5
+      - id: deploy_retry
+        if: steps.deploy_primary.outcome == 'failure'
+        uses: actions/deploy-pages@v5
+      - name: Fail deploy if retry did not recover
+        if: steps.deploy_primary.outcome == 'failure' && steps.deploy_retry.outcome == 'failure'
+        run: |
+          echo "GitHub Pages deployment failed twice."
+          exit 1
