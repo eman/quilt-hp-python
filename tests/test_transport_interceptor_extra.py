@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import inspect
+import logging
 from unittest.mock import MagicMock
 
 import grpc
@@ -133,6 +134,87 @@ async def test_auth_interceptor_retry_paths() -> None:
     refreshed.clear()
     stream_call = await interceptor.intercept_unary_stream(_continuation, details, "stream-req")
     assert await stream_call == "stream-req"  # type: ignore[misc]
+    assert refreshed == ["yes"]
+
+
+@pytest.mark.asyncio
+async def test_auth_interceptor_logs_unary_retry_at_info(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    refreshed: list[str] = []
+
+    async def _refresh(_context: transport.TokenRefreshContext) -> None:
+        refreshed.append("yes")
+
+    interceptor = transport._AuthInterceptor(lambda: "******", refresh_callback=_refresh)
+    details = grpc.aio.ClientCallDetails(
+        method="/svc/method",
+        timeout=1,
+        metadata=None,
+        credentials=None,
+        wait_for_ready=False,
+    )
+
+    calls = 0
+
+    async def _continuation(_call_details: grpc.aio.ClientCallDetails, request: object) -> object:
+        nonlocal calls
+        calls += 1
+        if calls == 1:
+            return _FakeCall(error=_FakeRpcError(grpc.StatusCode.UNAUTHENTICATED, "expired"))
+        return _FakeCall(result=request)
+
+    with caplog.at_level(logging.INFO):
+        assert await interceptor.intercept_unary_unary(_continuation, details, "req") == "req"
+
+    matching = [
+        record
+        for record in caplog.records
+        if record.getMessage() == "Retrying unary RPC after UNAUTHENTICATED response"
+    ]
+    assert matching
+    assert all(record.levelno == logging.INFO for record in matching)
+    assert refreshed == ["yes"]
+
+
+@pytest.mark.asyncio
+async def test_auth_interceptor_logs_stream_setup_retry_at_info(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    refreshed: list[str] = []
+
+    async def _refresh(_context: transport.TokenRefreshContext) -> None:
+        refreshed.append("yes")
+
+    interceptor = transport._AuthInterceptor(lambda: "******", refresh_callback=_refresh)
+    details = grpc.aio.ClientCallDetails(
+        method="/svc/method",
+        timeout=1,
+        metadata=None,
+        credentials=None,
+        wait_for_ready=False,
+    )
+
+    calls = 0
+
+    async def _continuation(_call_details: grpc.aio.ClientCallDetails, request: object) -> object:
+        nonlocal calls
+        calls += 1
+        if calls == 1:
+            return _FakeCall(error=_FakeRpcError(grpc.StatusCode.UNAUTHENTICATED, "expired"))
+        return _FakeCall(result=request)
+
+    with caplog.at_level(logging.INFO):
+        stream_call = await interceptor.intercept_unary_stream(_continuation, details, "req")
+
+    matching = [
+        record
+        for record in caplog.records
+        if record.getMessage() == "Retrying streaming RPC setup after UNAUTHENTICATED response"
+    ]
+    assert matching
+    assert all(record.levelno == logging.INFO for record in matching)
+    assert await stream_call == "req"  # type: ignore[misc]
     assert refreshed == ["yes"]
 
 
