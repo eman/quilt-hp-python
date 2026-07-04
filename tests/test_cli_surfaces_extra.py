@@ -7,6 +7,7 @@ from unittest.mock import patch
 import pytest
 from typer.testing import CliRunner
 
+from quilt_hp import __version__ as package_version
 from quilt_hp.cli import main as cli_main
 from quilt_hp.exceptions import QuiltAuthError, QuiltError
 from quilt_hp.models.enums import HVACMode
@@ -17,7 +18,7 @@ runner = CliRunner()
 def test_version_option_outputs_package_version() -> None:
     result = runner.invoke(cli_main.app, ["--version"])
     assert result.exit_code == 0
-    assert result.stdout.strip() == "0.5.5"
+    assert result.stdout.strip() == package_version
 
 
 class _FakeClient:
