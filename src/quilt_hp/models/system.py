@@ -136,6 +136,15 @@ class SystemSnapshot:
                 return cs
         return None
 
+    def indoor_units_for_space(self, space: Space | str) -> list[IndoorUnit]:
+        """Return all indoor units linked to a space.
+
+        Args:
+            space: A ``Space`` object or space ID string.
+        """
+        space_id = space if isinstance(space, str) else space.id
+        return [u for u in self.indoor_units if u.space_id == space_id]
+
     def enrich_space(self, space: Space) -> Space:
         """Resolve active_comfort_setting_type on a stream-updated Space.
 

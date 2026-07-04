@@ -96,6 +96,16 @@ print(f"Fan speed: {updated.controls.fan_speed}")
 
 Available fan speeds: `FanSpeed.AUTO`, `QUIET`, `LOW`, `MEDIUM`, `HIGH`, `BLAST`.
 
+From the CLI, set the fan speed for a room's indoor unit(s) with the `--fan`
+flag on `quilt set` (it resolves the space's indoor units for you):
+
+```bash
+quilt set "Living Room" --fan medium
+quilt set "Living Room" --mode cool --cool 22 --fan auto
+```
+
+In the TUI, press `f` on a room screen to cycle through the fan speeds.
+
 ---
 
 ## Set louver mode and position
