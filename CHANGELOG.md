@@ -2,15 +2,11 @@
 
 ## [Unreleased]
 
-Cross-checked the library against the Android app (com.quilt.android 1.0.29,
-versionCode 242) by decompiling with jadx and decoding the compiled protobuf
-`newMessageInfo` metadata for exact field numbers.
-
 ### Fixed
 - **`LocalCommsStatus` fields were mislabeled** (previously guessed from limited
-  captures). The compiled message proves the correct field semantics: field 2
-  `health` → `status`, field 3 `link_state` → `visible_devices_count`, field 4
-  `version` → `expected_devices_count`, field 5 `health_changed_ts` →
+  captures). Corrected to the verified field semantics: field 2 `health` →
+  `status`, field 3 `link_state` → `visible_devices_count`, field 4 `version` →
+  `expected_devices_count`, field 5 `health_changed_ts` →
   `last_session_change_ts`, field 6 `connection_state` (int32) → `reason`
   (`LocalCommsHealthReason` enum). Decoding still worked by field number, but the
   model exposed wrong names/semantics and discarded the reason diagnostics.
@@ -25,12 +21,11 @@ versionCode 242) by decompiling with jadx and decoding the compiled protobuf
   target space.
 - `SystemSnapshot.indoor_units_for_space()` returns all indoor units linked to a
   space (accepts a `Space` or space-ID string).
-- `LocalCommsHealthReason` enum (12 APK-confirmed values). `ZENOH_SESSION_DOWN`
+- `LocalCommsHealthReason` enum (12 values). `ZENOH_SESSION_DOWN`
   identifies the local mesh transport as **Eclipse Zenoh**, not NATS (port 7447
   is Zenoh's default).
-- `IndoorUnitConditions.compressor_minimum_run_time` (proto field 13,
-  APK-confirmed 1.0.29).
-- Marked `SpaceSettings.safety_heating=9` APK-confirmed (was "unconfirmed").
+- `IndoorUnitConditions.compressor_minimum_run_time` (proto field 13).
+- Marked `SpaceSettings.safety_heating=9` confirmed (was "unconfirmed").
 
 ### CI
 - Docs deploy workflow upgraded to the current Node 24 GitHub Pages actions
