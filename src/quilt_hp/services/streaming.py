@@ -10,6 +10,7 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import logging
+import random
 import time
 from collections.abc import AsyncIterator, Awaitable, Callable, Sequence
 from dataclasses import dataclass, field
@@ -33,6 +34,11 @@ from quilt_hp.tokens import TokenRefreshContext, TokenRefreshReason, invoke_refr
 
 logger = logging.getLogger(__name__)
 
+# A connection that stays up at least this long is considered healthy: the
+# reconnect budget and exponential back-off reset when it ends, so routine
+# server-side stream recycling never escalates reconnect latency permanently.
+_HEALTHY_CONNECTION_S = 30.0
+
 # Callbacks may be sync or async.
 SpaceCallback = Callable[[Space], Awaitable[None] | None]
 IndoorUnitCallback = Callable[[IndoorUnit], Awaitable[None] | None]
@@ -43,6 +49,10 @@ RemoteSensorCallback = Callable[[RemoteSensor], Awaitable[None] | None]
 ControllerRemoteSensorCallback = Callable[[ControllerRemoteSensor], Awaitable[None] | None]
 SoftwareUpdateInfoCallback = Callable[[SoftwareUpdateInfo], Awaitable[None] | None]
 ErrorCallback = Callable[[Exception], Awaitable[None] | None]
+ConnectedCallback = Callable[[], Awaitable[None] | None]
+
+# Returned by the on_* registration methods; call it to unregister.
+Unsubscribe = Callable[[], None]
 
 
 class _NotifierServiceStub(Protocol):
@@ -93,6 +103,21 @@ def _get_len_field(data: bytes, field_num: int) -> bytes | None:
         else:
             break
     return None
+
+
+# Entity field numbers inside HomeDatastoreObjectDiff, which mirrors the
+# HomeDatastoreSystem field layout.  Derived from the generated descriptor so
+# a proto regeneration cannot silently desynchronize the hand-rolled wire
+# scan in _parse_event.
+_HDS_FIELDS = hds.HomeDatastoreSystem.DESCRIPTOR.fields_by_name
+_SPACE_FIELD: int = _HDS_FIELDS["spaces"].number
+_ODU_FIELD: int = _HDS_FIELDS["outdoor_units"].number
+_QSM_FIELD: int = _HDS_FIELDS["quilt_smart_modules"].number
+_IDU_FIELD: int = _HDS_FIELDS["indoor_units"].number
+_CTRL_FIELD: int = _HDS_FIELDS["controllers"].number
+_RS_FIELD: int = _HDS_FIELDS["remote_sensors"].number
+_CRS_FIELD: int = _HDS_FIELDS["controller_remote_sensors"].number
+_SUI_FIELD: int = _HDS_FIELDS["software_update_infos"].number
 
 
 def _make_subscribe_request(topics: list[str]) -> notifier.SubscribeRequest:
@@ -158,8 +183,10 @@ class NotifierStream:
         authenticate: Optional async callable (no args) that refreshes the auth
             token. When provided and the stream gets ``UNAUTHENTICATED``, the
             callable is awaited before reconnecting.
-        max_reconnects: Maximum reconnect attempts per disconnect event.
-            ``-1`` means unlimited (default).
+        max_reconnects: Maximum consecutive reconnect attempts.  The counter
+            resets after a connection stays healthy for a while, so this
+            bounds retries per disconnect event rather than per stream
+            lifetime.  ``-1`` means unlimited (default).
         reconnect_delay_s: Initial back-off delay in seconds before the first
             reconnect. Doubles on each subsequent attempt, capped at 60 s.
             Default: ``1.0``.
@@ -185,6 +212,7 @@ class NotifierStream:
     _crs_callbacks: list[ControllerRemoteSensorCallback] = field(default_factory=list, init=False)
     _sui_callbacks: list[SoftwareUpdateInfoCallback] = field(default_factory=list, init=False)
     _error_callbacks: list[ErrorCallback] = field(default_factory=list, init=False)
+    _connected_callbacks: list[ConnectedCallback] = field(default_factory=list, init=False)
     _request_queue: asyncio.Queue[notifier.SubscribeRequest] = field(init=False)
     _subscription_lock: asyncio.Lock = field(init=False)
     _lifecycle_lock: asyncio.Lock = field(init=False)
@@ -238,42 +266,69 @@ class NotifierStream:
         )
 
     # --- Callback registration ---
+    #
+    # Each on_* method returns an unsubscribe callable so long-lived
+    # consumers (e.g. HA config entries) can detach callbacks without
+    # tearing down the stream.
+    #
+    # Callbacks run on the event loop: keep them non-blocking.  A slow or
+    # blocking callback delays delivery of subsequent stream events.
 
-    def on_space_update(self, callback: SpaceCallback) -> None:
+    @staticmethod
+    def _register[T](callbacks: list[T], callback: T) -> Unsubscribe:
+        callbacks.append(callback)
+
+        def _unsubscribe() -> None:
+            with contextlib.suppress(ValueError):
+                callbacks.remove(callback)
+
+        return _unsubscribe
+
+    def on_space_update(self, callback: SpaceCallback) -> Unsubscribe:
         """Register a callback for space change events (sync or async)."""
-        self._space_callbacks.append(callback)
+        return self._register(self._space_callbacks, callback)
 
-    def on_indoor_unit_update(self, callback: IndoorUnitCallback) -> None:
+    def on_indoor_unit_update(self, callback: IndoorUnitCallback) -> Unsubscribe:
         """Register a callback for indoor unit change events (sync or async)."""
-        self._idu_callbacks.append(callback)
+        return self._register(self._idu_callbacks, callback)
 
-    def on_outdoor_unit_update(self, callback: OutdoorUnitCallback) -> None:
+    def on_outdoor_unit_update(self, callback: OutdoorUnitCallback) -> Unsubscribe:
         """Register callback for outdoor unit change events."""
-        self._odu_callbacks.append(callback)
+        return self._register(self._odu_callbacks, callback)
 
-    def on_controller_update(self, callback: ControllerCallback) -> None:
+    def on_controller_update(self, callback: ControllerCallback) -> Unsubscribe:
         """Register callback for controller (Dial) change events."""
-        self._ctrl_callbacks.append(callback)
+        return self._register(self._ctrl_callbacks, callback)
 
-    def on_qsm_update(self, callback: QsmCallback) -> None:
+    def on_qsm_update(self, callback: QsmCallback) -> Unsubscribe:
         """Register callback for QuiltSmartModule change events."""
-        self._qsm_callbacks.append(callback)
+        return self._register(self._qsm_callbacks, callback)
 
-    def on_remote_sensor_update(self, callback: RemoteSensorCallback) -> None:
+    def on_remote_sensor_update(self, callback: RemoteSensorCallback) -> Unsubscribe:
         """Register callback for RemoteSensor change events."""
-        self._rs_callbacks.append(callback)
+        return self._register(self._rs_callbacks, callback)
 
-    def on_controller_remote_sensor_update(self, callback: ControllerRemoteSensorCallback) -> None:
+    def on_controller_remote_sensor_update(
+        self, callback: ControllerRemoteSensorCallback
+    ) -> Unsubscribe:
         """Register callback for ControllerRemoteSensor change events."""
-        self._crs_callbacks.append(callback)
+        return self._register(self._crs_callbacks, callback)
 
-    def on_software_update_info(self, callback: SoftwareUpdateInfoCallback) -> None:
+    def on_software_update_info(self, callback: SoftwareUpdateInfoCallback) -> Unsubscribe:
         """Register callback for SoftwareUpdateInfo change events."""
-        self._sui_callbacks.append(callback)
+        return self._register(self._sui_callbacks, callback)
 
-    def on_error(self, callback: ErrorCallback) -> None:
+    def on_error(self, callback: ErrorCallback) -> Unsubscribe:
         """Register a callback invoked when the stream encounters a fatal error."""
-        self._error_callbacks.append(callback)
+        return self._register(self._error_callbacks, callback)
+
+    def on_connected(self, callback: ConnectedCallback) -> Unsubscribe:
+        """Register a callback invoked on every successful (re)connect.
+
+        Events published while the stream was disconnected are lost; use this
+        to re-fetch a snapshot after a reconnect and close the gap.
+        """
+        return self._register(self._connected_callbacks, callback)
 
     @property
     def error(self) -> Exception | None:
@@ -298,10 +353,14 @@ class NotifierStream:
     # --- Subscription management ---
 
     async def subscribe(self, topics: list[str]) -> None:
-        """Add more topics to the subscription (after stream is started)."""
+        """Add more topics to the subscription (before or after start)."""
         async with self._subscription_lock:
             self._topics.extend(topics)
-            await self._request_queue.put(_make_subscribe_request(topics))
+            # Before start, _topics alone is the source of truth: the initial
+            # request snapshots it.  Queueing here as well would send the
+            # topics twice on the first stream.
+            if self._running:
+                await self._request_queue.put(_make_subscribe_request(topics))
 
     async def unsubscribe(self, topics: list[str]) -> None:
         """Remove topics from the subscription."""
@@ -314,7 +373,8 @@ class NotifierStream:
             for t in topics:
                 if t in self._topics:
                     self._topics.remove(t)
-            await self._request_queue.put(req)
+            if self._running:
+                await self._request_queue.put(req)
 
     # --- Internal stream machinery ---
 
@@ -363,49 +423,49 @@ class NotifierStream:
 
         obj_diff = _get_len_field(inner_notif, 2)
         if obj_diff:
-            space_bytes = _get_len_field(obj_diff, 3)
+            space_bytes = _get_len_field(obj_diff, _SPACE_FIELD)
             if space_bytes:
                 updated = hds.Space()
                 updated.ParseFromString(space_bytes)
                 event.space = Space.from_proto(updated)
 
-            idu_bytes = _get_len_field(obj_diff, 9)
+            idu_bytes = _get_len_field(obj_diff, _IDU_FIELD)
             if idu_bytes:
                 updated_idu = hds.IndoorUnit()
                 updated_idu.ParseFromString(idu_bytes)
                 event.indoor_unit = IndoorUnit.from_proto(updated_idu)
 
-            odu_bytes = _get_len_field(obj_diff, 6)
+            odu_bytes = _get_len_field(obj_diff, _ODU_FIELD)
             if odu_bytes:
                 updated_odu = hds.OutdoorUnit()
                 updated_odu.ParseFromString(odu_bytes)
                 event.outdoor_unit = OutdoorUnit.from_proto(updated_odu)
 
-            ctrl_bytes = _get_len_field(obj_diff, 11)
+            ctrl_bytes = _get_len_field(obj_diff, _CTRL_FIELD)
             if ctrl_bytes:
                 updated_ctrl = hds.Controller()
                 updated_ctrl.ParseFromString(ctrl_bytes)
                 event.controller = Controller.from_proto(updated_ctrl)
 
-            qsm_bytes = _get_len_field(obj_diff, 7)
+            qsm_bytes = _get_len_field(obj_diff, _QSM_FIELD)
             if qsm_bytes:
                 updated_qsm = hds.QuiltSmartModule()
                 updated_qsm.ParseFromString(qsm_bytes)
                 event.qsm = QuiltSmartModule.from_proto(updated_qsm)
 
-            rs_bytes = _get_len_field(obj_diff, 12)
+            rs_bytes = _get_len_field(obj_diff, _RS_FIELD)
             if rs_bytes:
                 updated_rs = hds.RemoteSensor()
                 updated_rs.ParseFromString(rs_bytes)
                 event.remote_sensor = RemoteSensor.from_proto(updated_rs)
 
-            crs_bytes = _get_len_field(obj_diff, 16)
+            crs_bytes = _get_len_field(obj_diff, _CRS_FIELD)
             if crs_bytes:
                 updated_crs = hds.ControllerRemoteSensor()
                 updated_crs.ParseFromString(crs_bytes)
                 event.controller_remote_sensor = ControllerRemoteSensor.from_proto(updated_crs)
 
-            sui_bytes = _get_len_field(obj_diff, 18)
+            sui_bytes = _get_len_field(obj_diff, _SUI_FIELD)
             if sui_bytes:
                 updated_sui = hds.SoftwareUpdateInfo()
                 updated_sui.ParseFromString(sui_bytes)
@@ -431,7 +491,9 @@ class NotifierStream:
         arg: T,
         error_message: str,
     ) -> None:
-        for callback in callbacks:
+        # Iterate a snapshot: a callback may unsubscribe itself (or others)
+        # while being dispatched.
+        for callback in list(callbacks):
             try:
                 await _dispatch(callback, arg)
             except Exception:
@@ -557,16 +619,31 @@ class NotifierStream:
             )
             self._active_call = call
         self._stream_state = "connected"
+        # Iterate a snapshot: a callback may unsubscribe itself (or others)
+        # while being dispatched.
+        for connected_cb in list(self._connected_callbacks):
+            try:
+                result = connected_cb()
+                if asyncio.iscoroutine(result):
+                    await result
+            except Exception:
+                logger.exception("Error in connected callback")
         try:
             async for response in call:
                 saw_event = False
                 for ctrl in response.control_events:
                     saw_event = True
-                    event_name = notifier.ControlEventType.Name(ctrl.type)
-                    logger.debug("Control event: %s topics=%s", event_name, list(ctrl.topics))
+                    if logger.isEnabledFor(logging.DEBUG):
+                        event_name = notifier.ControlEventType.Name(ctrl.type)
+                        logger.debug("Control event: %s topics=%s", event_name, list(ctrl.topics))
 
                 for evt in response.notifier_events:
-                    parsed = self._parse_event(evt)
+                    try:
+                        parsed = self._parse_event(evt)
+                    except Exception:
+                        # One malformed event must not kill the stream.
+                        logger.exception("Failed to parse stream event; skipping")
+                        continue
                     if parsed is None:
                         continue
                     saw_event = True
@@ -577,12 +654,30 @@ class NotifierStream:
             if self._active_call is call:
                 self._active_call = None
 
+    async def _prepare_reconnect(self, delay: float) -> bool:
+        """Back off, then reset the request queue.  Returns True when stopped."""
+        # Jitter avoids a synchronized reconnect stampede across clients
+        # after a server-side restart.
+        if await self._wait_for_stop(delay * random.uniform(0.5, 1.5)):
+            return True
+        async with self._subscription_lock:
+            logger.info(
+                "Resetting subscription queue before reconnect; "
+                "tracked topics will be re-subscribed on the next stream"
+            )
+            # _topics is the source of truth. The next request iterator
+            # snapshots the current topics and sends them as its first
+            # request, so discarding any stale queued requests is safe.
+            self._request_queue = asyncio.Queue()
+        return False
+
     async def _run_stream_with_reconnect(self) -> None:
         """Run the stream with automatic reconnect and exponential back-off."""
         attempt = 0
         delay = self._reconnect_delay_s
 
         while self._running:
+            connected_at = time.monotonic()
             try:
                 self._error = None
                 await self._run_one_stream()
@@ -591,8 +686,16 @@ class NotifierStream:
             except grpc.aio.AioRpcError as exc:
                 if not self._running:
                     break
+                # A connection that stayed healthy for a while resets the
+                # reconnect budget and back-off: max_reconnects bounds
+                # *consecutive* failures, and routine server-side stream
+                # recycling must not permanently escalate the delay.
+                if time.monotonic() - connected_at >= _HEALTHY_CONNECTION_S:
+                    attempt = 0
+                    delay = self._reconnect_delay_s
                 is_unauth = exc.code() == grpc.StatusCode.UNAUTHENTICATED
                 can_retry = self._max_reconnects < 0 or attempt < self._max_reconnects
+                wait_s = delay
 
                 if is_unauth and self._authenticate is not None and can_retry:
                     self._stream_state = "reconnecting"
@@ -614,6 +717,9 @@ class NotifierStream:
                         self._error = exc
                         self._stream_state = "error"
                         break
+                    # Refresh succeeded — reconnect promptly instead of
+                    # serving the escalated back-off for routine token expiry.
+                    wait_s = 0.0
                 elif can_retry:
                     self._stream_state = "reconnecting"
                     details = exc.details() or ""
@@ -648,25 +754,41 @@ class NotifierStream:
                     self._stream_state = "error"
                     break
 
-                if await self._wait_for_stop(delay):
+                if await self._prepare_reconnect(wait_s):
                     break
                 delay = min(delay * 2, 60.0)
                 attempt += 1
-                async with self._subscription_lock:
-                    logger.info(
-                        "Resetting subscription queue before reconnect; "
-                        "tracked topics will be re-subscribed on the next stream"
-                    )
-                    # _topics is the source of truth. The next request iterator
-                    # snapshots the current topics and sends them as its first
-                    # request, so discarding any stale queued requests is safe.
-                    self._request_queue = asyncio.Queue()
+            except Exception as exc:
+                # Non-gRPC failures (metadata provider errors, channel usage
+                # errors, unexpected parse crashes) must not silently kill the
+                # stream: reconnect if budget remains, otherwise surface via
+                # on_error like any other fatal condition.
+                if not self._running:
+                    break
+                if time.monotonic() - connected_at >= _HEALTHY_CONNECTION_S:
+                    attempt = 0
+                    delay = self._reconnect_delay_s
+                if self._max_reconnects >= 0 and attempt >= self._max_reconnects:
+                    logger.exception("Unexpected stream error; max reconnects reached")
+                    self._error = QuiltStreamError(f"Stream error: {exc}")
+                    self._stream_state = "error"
+                    break
+                self._stream_state = "reconnecting"
+                logger.exception(
+                    "Unexpected stream error; reconnecting in %.1fs (attempt %d)",
+                    delay,
+                    attempt + 1,
+                )
+                if await self._prepare_reconnect(delay):
+                    break
+                delay = min(delay * 2, 60.0)
+                attempt += 1
 
         if self._error is None and self._stream_state != "stopped":
             self._stream_state = "stopped"
 
         if self._error is not None:
-            for cb in self._error_callbacks:
+            for cb in list(self._error_callbacks):
                 try:
                     await _dispatch(cb, self._error)
                 except Exception:
@@ -749,8 +871,15 @@ class NotifierStream:
 
         if task is not None:
             task.cancel()
-            with contextlib.suppress(asyncio.CancelledError, QuiltStreamError):
+            try:
                 await task
+            except asyncio.CancelledError, QuiltStreamError:
+                pass
+            except Exception:
+                # The task may have already died with an unrelated error;
+                # log it rather than masking the caller's own exception
+                # (stop() often runs from __aexit__).
+                logger.exception("NotifierStream task raised during stop")
 
         await self._cancel_pending_dispatches()
 

@@ -2,6 +2,68 @@
 
 ## [Unreleased]
 
+## [0.5.5] - 2026-07-03
+
+## [0.5.4] - 2026-07-03
+
+Fixes all findings from a full architecture/code/performance/bug-hunt evaluation.
+
+### Critical
+
+- **Proto3 absence detection never fired on real protos.** Truthiness and
+  getattr-with-default checks always pass on generated messages (unset
+  sub-messages return truthy default instances), so sparse stream diffs zeroed
+  room state, IDU controls, sensor readings, and controller temperatures on
+  merge. All model parsing now uses `HasField`-based helpers, and
+  `SystemSnapshot.apply_*` preserves identity/relationship fields, controller
+  temperatures, ODU telemetry, and QSM LED state. New test suite
+  (`tests/test_models_real_proto_merge.py`) reproduces the notifier stream's
+  serialize/parse path with real generated protos.
+- **Transport UNAUTHENTICATED retry was dead code.** In `grpc.aio`, awaiting the
+  interceptor continuation returns the call object; `AioRpcError` only surfaces
+  when the call is awaited — so token refresh/retry never executed and clients
+  broke permanently ~1h after token expiry. The interceptor now awaits the call
+  and retries once. Tests updated to model real `grpc.aio` semantics.
+
+### High
+
+- Stream reconnect backoff/budget reset after a healthy connection (routine LB
+  stream recycling no longer escalates to permanent 60s delays or kills the
+  stream after N lifetime disconnects); non-gRPC failures reconnect and surface
+  via `on_error` instead of dying silently; malformed events are skipped;
+  jitter added; prompt reconnect after successful token refresh.
+- `authenticate()` no longer returns a locally-unexpired token the server just
+  rejected; rotated Cognito refresh tokens are persisted; expiry measured from
+  token receipt.
+- `grpc_call` passes `CancelledError` through untranslated (asyncio.timeout/
+  cancellation semantics restored).
+- TUI: fatal stream death now shows a disconnect indicator and auto-recovers;
+  first-time users get an OTP modal; boot failures show an error screen
+  instead of a stuck spinner.
+
+### Medium / Low
+
+- Unified error translation: all hds/user RPCs route through `grpc_call`;
+  `UNAVAILABLE`/`DEADLINE_EXCEEDED` → `QuiltConnectionError` and `NOT_FOUND` →
+  `QuiltNotFoundError` everywhere.
+- Single-flight guards on token refresh and cold snapshot fetch;
+  `get_system_id(home=...)` no longer poisons the default-system cache;
+  `close()` stops tracked streams; duplicate authorization metadata
+  eliminated.
+- Stream API: `on_connected` callback, unsubscribe handles from all `on_*`
+  registrations, `apply_software_update_info`, descriptor-derived wire-scan
+  field numbers.
+- CLI/TUI: app-owned snapshot (stacked screens no longer go stale), cursor
+  preservation, setpoint bounds, energy period validation, app-level °C/°F,
+  LED brightness restoration, 0.0 readings rendered correctly, token store
+  corruption recovery + fsync + flock, config dir 0700, dead code removal.
+- Docs: README no longer demonstrates raw-stream usage; stream/token types
+  re-exported at package top level; stale OutdoorUnit/Controller reference
+  listings corrected; contradictory proto comments fixed.
+
+Intentionally unchanged: Python >= 3.14 floor and boto3 dependency (HA 2026.3+
+runs Python 3.14).
+
 ## [0.5.3] - 2026-06-30
 
 ## [0.5.2] - 2026-06-30
