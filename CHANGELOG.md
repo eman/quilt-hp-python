@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [0.5.6] - 2026-07-04
+
 ### Fixed
 - **`LocalCommsStatus` fields were mislabeled** (previously guessed from limited
   captures). Corrected to the verified field semantics: field 2 `health` →
