@@ -13,6 +13,8 @@ Usage::
 
 from __future__ import annotations
 
+import asyncio
+import contextlib
 import logging
 import time
 from collections.abc import Callable
@@ -20,7 +22,7 @@ from typing import TYPE_CHECKING, Protocol, Self, TypeVar
 
 from quilt_hp.auth import OtpCallback, authenticate
 from quilt_hp.const import Environment
-from quilt_hp.exceptions import QuiltAuthError, QuiltError
+from quilt_hp.exceptions import QuiltAuthError, QuiltError, QuiltNotFoundError
 from quilt_hp.services.hds import HomeDatastoreService
 from quilt_hp.services.streaming import NotifierStream
 from quilt_hp.services.system import SystemInformationService
@@ -104,9 +106,20 @@ class QuiltClient:
         # Snapshot cache
         self._snapshot_cache: SystemSnapshot | None = None
         self._snapshot_cached_at: float = 0.0
+        # Single-flight guards: N concurrent 401s must trigger one Cognito
+        # refresh, and N concurrent cold-cache reads one snapshot RPC.
+        self._auth_lock = asyncio.Lock()
+        self._snapshot_lock = asyncio.Lock()
+        # Streams created via stream(); stopped in close() so a live stream
+        # never outlives its channel.
+        self._streams: list[NotifierStream] = []
 
     def get_current_token(self) -> str:
-        """Token provider callable for the transport interceptor."""
+        """Token provider callable for the transport interceptor.
+
+        Internal transport hook (implements ``CurrentTokenProvider``) — not
+        intended for application use.
+        """
         if self._token is None:
             raise QuiltAuthError("Not authenticated. Call login() first.")
         return self._token
@@ -161,7 +174,7 @@ class QuiltClient:
         for candidate in items(snapshot):
             if candidate.id == item:
                 return candidate
-        raise QuiltError(f"{kind} {item!r} not found")
+        raise QuiltNotFoundError(f"{kind} {item!r} not found")
 
     # --- Auth ---
 
@@ -191,18 +204,28 @@ class QuiltClient:
         logger.info("Login succeeded")
 
     async def refresh_token(self, context: TokenRefreshContext | None = None) -> None:
-        """Refresh the auth token without OTP when refresh token is valid."""
+        """Refresh the auth token without OTP when refresh token is valid.
+
+        Single-flight: when several concurrent RPCs hit ``UNAUTHENTICATED``
+        at once, only the first waiter performs the Cognito refresh; the
+        rest observe the already-updated token and return.
+        """
         resolved_context = context or TokenRefreshContext(
             reason=TokenRefreshReason.EXPIRED_CACHED_TOKEN,
             source="client",
         )
-        self._token = await authenticate(
-            self._email,
-            token_store=self._token_store,
-            refresh_context=resolved_context,
-            refresh_hooks=self._token_refresh_hooks,
-            refresh_policy=self._token_refresh_policy,
-        )
+        token_before = self._token
+        async with self._auth_lock:
+            if self._token is not None and self._token != token_before:
+                logger.debug("Token already refreshed by a concurrent caller")
+                return
+            self._token = await authenticate(
+                self._email,
+                token_store=self._token_store,
+                refresh_context=resolved_context,
+                refresh_hooks=self._token_refresh_hooks,
+                refresh_policy=self._token_refresh_policy,
+            )
 
     # --- System discovery ---
 
@@ -216,14 +239,20 @@ class QuiltClient:
         return await self._require_sysinfo().list_systems()
 
     async def get_system_id(self, home: str | None = None) -> str:
-        """Get primary system ID, cached after first call unless home changes."""
+        """Get primary system ID, cached after first call.
+
+        Passing an explicit ``home`` different from the client's configured
+        default resolves that system *without* touching the cached default —
+        subsequent no-argument calls keep operating on the configured home.
+        """
         target_home = home or self._home
+        is_default_request = home is None or (
+            self._home is not None and home.lower() == self._home.lower()
+        )
         logger.debug("Resolving system for home filter %r", target_home)
-        if self._system_id is not None:
-            # Bypass the cache only when a different home is requested.
-            if not home or home == self._home:
-                logger.debug("Using cached system id %s", self._system_id)
-                return self._system_id
+        if self._system_id is not None and is_default_request:
+            logger.debug("Using cached system id %s", self._system_id)
+            return self._system_id
 
         systems = await self.list_systems()
         if not systems:
@@ -233,16 +262,18 @@ class QuiltClient:
             matches = [s for s in systems if target_home.lower() in s.name.lower()]
             if not matches:
                 names = [s.name for s in systems]
-                raise QuiltError(f"No home matching {target_home!r}. Available: {names}")
-            self._system_id = matches[0].id
-            self._system_name = matches[0].name
+                raise QuiltNotFoundError(f"No home matching {target_home!r}. Available: {names}")
+            resolved = matches[0]
         else:
             # No home filter — use the first system (primary home)
-            self._system_id = systems[0].id
-            self._system_name = systems[0].name
+            resolved = systems[0]
 
-        logger.info("Selected system %s (%s)", self._system_name, self._system_id)
-        return self._system_id
+        if is_default_request:
+            self._system_id = resolved.id
+            self._system_name = resolved.name
+
+        logger.info("Selected system %s (%s)", resolved.name, resolved.id)
+        return resolved.id
 
     async def get_snapshot(self, system_id: str | None = None) -> SystemSnapshot:
         """Fetch a full system snapshot.
@@ -261,15 +292,20 @@ class QuiltClient:
             if self._snapshot_cache is not None and age < self._snapshot_ttl_s:
                 logger.debug("Snapshot cache hit for system %s", sid)
                 return self._snapshot_cache
-            logger.debug("Snapshot cache miss for system %s", sid)
+            # Single-flight: concurrent cold-cache callers (e.g. HA startup)
+            # must not each issue a full-system RPC.
+            async with self._snapshot_lock:
+                age = time.monotonic() - self._snapshot_cached_at
+                if self._snapshot_cache is not None and age < self._snapshot_ttl_s:
+                    logger.debug("Snapshot cache hit for system %s (filled while waiting)", sid)
+                    return self._snapshot_cache
+                logger.debug("Snapshot cache miss for system %s", sid)
+                snapshot = await hds.get_system(sid)
+                self._snapshot_cache = snapshot
+                self._snapshot_cached_at = time.monotonic()
+                return snapshot
 
-        snapshot = await hds.get_system(sid)
-
-        if system_id is None and self._snapshot_ttl_s > 0:
-            self._snapshot_cache = snapshot
-            self._snapshot_cached_at = time.monotonic()
-
-        return snapshot
+        return await hds.get_system(sid)
 
     def invalidate_snapshot(self) -> None:
         """Discard the cached snapshot so the next call fetches fresh data."""
@@ -573,23 +609,30 @@ class QuiltClient:
                 entity before dispatching the latest event. ``0.0`` disables
                 debouncing.
 
-        Returns a ``NotifierStream`` that can be used as:
+        Returns a ``NotifierStream``.  Stream events are **sparse diffs** —
+        always merge them into a snapshot via ``snapshot.apply_*`` before
+        use; a raw stream entity has empty names/controls for any field the
+        diff didn't carry.
 
         - **Background task** (for integrations)::
 
-            async with client.stream(topics) as stream:
-                stream.on_space_update(my_callback)
+            snapshot = await client.get_snapshot()
+            async with client.stream(snapshot.stream_topics()) as stream:
+                stream.on_space_update(
+                    lambda space: on_change(snapshot.apply_space(space))
+                )
                 # stream runs in background, do other work here
                 await asyncio.sleep(3600)
 
         - **Blocking** (for CLI / scripts)::
 
-            s = client.stream(topics)
-            s.on_space_update(my_callback)
+            snapshot = await client.get_snapshot()
+            s = client.stream(snapshot.stream_topics())
+            s.on_space_update(lambda space: snapshot.apply_space(space))
             await s.run_forever()
         """
         channel = self._require_channel()
-        return NotifierStream.create(
+        stream = NotifierStream.create(
             channel,
             topics,
             metadata_provider=lambda: auth_metadata(self),
@@ -598,6 +641,10 @@ class QuiltClient:
             reconnect_delay_s=reconnect_delay_s,
             debounce_s=debounce_s,
         )
+        # Track for close(); drop references to streams that already stopped.
+        self._streams = [s for s in self._streams if s.stream_state not in ("stopped", "error")]
+        self._streams.append(stream)
+        return stream
 
     # --- User ---
 
@@ -636,7 +683,11 @@ class QuiltClient:
     # --- Lifecycle ---
 
     async def close(self) -> None:
-        """Close the gRPC channel."""
+        """Stop any live streams and close the gRPC channel."""
+        streams, self._streams = self._streams, []
+        for stream in streams:
+            with contextlib.suppress(Exception):
+                await stream.stop()
         if self._channel is not None:
             await self._channel.close()
             self._channel = None

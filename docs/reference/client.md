@@ -69,7 +69,7 @@ Raised when a requested resource does not exist (gRPC `NOT_FOUND`).
 ### `__version__`
 
 ```python
-__version__: str  # e.g. "0.5.3"
+__version__: str  # e.g. "0.5.5"
 ```
 
 ---
@@ -112,7 +112,7 @@ async def __aenter__(self) -> QuiltClient: ...
 async def __aexit__(self, *_: object) -> None: ...
 ```
 
-`__aexit__` calls `close()` to close the gRPC channel. Prefer the async context manager, or call `await close()` yourself when managing lifecycle manually.
+`__aexit__` calls `close()`, which stops any live `NotifierStream`s created via `stream()` and closes the gRPC channel. Prefer the async context manager, or call `await close()` yourself when managing lifecycle manually.
 
 ---
 
@@ -528,7 +528,7 @@ Creates a `NotifierStream`. It does not start the stream; call `start()`, `run_f
 
 **Parameters:**
 - `topics`: topic strings. Use `snapshot.stream_topics()` to get all topics for a system.
-- `max_reconnects`: maximum reconnect attempts per disconnect. `-1` = unlimited (default). `0` = no retries.
+- `max_reconnects`: maximum *consecutive* reconnect attempts — the counter resets after a connection stays healthy, so this bounds retries per disconnect event. `-1` = unlimited (default). `0` = no retries.
 - `reconnect_delay_s`: initial back-off in seconds. Doubles on each attempt, capped at 60 s.
 
 **Returns:** `NotifierStream` instance.

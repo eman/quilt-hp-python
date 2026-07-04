@@ -333,7 +333,7 @@ message IndoorUnitSettings {
 // f1,f2=absent; f3=ledColorCode(varint/uint32), f4=ledColorBrightnessPercent(float),
 // f5=fanSpeedMode(varint), f6=fanSpeedPercent(float), f7=updatedTs(Timestamp),
 // f8,f9=absent; f10=louverMode(varint), f11=louverFixedPosition(float),
-// f12=lightState(varint), f13=lightAnimation(varint).
+// f12=lightAnimation(varint), f13=lightState(varint).
 // NOTE: These are FLAT fields, NOT nested sub-messages.
 message IndoorUnitControls {
   // f1, f2 absent from wire captures
@@ -344,7 +344,7 @@ message IndoorUnitControls {
   google.protobuf.Timestamp updated_ts = 7;
   // f8, f9: uuid-string field confirmed at f9 in captures; purpose TBD
   IndoorUnitLouverMode louver_mode = 10;
-  float louver_fixed_position = 11;        // degrees, used when louver_mode=FIXED
+  float louver_fixed_position = 11;        // position fraction 0.20–1.00 (see LouverAngle.to_wire), used when louver_mode=FIXED; 0.0 = not applicable
   LightAnimation led_animation = 12;       // LED_ANIMATION_FIELD_NUMBER=12; wire-confirmed
   LightState led_state = 13;               // wire-confirmed f13: UNSPECIFIED=0,ON=1,OFF=2
                                            // sent when mobile_led_scheduling_enabled Statsig gate is on;

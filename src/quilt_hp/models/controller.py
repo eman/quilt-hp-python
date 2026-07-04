@@ -6,8 +6,12 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Any, cast
 
-from quilt_hp.const import PROTO_TIMESTAMP_UNSET_SECONDS
-from quilt_hp.models._helpers import lookup_hardware, parse_wifi_state
+from quilt_hp.models._helpers import (
+    lookup_hardware,
+    parse_wifi_state,
+    present_submsg,
+    timestamp_or_none,
+)
 from quilt_hp.models.enums import LocalCommsHealthStatus, RemoteSensorControlMode
 from quilt_hp.models.qsm import WifiInfo
 
@@ -22,10 +26,12 @@ class Controller:
     system_id: str
     space_id: str
     name: str
-    raw_thermistor_c: float  # ambient_temperature_c from raw Dial thermistor
-    pcb_temperature_a_c: float  # temperature_f3 — PCB temp A (~30–50°C)
-    pcb_temperature_b_c: float  # temperature_f4 — PCB temp B (hotter component, ~45–52°C)
-    calibrated_ambient_c: float  # temperature_f5 — calibrated ext ambient sent to IDU
+    # Temperatures are None when the ``state`` sub-message was absent from a
+    # sparse stream diff; SystemSnapshot.apply_controller preserves them.
+    raw_thermistor_c: float | None  # ambient_temperature_c from raw Dial thermistor
+    pcb_temperature_a_c: float | None  # temperature_f3 — PCB temp A (~30–50°C)
+    pcb_temperature_b_c: float | None  # temperature_f4 — PCB temp B (hotter component, ~45–52°C)
+    calibrated_ambient_c: float | None  # temperature_f5 — calibrated ext ambient sent to IDU
     wifi_ssid: str | None
     wifi_ip: str | None
     wifi_signal_dbm: int | None
@@ -66,11 +72,12 @@ class Controller:
     """
 
     @property
-    def ambient_temperature_c(self) -> float:
+    def ambient_temperature_c(self) -> float | None:
         """Calibrated ambient temperature used for system control.
 
         Use this for display and logic.  See also ``raw_thermistor_c`` for the
-        uncorrected on-chip reading (biased high by self-heating).
+        uncorrected on-chip reading (biased high by self-heating).  ``None``
+        when no state reading is available (e.g. unmerged stream diff).
         """
         return self.calibrated_ambient_c
 
@@ -107,27 +114,35 @@ class Controller:
         load time.  Stream diffs won't have it; fields default to None.
         """
         p = cast("Any", proto)
-        w = p.hosted_wifi_state
-        ts = p.state.updated_ts
-        updated_at: datetime | None = None
-        if ts.seconds != PROTO_TIMESTAMP_UNSET_SECONDS:
-            updated_at = datetime.fromtimestamp(ts.seconds, tz=UTC)
+        st = cast("Any", present_submsg(proto, "state"))
+        updated_at = timestamp_or_none(getattr(st, "updated_ts", None)) if st is not None else None
 
-        wifi_last_seen: datetime | None = None
-        if w.updated_ts.seconds != PROTO_TIMESTAMP_UNSET_SECONDS:
-            wifi_last_seen = datetime.fromtimestamp(w.updated_ts.seconds, tz=UTC)
+        w = cast("Any", present_submsg(proto, "hosted_wifi_state"))
+        wifi_last_seen = (
+            timestamp_or_none(getattr(w, "updated_ts", None)) if w is not None else None
+        )
 
-        def _wifi(wstate: object) -> WifiInfo | None:
+        def _wifi(wstate: object | None) -> WifiInfo | None:
+            if wstate is None:
+                return None
             info = WifiInfo.from_proto(wstate)
             return info if info.connected else None
 
-        wifi_ssid, wifi_ip, wifi_signal_dbm, wifi_bssid, wifi_freq_mhz = parse_wifi_state(w)
+        if w is not None:
+            wifi_ssid, wifi_ip, wifi_signal_dbm, wifi_bssid, wifi_freq_mhz = parse_wifi_state(w)
+        else:
+            wifi_ssid, wifi_ip, wifi_signal_dbm = None, None, None
+            wifi_bssid, wifi_freq_mhz = None, None
+
+        rel = cast("Any", present_submsg(proto, "relationships"))
+        controls = cast("Any", present_submsg(proto, "controls"))
+        settings = cast("Any", present_submsg(proto, "settings"))
 
         serial: str | None = None
         model_sku: str | None = None
         fw_ver: str | None = None
-        if hw_map:
-            hw = lookup_hardware(hw_map, p.relationships.hardware_id)
+        if hw_map and rel is not None:
+            hw = lookup_hardware(hw_map, rel.hardware_id)
             if hw is not None:
                 a = cast("Any", hw).attributes
                 serial = a.serial_number or None
@@ -137,23 +152,31 @@ class Controller:
         return cls(
             id=p.header.object_id,
             system_id=p.header.system_id,
-            space_id=p.relationships.space_id,
-            name=p.settings.name,
-            raw_thermistor_c=p.state.ambient_temperature_c,
-            pcb_temperature_a_c=p.state.temperature_f3,
-            pcb_temperature_b_c=p.state.temperature_f4,
-            calibrated_ambient_c=p.state.temperature_f5,
+            space_id=rel.space_id if rel is not None else "",
+            name=settings.name if settings is not None else "",
+            raw_thermistor_c=st.ambient_temperature_c if st is not None else None,
+            pcb_temperature_a_c=st.temperature_f3 if st is not None else None,
+            pcb_temperature_b_c=st.temperature_f4 if st is not None else None,
+            calibrated_ambient_c=st.temperature_f5 if st is not None else None,
             wifi_ssid=wifi_ssid,
             wifi_ip=wifi_ip,
             wifi_signal_dbm=wifi_signal_dbm,
             wifi_freq_mhz=wifi_freq_mhz,
             wifi_bssid=wifi_bssid,
             wifi_last_seen=wifi_last_seen,
-            ap_wifi=_wifi(p.ap_wifi_state),
-            p2p_wifi=_wifi(p.p2p_wifi_state),
-            remote_sensor_mode=RemoteSensorControlMode(p.controls.remote_sensor_control_mode),
-            software_update_info_id=p.relationships.software_update_info_id or None,
-            firmware_update_info_id=p.relationships.firmware_update_info_id or None,
+            ap_wifi=_wifi(present_submsg(proto, "ap_wifi_state")),
+            p2p_wifi=_wifi(present_submsg(proto, "p2p_wifi_state")),
+            remote_sensor_mode=(
+                RemoteSensorControlMode(controls.remote_sensor_control_mode)
+                if controls is not None
+                else RemoteSensorControlMode.UNSPECIFIED
+            ),
+            software_update_info_id=(
+                (rel.software_update_info_id or None) if rel is not None else None
+            ),
+            firmware_update_info_id=(
+                (rel.firmware_update_info_id or None) if rel is not None else None
+            ),
             serial_number=serial,
             model_sku=model_sku,
             firmware_version=fw_ver,
@@ -167,7 +190,5 @@ class Controller:
             local_comms_connection_state=getattr(
                 getattr(p, "local_comms_status", None), "connection_state", None
             ),
-            local_comms_version=getattr(
-                getattr(p, "local_comms_status", None), "version", None
-            ),
+            local_comms_version=getattr(getattr(p, "local_comms_status", None), "version", None),
         )
