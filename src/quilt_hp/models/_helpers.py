@@ -5,6 +5,18 @@ from datetime import UTC, datetime
 from quilt_hp.const import PROTO_TIMESTAMP_UNSET_SECONDS
 
 
+def local_comms_last_session_change(local_comms_status: object) -> datetime | None:
+    """Return ``LocalCommsStatus.last_session_change_ts`` as an aware datetime.
+
+    Returns ``None`` when the status message or timestamp is absent.
+    """
+    ts = getattr(local_comms_status, "last_session_change_ts", None)
+    seconds = getattr(ts, "seconds", 0) if ts is not None else 0
+    if not seconds:
+        return None
+    return datetime.fromtimestamp(seconds, tz=UTC)
+
+
 def proto_has_field(proto: object, name: str) -> bool:
     """Return True when a message-typed field is present on the wire.
 

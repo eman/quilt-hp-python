@@ -182,6 +182,7 @@ class IndoorUnitConditions:
     coil_preheat: int
     mode_conflict_avoidance: int
     outdoor_unit_communication_error: int
+    compressor_minimum_run_time: int = 0
 
     @property
     def any_active(self) -> bool:
@@ -200,6 +201,7 @@ class IndoorUnitConditions:
                 "coil_preheat",
                 "mode_conflict_avoidance",
                 "outdoor_unit_communication_error",
+                "compressor_minimum_run_time",
             )
         )
 
@@ -362,6 +364,7 @@ def _idu_from_proto(proto: object) -> IndoorUnit:
             coil_preheat=co.coil_preheat,
             mode_conflict_avoidance=co.mode_conflict_avoidance,
             outdoor_unit_communication_error=co.outdoor_unit_communication_error,
+            compressor_minimum_run_time=co.compressor_minimum_run_time,
         )
 
     presence_state = None
