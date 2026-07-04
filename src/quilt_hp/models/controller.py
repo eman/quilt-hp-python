@@ -7,12 +7,17 @@ from datetime import UTC, datetime
 from typing import Any, cast
 
 from quilt_hp.models._helpers import (
+    local_comms_last_session_change,
     lookup_hardware,
     parse_wifi_state,
     present_submsg,
     timestamp_or_none,
 )
-from quilt_hp.models.enums import LocalCommsHealthStatus, RemoteSensorControlMode
+from quilt_hp.models.enums import (
+    LocalCommsHealthReason,
+    LocalCommsHealthStatus,
+    RemoteSensorControlMode,
+)
 from quilt_hp.models.qsm import WifiInfo
 
 _ONLINE_THRESHOLD_S = 5 * 60  # 5-minute online detection window
@@ -36,6 +41,7 @@ class Controller:
     wifi_ip: str | None
     wifi_signal_dbm: int | None
     wifi_freq_mhz: int | None = None  # e.g. 5745 → 5 GHz; 2437 → 2.4 GHz
+    wifi_bssid: str | None = None  # AP MAC address the Dial is associated with
     wifi_last_seen: datetime | None = (
         None  # WifiState.updated_ts — when the dial last checked in over WiFi
     )
@@ -54,6 +60,23 @@ class Controller:
     Gate: ``mobile_local_control_health_enabled``.  UNSPECIFIED means the
     server has not yet reported a health value (pre-1.0.26 firmware or the
     gate is off).
+    """
+    local_comms_visible_devices: int | None = None
+    """``LocalCommsStatus.visible_devices_count`` (proto field 3) — the number
+    of mesh peers this node currently sees.  APK-confirmed (1.0.29).
+    """
+    local_comms_expected_devices: int | None = None
+    """``LocalCommsStatus.expected_devices_count`` (proto field 4) — the number
+    of mesh peers expected on this system.  APK-confirmed (1.0.29).
+    """
+    local_comms_reason: LocalCommsHealthReason = LocalCommsHealthReason.UNSPECIFIED
+    """``LocalCommsStatus.reason`` (proto field 6) — diagnostic reason for the
+    current ``local_comms_health`` status (e.g. ``PARTIAL_VISIBILITY`` when
+    some but not all expected peers are visible).  APK-confirmed (1.0.29).
+    """
+    local_comms_last_session_change: datetime | None = None
+    """``LocalCommsStatus.last_session_change_ts`` (proto field 5) — when the
+    local mesh session last changed.
     """
 
     @property
@@ -114,11 +137,10 @@ class Controller:
             return info if info.connected else None
 
         if w is not None:
-            wifi_ssid, wifi_ip, wifi_signal_dbm = parse_wifi_state(w)
-            wifi_freq_mhz = w.frequency_mhz or None
+            wifi_ssid, wifi_ip, wifi_signal_dbm, wifi_bssid, wifi_freq_mhz = parse_wifi_state(w)
         else:
             wifi_ssid, wifi_ip, wifi_signal_dbm = None, None, None
-            wifi_freq_mhz = None
+            wifi_bssid, wifi_freq_mhz = None, None
 
         rel = cast("Any", present_submsg(proto, "relationships"))
         controls = cast("Any", present_submsg(proto, "controls"))
@@ -148,6 +170,7 @@ class Controller:
             wifi_ip=wifi_ip,
             wifi_signal_dbm=wifi_signal_dbm,
             wifi_freq_mhz=wifi_freq_mhz,
+            wifi_bssid=wifi_bssid,
             wifi_last_seen=wifi_last_seen,
             ap_wifi=_wifi(present_submsg(proto, "ap_wifi_state")),
             p2p_wifi=_wifi(present_submsg(proto, "p2p_wifi_state")),
@@ -167,6 +190,18 @@ class Controller:
             firmware_version=fw_ver,
             state_updated_at=updated_at,
             local_comms_health=LocalCommsHealthStatus(
-                getattr(getattr(p, "local_comms_status", None), "health", 0)
+                getattr(getattr(p, "local_comms_status", None), "status", 0)
+            ),
+            local_comms_visible_devices=getattr(
+                getattr(p, "local_comms_status", None), "visible_devices_count", None
+            ),
+            local_comms_expected_devices=getattr(
+                getattr(p, "local_comms_status", None), "expected_devices_count", None
+            ),
+            local_comms_reason=LocalCommsHealthReason(
+                getattr(getattr(p, "local_comms_status", None), "reason", 0)
+            ),
+            local_comms_last_session_change=local_comms_last_session_change(
+                getattr(p, "local_comms_status", None)
             ),
         )

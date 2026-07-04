@@ -1,7 +1,8 @@
 """QuiltSmartModule (QSM) model — the WiFi compute module embedded in each IDU.
 
 Each indoor unit contains one QSM that handles:
-- Cloud/local NATS connectivity (three WiFi interfaces: hosted, AP, P2P)
+- Cloud connectivity + local Zenoh mesh connectivity (three WiFi interfaces:
+  hosted, AP, P2P)
 - Presence detection (phase + target radar channels)
 - Ambient light sensing (ALS: illuminance, IR, combined)
 - Accelerometer (X/Y/Z — detects unit tilt/movement)
@@ -10,10 +11,15 @@ Each indoor unit contains one QSM that handles:
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from datetime import datetime
 from typing import Any, cast
 
-from quilt_hp.models._helpers import parse_wifi_state, present_submsg
-from quilt_hp.models.enums import LocalCommsHealthStatus
+from quilt_hp.models._helpers import (
+    local_comms_last_session_change,
+    parse_wifi_state,
+    present_submsg,
+)
+from quilt_hp.models.enums import LocalCommsHealthReason, LocalCommsHealthStatus
 
 
 @dataclass(slots=True)
@@ -23,15 +29,30 @@ class WifiInfo:
     ssid: str | None
     ip: str | None
     signal_dbm: int | None
+    bssid: str | None = None
+    frequency_mhz: int | None = None
 
     @property
     def connected(self) -> bool:
         return bool(self.ssid)
 
+    @property
+    def band(self) -> str | None:
+        """'5 GHz' or '2.4 GHz' based on frequency, or None if unknown."""
+        if self.frequency_mhz is None:
+            return None
+        return "5 GHz" if self.frequency_mhz > 5000 else "2.4 GHz"
+
     @classmethod
     def from_proto(cls, proto: object) -> WifiInfo:
-        ssid, ip, signal_dbm = parse_wifi_state(proto)
-        return cls(ssid=ssid, ip=ip, signal_dbm=signal_dbm)
+        ssid, ip, signal_dbm, bssid, frequency_mhz = parse_wifi_state(proto)
+        return cls(
+            ssid=ssid,
+            ip=ip,
+            signal_dbm=signal_dbm,
+            bssid=bssid,
+            frequency_mhz=frequency_mhz,
+        )
 
 
 @dataclass(slots=True)
@@ -72,6 +93,23 @@ class QuiltSmartModule:
     Gate: ``mobile_local_control_health_enabled``.  UNSPECIFIED means the
     server has not yet reported a health value (pre-1.0.26 firmware or the
     gate is off).
+    """
+    local_comms_visible_devices: int | None = None
+    """``LocalCommsStatus.visible_devices_count`` (proto field 3) — the number
+    of mesh peers this node currently sees.  APK-confirmed (1.0.29).
+    """
+    local_comms_expected_devices: int | None = None
+    """``LocalCommsStatus.expected_devices_count`` (proto field 4) — the number
+    of mesh peers expected on this system.  APK-confirmed (1.0.29).
+    """
+    local_comms_reason: LocalCommsHealthReason = LocalCommsHealthReason.UNSPECIFIED
+    """``LocalCommsStatus.reason`` (proto field 6) — diagnostic reason for the
+    current ``local_comms_health`` status (e.g. ``PARTIAL_VISIBILITY`` when
+    some but not all expected peers are visible).  APK-confirmed (1.0.29).
+    """
+    local_comms_last_session_change: datetime | None = None
+    """``LocalCommsStatus.last_session_change_ts`` (proto field 5) — when the
+    local mesh session last changed.
     """
 
     @classmethod
@@ -121,6 +159,18 @@ class QuiltSmartModule:
                 (rel.firmware_update_info_id or None) if rel is not None else None
             ),
             local_comms_health=LocalCommsHealthStatus(
-                getattr(getattr(proto, "local_comms_status", None), "health", 0)
+                getattr(getattr(proto, "local_comms_status", None), "status", 0)
+            ),
+            local_comms_visible_devices=getattr(
+                getattr(proto, "local_comms_status", None), "visible_devices_count", None
+            ),
+            local_comms_expected_devices=getattr(
+                getattr(proto, "local_comms_status", None), "expected_devices_count", None
+            ),
+            local_comms_reason=LocalCommsHealthReason(
+                getattr(getattr(proto, "local_comms_status", None), "reason", 0)
+            ),
+            local_comms_last_session_change=local_comms_last_session_change(
+                getattr(proto, "local_comms_status", None)
             ),
         )
