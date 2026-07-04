@@ -242,6 +242,8 @@ class IndoorUnit:
     space_id: str
     system_id: str
     serial_number: str | None
+    model_sku: str | None
+    firmware_version: str | None
     model_name: str | None
     controls: IndoorUnitControls
     settings: IndoorUnitSettings

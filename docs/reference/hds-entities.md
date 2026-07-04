@@ -72,6 +72,9 @@ An IndoorUnit is a wall-mounted mini-split head unit (7⅞ in tall × 38¼ in wi
 | `space_id` | `str` | Space this IDU serves |
 | `outdoor_unit_id` | `str \| None` | Connected outdoor unit |
 | `qsm_id` | `str \| None` | Embedded QuiltSmartModule ID |
+| `model_sku` | `str \| None` | Hardware model identifier (from `indoor_unit_hardware`) |
+| `serial_number` | `str \| None` | Unit serial number (from `indoor_unit_hardware`) |
+| `firmware_version` | `str \| None` | Current firmware version string (from `indoor_unit_hardware`) |
 | `controls.fan_speed` | `FanSpeed` | `AUTO`, `QUIET`, `LOW`, `MEDIUM`, `HIGH`, `BLAST` |
 | `controls.louver_mode` | `LouverMode` | `CLOSED`, `SWEEP`, `FIXED`, `AUTO` |
 | `controls.louver_fixed_position` | `float` | Position 0.0–1.0 when `louver_mode=FIXED` |
