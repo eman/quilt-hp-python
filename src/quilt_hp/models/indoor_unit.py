@@ -10,7 +10,7 @@ from quilt_hp.const import (
     ABSENT_FAN_SPEED_MODE_SENTINEL,
     LOUVER_FIXED_POSITION_SENTINEL,
 )
-from quilt_hp.models._helpers import present_submsg, timestamp_or_none
+from quilt_hp.models._helpers import lookup_hardware, present_submsg, timestamp_or_none
 from quilt_hp.models.enums import (
     FallbackControlCommand,
     FanSpeed,
@@ -242,11 +242,19 @@ class IndoorUnit:
     occupancy: IndoorUnitOccupancy | None
     firmware_update_info_id: str | None = None
     commands: IndoorUnitCommands | None = None
+    model_sku: str | None = None  # IndoorUnitHardware.attributes.model_sku
+    serial_number: str | None = None  # IndoorUnitHardware.attributes.serial_number
+    firmware_version: str | None = None  # IndoorUnitHardware.attributes.firmware_version
 
     @classmethod
-    def from_proto(cls, proto: object) -> IndoorUnit:
-        """Construct from a protobuf IndoorUnit message."""
-        return _idu_from_proto(proto)
+    def from_proto(cls, proto: object, hw_map: dict[str, object] | None = None) -> IndoorUnit:
+        """Construct from a protobuf IndoorUnit message.
+
+        ``hw_map`` maps hardware_id → IndoorUnitHardware proto, built once from
+        ``HomeDatastoreSystem.indoor_unit_hardware`` and passed in at snapshot
+        load time.  Stream diffs won't have it; hardware fields default to None.
+        """
+        return _idu_from_proto(proto, hw_map)
 
     @property
     def is_online(self) -> bool:
@@ -281,7 +289,7 @@ class IndoorUnit:
         return self.occupancy.occupancy_state
 
 
-def _idu_from_proto(proto: object) -> IndoorUnit:
+def _idu_from_proto(proto: object, hw_map: dict[str, object] | None = None) -> IndoorUnit:
     """Internal: convert a proto IndoorUnit to our model.
 
     Sub-messages absent from a sparse stream diff parse to ``None`` (for
@@ -466,6 +474,18 @@ def _idu_from_proto(proto: object) -> IndoorUnit:
 
     rel = cast("Any", present_submsg(proto, "relationships"))
     p = cast("Any", proto)
+
+    model_sku: str | None = None
+    serial_number: str | None = None
+    firmware_version: str | None = None
+    if hw_map and rel is not None:
+        hw = lookup_hardware(hw_map, rel.hardware_id)
+        if hw is not None:
+            a = cast("Any", hw).attributes
+            model_sku = a.model_sku or None
+            serial_number = a.serial_number or None
+            firmware_version = a.firmware_version or None
+
     return IndoorUnit(
         id=p.header.object_id,
         system_id=p.header.system_id,
@@ -486,4 +506,7 @@ def _idu_from_proto(proto: object) -> IndoorUnit:
             (rel.firmware_update_info_id or None) if rel is not None else None
         ),
         commands=commands,
+        model_sku=model_sku,
+        serial_number=serial_number,
+        firmware_version=firmware_version,
     )

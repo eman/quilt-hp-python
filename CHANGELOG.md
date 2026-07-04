@@ -16,6 +16,10 @@
   `local_comms_connection_state`, and `local_comms_version`).
 
 ### Added
+- `IndoorUnit` now exposes `model_sku`, `serial_number`, and `firmware_version`,
+  resolved from `HomeDatastoreSystem.indoor_unit_hardware` (previously discarded).
+  This mirrors `OutdoorUnit` and `Controller` and lets downstream consumers (e.g.
+  the Home Assistant integration) populate IDU device serial/firmware.
 - CLI `set` command gained a `--fan` option (`AUTO`, `QUIET`, `LOW`, `MEDIUM`,
   `HIGH`, `BLAST`) that applies the chosen fan speed to every indoor unit in the
   target space.
