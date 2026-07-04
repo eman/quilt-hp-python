@@ -21,6 +21,7 @@ from quilt_hp.models.enums import (
     FanSpeed,
     HVACMode,
     HVACState,
+    LocalCommsHealthReason,
     LocalCommsHealthStatus,
     LouverMode,
     OccupancyMode,
@@ -377,6 +378,7 @@ def _make_idu_proto(
             coil_preheat=0,
             mode_conflict_avoidance=0,
             outdoor_unit_communication_error=0,
+            compressor_minimum_run_time=0,
         ),
         performance_data=_ns(
             updated_ts=None,  # no timestamp → perf data absent
@@ -854,10 +856,20 @@ def test_qsm_local_comms_health_populated() -> None:
         hosted_wifi_state=_ns(ssid="", ipv4_address="", signal_level_dbm=0),
         ap_wifi_state=_ns(ssid="", ipv4_address="", signal_level_dbm=0),
         p2p_wifi_state=_ns(ssid="", ipv4_address="", signal_level_dbm=0),
-        local_comms_status=_ns(health=1),  # health subfield 2 = HEALTHY
+        local_comms_status=_ns(
+            status=1,  # status subfield 2 = HEALTHY
+            visible_devices_count=9,
+            expected_devices_count=9,
+            reason=1,  # LocalCommsHealthReason.HEALTHY
+            last_session_change_ts=_ns(seconds=1_700_000_000),
+        ),
     )
     qsm = QuiltSmartModule.from_proto(proto)
     assert qsm.local_comms_health == LocalCommsHealthStatus.HEALTHY
+    assert qsm.local_comms_visible_devices == 9
+    assert qsm.local_comms_expected_devices == 9
+    assert qsm.local_comms_reason == LocalCommsHealthReason.HEALTHY
+    assert qsm.local_comms_last_session_change is not None
 
 
 def test_qsm_local_comms_health_defaults_to_unspecified() -> None:
@@ -913,10 +925,20 @@ def test_controller_local_comms_health_populated() -> None:
         ap_wifi_state=_ns(ssid="", ipv4_address="", signal_level_dbm=0),
         p2p_wifi_state=_ns(ssid="", ipv4_address="", signal_level_dbm=0),
         controls=_ns(remote_sensor_control_mode=0),
-        local_comms_status=_ns(health=3),  # health subfield 2 = OFFLINE
+        local_comms_status=_ns(
+            status=3,  # status subfield 2 = OFFLINE
+            visible_devices_count=0,
+            expected_devices_count=9,
+            reason=8,  # LocalCommsHealthReason.NO_ALIVE_PEERS
+            last_session_change_ts=_ns(seconds=1_700_000_000),
+        ),
     )
     ctrl = Controller.from_proto(proto)
     assert ctrl.local_comms_health == LocalCommsHealthStatus.OFFLINE
+    assert ctrl.local_comms_visible_devices == 0
+    assert ctrl.local_comms_expected_devices == 9
+    assert ctrl.local_comms_reason == LocalCommsHealthReason.NO_ALIVE_PEERS
+    assert ctrl.local_comms_last_session_change is not None
 
 
 def test_controller_local_comms_health_defaults_to_unspecified() -> None:

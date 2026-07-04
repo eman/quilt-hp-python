@@ -1,7 +1,8 @@
 """QuiltSmartModule (QSM) model — the WiFi compute module embedded in each IDU.
 
 Each indoor unit contains one QSM that handles:
-- Cloud/local NATS connectivity (three WiFi interfaces: hosted, AP, P2P)
+- Cloud connectivity + local Zenoh mesh connectivity (three WiFi interfaces:
+  hosted, AP, P2P)
 - Presence detection (phase + target radar channels)
 - Ambient light sensing (ALS: illuminance, IR, combined)
 - Accelerometer (X/Y/Z — detects unit tilt/movement)
@@ -10,10 +11,15 @@ Each indoor unit contains one QSM that handles:
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from datetime import datetime
 from typing import Any, cast
 
-from quilt_hp.models._helpers import parse_wifi_state, present_submsg
-from quilt_hp.models.enums import LocalCommsHealthStatus
+from quilt_hp.models._helpers import (
+    local_comms_last_session_change,
+    parse_wifi_state,
+    present_submsg,
+)
+from quilt_hp.models.enums import LocalCommsHealthReason, LocalCommsHealthStatus
 
 
 @dataclass(slots=True)
@@ -88,19 +94,22 @@ class QuiltSmartModule:
     server has not yet reported a health value (pre-1.0.26 firmware or the
     gate is off).
     """
-    local_comms_link_state: int | None = None
-    """Raw ``LocalCommsStatus.link_state`` value (wire-confirmed 2026-07-03,
-    meaning not yet decoded — observed constant at 9 across all healthy
-    devices in captures so far). Exposed raw pending enum discovery.
+    local_comms_visible_devices: int | None = None
+    """``LocalCommsStatus.visible_devices_count`` (proto field 3) — the number
+    of mesh peers this node currently sees.  APK-confirmed (1.0.29).
     """
-    local_comms_connection_state: int | None = None
-    """Raw ``LocalCommsStatus.connection_state`` value (wire-confirmed
-    2026-07-03, observed constant at 1 across all healthy devices).
+    local_comms_expected_devices: int | None = None
+    """``LocalCommsStatus.expected_devices_count`` (proto field 4) — the number
+    of mesh peers expected on this system.  APK-confirmed (1.0.29).
     """
-    local_comms_version: int | None = None
-    """Raw ``LocalCommsStatus.version`` value (wire-confirmed 2026-07-03,
-    observed constant at 9 across all healthy devices — likely the local
-    mesh protocol/schema version).
+    local_comms_reason: LocalCommsHealthReason = LocalCommsHealthReason.UNSPECIFIED
+    """``LocalCommsStatus.reason`` (proto field 6) — diagnostic reason for the
+    current ``local_comms_health`` status (e.g. ``PARTIAL_VISIBILITY`` when
+    some but not all expected peers are visible).  APK-confirmed (1.0.29).
+    """
+    local_comms_last_session_change: datetime | None = None
+    """``LocalCommsStatus.last_session_change_ts`` (proto field 5) — when the
+    local mesh session last changed.
     """
 
     @classmethod
@@ -150,15 +159,18 @@ class QuiltSmartModule:
                 (rel.firmware_update_info_id or None) if rel is not None else None
             ),
             local_comms_health=LocalCommsHealthStatus(
-                getattr(getattr(proto, "local_comms_status", None), "health", 0)
+                getattr(getattr(proto, "local_comms_status", None), "status", 0)
             ),
-            local_comms_link_state=getattr(
-                getattr(proto, "local_comms_status", None), "link_state", None
+            local_comms_visible_devices=getattr(
+                getattr(proto, "local_comms_status", None), "visible_devices_count", None
             ),
-            local_comms_connection_state=getattr(
-                getattr(proto, "local_comms_status", None), "connection_state", None
+            local_comms_expected_devices=getattr(
+                getattr(proto, "local_comms_status", None), "expected_devices_count", None
             ),
-            local_comms_version=getattr(
-                getattr(proto, "local_comms_status", None), "version", None
+            local_comms_reason=LocalCommsHealthReason(
+                getattr(getattr(proto, "local_comms_status", None), "reason", 0)
+            ),
+            local_comms_last_session_change=local_comms_last_session_change(
+                getattr(proto, "local_comms_status", None)
             ),
         )
