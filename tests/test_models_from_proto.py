@@ -1181,6 +1181,35 @@ def test_system_snapshot_rooms() -> None:
     assert rooms[0].name == "Living Room"
 
 
+def test_system_snapshot_indoor_units_for_space() -> None:
+    """indoor_units_for_space filters IDUs by space id."""
+    from quilt_hp.models.system import SystemSnapshot
+
+    snap = SystemSnapshot(
+        spaces=[],
+        indoor_units=[
+            _ns(space_id="room-1"),
+            _ns(space_id="room-2"),
+            _ns(space_id="room-1"),
+        ],
+        outdoor_units=[],
+        controllers=[],
+        quilt_smart_modules=[],
+        comfort_settings=[],
+        schedule_weeks=[],
+        schedule_days=[],
+        remote_sensors=[],
+        controller_remote_sensors=[],
+        software_update_infos=[],
+        locations=[],
+        timezone="UTC",
+    )
+    result = snap.indoor_units_for_space("room-1")
+    assert len(result) == 2
+    assert all(u.space_id == "room-1" for u in result)
+    assert snap.indoor_units_for_space("nope") == []
+
+
 def test_system_snapshot_primary_location() -> None:
     from quilt_hp._proto import quilt_hds_pb2 as hds
 

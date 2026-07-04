@@ -2,6 +2,38 @@
 
 ## [Unreleased]
 
+### Fixed
+- **`LocalCommsStatus` fields were mislabeled** (previously guessed from limited
+  captures). Corrected to the verified field semantics: field 2 `health` →
+  `status`, field 3 `link_state` → `visible_devices_count`, field 4 `version` →
+  `expected_devices_count`, field 5 `health_changed_ts` →
+  `last_session_change_ts`, field 6 `connection_state` (int32) → `reason`
+  (`LocalCommsHealthReason` enum). Decoding still worked by field number, but the
+  model exposed wrong names/semantics and discarded the reason diagnostics.
+  `QuiltSmartModule`/`Controller` now expose `local_comms_visible_devices`,
+  `local_comms_expected_devices`, `local_comms_reason`, and
+  `local_comms_last_session_change` (replacing `local_comms_link_state`,
+  `local_comms_connection_state`, and `local_comms_version`).
+
+### Added
+- CLI `set` command gained a `--fan` option (`AUTO`, `QUIET`, `LOW`, `MEDIUM`,
+  `HIGH`, `BLAST`) that applies the chosen fan speed to every indoor unit in the
+  target space.
+- `SystemSnapshot.indoor_units_for_space()` returns all indoor units linked to a
+  space (accepts a `Space` or space-ID string).
+- `LocalCommsHealthReason` enum (12 values). `ZENOH_SESSION_DOWN`
+  identifies the local mesh transport as **Eclipse Zenoh**, not NATS (port 7447
+  is Zenoh's default).
+- `IndoorUnitConditions.compressor_minimum_run_time` (proto field 13).
+- Marked `SpaceSettings.safety_heating=9` confirmed (was "unconfirmed").
+
+### CI
+- Docs deploy workflow upgraded to the current Node 24 GitHub Pages actions
+  (`configure-pages@v6`, `upload-pages-artifact@v4`, `deploy-pages@v5`),
+  removing the deprecated Node 20 runtime path.
+- Docs deploy now retries `deploy-pages` once on transient GitHub Pages backend
+  failures, failing the job only if both attempts fail.
+
 ## [0.5.5] - 2026-07-03
 
 ## [0.5.4] - 2026-07-03
