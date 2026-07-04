@@ -360,3 +360,32 @@ class LocalCommsHealthStatus(IntEnum):
 
     def __str__(self) -> str:
         return self.name
+
+
+class LocalCommsHealthReason(IntEnum):
+    """Diagnostic reason accompanying a node's ``LocalCommsHealthStatus``.
+
+    Reported on ``LocalCommsStatus.reason`` (proto field 6) for a QSM or
+    Controller mesh node.  APK-confirmed (com.quilt.android 1.0.29).
+
+    The local mesh is Eclipse Zenoh-based — note ``ZENOH_SESSION_DOWN`` — not
+    NATS.  ``HEALTHY`` accompanies a HEALTHY status; the remaining values
+    explain a DEGRADED/OFFLINE/STARTING_UP status (e.g. ``PARTIAL_VISIBILITY``
+    when some but not all expected mesh peers are visible).
+    """
+
+    UNSPECIFIED = 0
+    HEALTHY = 1
+    BOOT_OR_WARMUP = 2
+    ZENOH_SESSION_DOWN = 3
+    NO_PEERS_VISIBLE = 4
+    PARTIAL_VISIBILITY = 5
+    NO_MESSAGES_RECEIVED = 6
+    SESSION_INSTABILITY = 7
+    NO_ALIVE_PEERS = 8
+    NO_PEERS_EXPECTED = 9
+    CREDENTIALS_NOT_READY = 10
+    CREDENTIALS_EXPIRED = 11
+
+    def __str__(self) -> str:
+        return self.name
