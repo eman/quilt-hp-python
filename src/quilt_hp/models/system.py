@@ -282,10 +282,15 @@ class SystemSnapshot:
                     updates["presence"] = u.presence
                 if idu.occupancy is None and u.occupancy is not None:
                     updates["occupancy"] = u.occupancy
-                # Preserve hardware info — stream diffs are parsed without hw_map
+                # Preserve hardware info — stream diffs are parsed without a
+                # hw_map, so each field is absent (None) in a diff. Preserve
+                # them independently: model_sku can be absent while serial or
+                # firmware are present (real IDUs report model_sku="N/A").
                 if idu.model_sku is None and u.model_sku is not None:
                     updates["model_sku"] = u.model_sku
+                if idu.serial_number is None and u.serial_number is not None:
                     updates["serial_number"] = u.serial_number
+                if idu.firmware_version is None and u.firmware_version is not None:
                     updates["firmware_version"] = u.firmware_version
                 if updates:
                     idu = replace(idu, **updates)
@@ -317,10 +322,15 @@ class SystemSnapshot:
                 # Preserve compressor telemetry when the diff omits it
                 if odu.performance_data is None and u.performance_data is not None:
                     updates["performance_data"] = u.performance_data
-                # Preserve hardware info — stream diffs are parsed without hw_map
+                # Preserve hardware info — stream diffs are parsed without a
+                # hw_map, so each field is absent (None) in a diff. Preserve
+                # them independently: model_sku may be absent while serial or
+                # firmware are present.
                 if odu.model_sku is None and u.model_sku is not None:
                     updates["model_sku"] = u.model_sku
+                if odu.serial_number is None and u.serial_number is not None:
                     updates["serial_number"] = u.serial_number
+                if odu.firmware_version is None and u.firmware_version is not None:
                     updates["firmware_version"] = u.firmware_version
                 if updates:
                     odu = replace(odu, **updates)
@@ -384,10 +394,13 @@ class SystemSnapshot:
                 ):
                     updates["local_comms_health"] = c.local_comms_health
                 # Hardware fields are never in stream diffs — always preserve
-                # from snapshot
+                # from snapshot. Preserve each independently: model_sku may be
+                # absent while serial or firmware are present.
                 if ctrl.serial_number is None and c.serial_number is not None:
                     updates["serial_number"] = c.serial_number
+                if ctrl.model_sku is None and c.model_sku is not None:
                     updates["model_sku"] = c.model_sku
+                if ctrl.firmware_version is None and c.firmware_version is not None:
                     updates["firmware_version"] = c.firmware_version
                 if updates:
                     ctrl = replace(ctrl, **updates)

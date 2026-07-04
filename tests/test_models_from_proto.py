@@ -1442,6 +1442,48 @@ def test_system_snapshot_resolves_indoor_unit_hardware() -> None:
     assert merged.model_sku == "IDU-SKU-1"
 
 
+def test_apply_indoor_unit_preserves_hardware_fields_independently() -> None:
+    """serial/firmware are preserved even when model_sku is absent (model_sku='N/A')."""
+    proto = _ns(
+        spaces=[],
+        indoor_units=[_make_idu_proto("idu-1")],  # relationships.hardware_id == "hw-1"
+        outdoor_units=[],
+        outdoor_unit_hardware=[],
+        indoor_unit_hardware=[
+            _ns(
+                header=_make_header("hw-1"),
+                attributes=_ns(
+                    model_sku="",  # real IDUs report "N/A"/empty → resolves to None
+                    serial_number="QS1-1B0RG4P3V",
+                    firmware_version="43",
+                ),
+            )
+        ],
+        controller_hardware=[],
+        controllers=[],
+        quilt_smart_modules=[],
+        comfort_settings=[],
+        schedule_weeks=[],
+        schedule_days=[],
+        remote_sensors=[],
+        controller_remote_sensors=[],
+        software_update_infos=[],
+        locations=[],
+    )
+
+    snap = SystemSnapshot.from_proto(proto)
+    assert snap.indoor_units[0].model_sku is None
+    assert snap.indoor_units[0].serial_number == "QS1-1B0RG4P3V"
+
+    # A sparse stream diff must not erase serial/firmware just because the
+    # snapshot's model_sku was absent.
+    diff = IndoorUnit.from_proto(_make_idu_proto("idu-1"))
+    merged = snap.apply_indoor_unit(diff)
+    assert merged.serial_number == "QS1-1B0RG4P3V"
+    assert merged.firmware_version == "43"
+    assert merged.model_sku is None
+
+
 def test_system_snapshot_hardware_map_deserializes_model_sku_with_colon_and_case_variants() -> (
     None
 ):
