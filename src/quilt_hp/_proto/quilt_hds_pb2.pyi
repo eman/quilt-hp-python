@@ -129,6 +129,45 @@ LOCAL_COMMS_HEALTH_STATUS_OFFLINE: LocalCommsHealthStatus.ValueType  # 3
 LOCAL_COMMS_HEALTH_STATUS_STARTING_UP: LocalCommsHealthStatus.ValueType  # 4
 Global___LocalCommsHealthStatus: _TypeAlias = LocalCommsHealthStatus  # noqa: Y015
 
+class _LocalCommsHealthReason:
+    ValueType = _typing.NewType("ValueType", _builtins.int)
+    V: _TypeAlias = ValueType  # noqa: Y015
+
+class _LocalCommsHealthReasonEnumTypeWrapper(_enum_type_wrapper._EnumTypeWrapper[_LocalCommsHealthReason.ValueType], _builtins.type):
+    DESCRIPTOR: _descriptor.EnumDescriptor
+    LOCAL_COMMS_HEALTH_REASON_UNSPECIFIED: _LocalCommsHealthReason.ValueType  # 0
+    LOCAL_COMMS_HEALTH_REASON_HEALTHY: _LocalCommsHealthReason.ValueType  # 1
+    LOCAL_COMMS_HEALTH_REASON_BOOT_OR_WARMUP: _LocalCommsHealthReason.ValueType  # 2
+    LOCAL_COMMS_HEALTH_REASON_ZENOH_SESSION_DOWN: _LocalCommsHealthReason.ValueType  # 3
+    LOCAL_COMMS_HEALTH_REASON_NO_PEERS_VISIBLE: _LocalCommsHealthReason.ValueType  # 4
+    LOCAL_COMMS_HEALTH_REASON_PARTIAL_VISIBILITY: _LocalCommsHealthReason.ValueType  # 5
+    LOCAL_COMMS_HEALTH_REASON_NO_MESSAGES_RECEIVED: _LocalCommsHealthReason.ValueType  # 6
+    LOCAL_COMMS_HEALTH_REASON_SESSION_INSTABILITY: _LocalCommsHealthReason.ValueType  # 7
+    LOCAL_COMMS_HEALTH_REASON_NO_ALIVE_PEERS: _LocalCommsHealthReason.ValueType  # 8
+    LOCAL_COMMS_HEALTH_REASON_NO_PEERS_EXPECTED: _LocalCommsHealthReason.ValueType  # 9
+    LOCAL_COMMS_HEALTH_REASON_CREDENTIALS_NOT_READY: _LocalCommsHealthReason.ValueType  # 10
+    LOCAL_COMMS_HEALTH_REASON_CREDENTIALS_EXPIRED: _LocalCommsHealthReason.ValueType  # 11
+
+class LocalCommsHealthReason(_LocalCommsHealthReason, metaclass=_LocalCommsHealthReasonEnumTypeWrapper):
+    """Diagnostic reason accompanying LocalCommsHealthStatus.
+    APK-confirmed (com.quilt.android 1.0.29, enum class m62). The local mesh is
+    Eclipse Zenoh-based (see ZENOH_SESSION_DOWN), not NATS.
+    """
+
+LOCAL_COMMS_HEALTH_REASON_UNSPECIFIED: LocalCommsHealthReason.ValueType  # 0
+LOCAL_COMMS_HEALTH_REASON_HEALTHY: LocalCommsHealthReason.ValueType  # 1
+LOCAL_COMMS_HEALTH_REASON_BOOT_OR_WARMUP: LocalCommsHealthReason.ValueType  # 2
+LOCAL_COMMS_HEALTH_REASON_ZENOH_SESSION_DOWN: LocalCommsHealthReason.ValueType  # 3
+LOCAL_COMMS_HEALTH_REASON_NO_PEERS_VISIBLE: LocalCommsHealthReason.ValueType  # 4
+LOCAL_COMMS_HEALTH_REASON_PARTIAL_VISIBILITY: LocalCommsHealthReason.ValueType  # 5
+LOCAL_COMMS_HEALTH_REASON_NO_MESSAGES_RECEIVED: LocalCommsHealthReason.ValueType  # 6
+LOCAL_COMMS_HEALTH_REASON_SESSION_INSTABILITY: LocalCommsHealthReason.ValueType  # 7
+LOCAL_COMMS_HEALTH_REASON_NO_ALIVE_PEERS: LocalCommsHealthReason.ValueType  # 8
+LOCAL_COMMS_HEALTH_REASON_NO_PEERS_EXPECTED: LocalCommsHealthReason.ValueType  # 9
+LOCAL_COMMS_HEALTH_REASON_CREDENTIALS_NOT_READY: LocalCommsHealthReason.ValueType  # 10
+LOCAL_COMMS_HEALTH_REASON_CREDENTIALS_EXPIRED: LocalCommsHealthReason.ValueType  # 11
+Global___LocalCommsHealthReason: _TypeAlias = LocalCommsHealthReason  # noqa: Y015
+
 class _OccupancyMode:
     ValueType = _typing.NewType("ValueType", _builtins.int)
     V: _TypeAlias = ValueType  # noqa: Y015
@@ -159,7 +198,7 @@ class _SafetyHeatingModeEnumTypeWrapper(_enum_type_wrapper._EnumTypeWrapper[_Saf
 class SafetyHeatingMode(_SafetyHeatingMode, metaclass=_SafetyHeatingModeEnumTypeWrapper):
     """Freeze-protection setting on SpaceSettings (field 9).
     UNSPECIFIED is treated as ENABLED by the app (freeze protection on by default).
-    Field number unconfirmed (assumed f9; added post-initial release).
+    APK-confirmed field 9 (com.quilt.android 1.0.29, message class ea2).
     """
 
 SAFETY_HEATING_MODE_UNSPECIFIED: SafetyHeatingMode.ValueType  # 0
@@ -507,48 +546,48 @@ Global___WifiConnectionState: _TypeAlias = WifiConnectionState  # noqa: Y015
 
 @_typing.final
 class LocalCommsStatus(_message.Message):
-    """Local communications health status for a QSM or Controller mesh node.
+    """Local communications status for a QSM or Controller mesh node.
     Carried as field 8 on QuiltSmartModule and field 9 on Controller.
-    The `health` subfield (2) is the primary value; subfields 3, 4, 6 semantics TBD.
+    Field numbers/semantics APK-confirmed (1.0.29, message class l62).
     """
 
     DESCRIPTOR: _descriptor.Descriptor
 
     UPDATED_TS_FIELD_NUMBER: _builtins.int
-    HEALTH_FIELD_NUMBER: _builtins.int
-    LINK_STATE_FIELD_NUMBER: _builtins.int
-    VERSION_FIELD_NUMBER: _builtins.int
-    HEALTH_CHANGED_TS_FIELD_NUMBER: _builtins.int
-    CONNECTION_STATE_FIELD_NUMBER: _builtins.int
-    health: Global___LocalCommsHealthStatus.ValueType
-    """current health"""
-    link_state: _builtins.int
-    """observed: HEALTHY=9, DEGRADED=8; enum TBD"""
-    version: _builtins.int
-    """observed: always 9"""
-    connection_state: _builtins.int
-    """observed: HEALTHY=1, DEGRADED=5; enum TBD"""
+    STATUS_FIELD_NUMBER: _builtins.int
+    VISIBLE_DEVICES_COUNT_FIELD_NUMBER: _builtins.int
+    EXPECTED_DEVICES_COUNT_FIELD_NUMBER: _builtins.int
+    LAST_SESSION_CHANGE_TS_FIELD_NUMBER: _builtins.int
+    REASON_FIELD_NUMBER: _builtins.int
+    status: Global___LocalCommsHealthStatus.ValueType
+    """current health status"""
+    visible_devices_count: _builtins.int
+    """mesh peers currently visible"""
+    expected_devices_count: _builtins.int
+    """mesh peers expected on this system"""
+    reason: Global___LocalCommsHealthReason.ValueType
+    """diagnostic reason for current status"""
     @_builtins.property
     def updated_ts(self) -> _timestamp_pb2.Timestamp:
         """most-recent server update timestamp"""
 
     @_builtins.property
-    def health_changed_ts(self) -> _timestamp_pb2.Timestamp:
-        """when health last changed"""
+    def last_session_change_ts(self) -> _timestamp_pb2.Timestamp:
+        """when the mesh session last changed"""
 
     def __init__(
         self,
         *,
         updated_ts: _timestamp_pb2.Timestamp | None = ...,
-        health: Global___LocalCommsHealthStatus.ValueType = ...,
-        link_state: _builtins.int = ...,
-        version: _builtins.int = ...,
-        health_changed_ts: _timestamp_pb2.Timestamp | None = ...,
-        connection_state: _builtins.int = ...,
+        status: Global___LocalCommsHealthStatus.ValueType = ...,
+        visible_devices_count: _builtins.int = ...,
+        expected_devices_count: _builtins.int = ...,
+        last_session_change_ts: _timestamp_pb2.Timestamp | None = ...,
+        reason: Global___LocalCommsHealthReason.ValueType = ...,
     ) -> None: ...
-    _HasFieldArgType: _TypeAlias = _typing.Literal["health_changed_ts", b"health_changed_ts", "updated_ts", b"updated_ts"]  # noqa: Y015
+    _HasFieldArgType: _TypeAlias = _typing.Literal["last_session_change_ts", b"last_session_change_ts", "updated_ts", b"updated_ts"]  # noqa: Y015
     def HasField(self, field_name: _HasFieldArgType) -> _builtins.bool: ...
-    _ClearFieldArgType: _TypeAlias = _typing.Literal["connection_state", b"connection_state", "health", b"health", "health_changed_ts", b"health_changed_ts", "link_state", b"link_state", "updated_ts", b"updated_ts", "version", b"version"]  # noqa: Y015
+    _ClearFieldArgType: _TypeAlias = _typing.Literal["expected_devices_count", b"expected_devices_count", "last_session_change_ts", b"last_session_change_ts", "reason", b"reason", "status", b"status", "updated_ts", b"updated_ts", "visible_devices_count", b"visible_devices_count"]  # noqa: Y015
     def ClearField(self, field_name: _ClearFieldArgType) -> None: ...
     def WhichOneof(self, oneof_group: _Never) -> None: ...
 
@@ -725,7 +764,7 @@ class SpaceSettings(_message.Message):
     f1=name, f2=description, f3=updated_ts, f4=timezone, f5=OccupancyMode,
     f6=HvacControllerType, f7=occupied_timeout_s(180.0), f8=unoccupied_timeout_s(1200.0)
     Wire-confirmed: fields 1–8.
-    f9=SafetyHeatingMode (freeze protection): field number unconfirmed (assumed f9).
+    f9=SafetyHeatingMode (freeze protection): APK-confirmed field 9 (1.0.29, class ea2).
     """
 
     DESCRIPTOR: _descriptor.Descriptor
@@ -754,7 +793,7 @@ class SpaceSettings(_message.Message):
     unoccupied_timeout_s: _builtins.float
     """seconds of no-presence before "away"; default 1200s (20 min)"""
     safety_heating: Global___SafetyHeatingMode.ValueType
-    """freeze protection; UNSPECIFIED treated as ENABLED; field# unconfirmed"""
+    """freeze protection; UNSPECIFIED treated as ENABLED; APK-confirmed f9"""
     @_builtins.property
     def updated_ts(self) -> _timestamp_pb2.Timestamp:
         """wire-confirmed: f3"""
@@ -1180,6 +1219,7 @@ class IndoorUnitConditions(_message.Message):
     COIL_PREHEAT_FIELD_NUMBER: _builtins.int
     MODE_CONFLICT_AVOIDANCE_FIELD_NUMBER: _builtins.int
     OUTDOOR_UNIT_COMMUNICATION_ERROR_FIELD_NUMBER: _builtins.int
+    COMPRESSOR_MINIMUM_RUN_TIME_FIELD_NUMBER: _builtins.int
     mode_conflict: Global___ConditionState.ValueType
     anti_cold_wind: Global___ConditionState.ValueType
     abnormal_outdoor_air_temperature: Global___ConditionState.ValueType
@@ -1191,6 +1231,8 @@ class IndoorUnitConditions(_message.Message):
     coil_preheat: Global___ConditionState.ValueType
     mode_conflict_avoidance: Global___ConditionState.ValueType
     outdoor_unit_communication_error: Global___ConditionState.ValueType
+    compressor_minimum_run_time: Global___ConditionState.ValueType
+    """APK-confirmed 1.0.29 (enum class l02)"""
     @_builtins.property
     def updated_ts(self) -> _timestamp_pb2.Timestamp: ...
     def __init__(
@@ -1208,10 +1250,11 @@ class IndoorUnitConditions(_message.Message):
         coil_preheat: Global___ConditionState.ValueType = ...,
         mode_conflict_avoidance: Global___ConditionState.ValueType = ...,
         outdoor_unit_communication_error: Global___ConditionState.ValueType = ...,
+        compressor_minimum_run_time: Global___ConditionState.ValueType = ...,
     ) -> None: ...
     _HasFieldArgType: _TypeAlias = _typing.Literal["updated_ts", b"updated_ts"]  # noqa: Y015
     def HasField(self, field_name: _HasFieldArgType) -> _builtins.bool: ...
-    _ClearFieldArgType: _TypeAlias = _typing.Literal["abnormal_outdoor_air_temperature", b"abnormal_outdoor_air_temperature", "anti_cold_wind", b"anti_cold_wind", "coil_preheat", b"coil_preheat", "defrost_cycle", b"defrost_cycle", "hvac_mode_switching_delay", b"hvac_mode_switching_delay", "modbus_communication_error", b"modbus_communication_error", "mode_conflict", b"mode_conflict", "mode_conflict_avoidance", b"mode_conflict_avoidance", "oil_return", b"oil_return", "outdoor_unit_communication_error", b"outdoor_unit_communication_error", "safety_heating", b"safety_heating", "updated_ts", b"updated_ts"]  # noqa: Y015
+    _ClearFieldArgType: _TypeAlias = _typing.Literal["abnormal_outdoor_air_temperature", b"abnormal_outdoor_air_temperature", "anti_cold_wind", b"anti_cold_wind", "coil_preheat", b"coil_preheat", "compressor_minimum_run_time", b"compressor_minimum_run_time", "defrost_cycle", b"defrost_cycle", "hvac_mode_switching_delay", b"hvac_mode_switching_delay", "modbus_communication_error", b"modbus_communication_error", "mode_conflict", b"mode_conflict", "mode_conflict_avoidance", b"mode_conflict_avoidance", "oil_return", b"oil_return", "outdoor_unit_communication_error", b"outdoor_unit_communication_error", "safety_heating", b"safety_heating", "updated_ts", b"updated_ts"]  # noqa: Y015
     def ClearField(self, field_name: _ClearFieldArgType) -> None: ...
     def WhichOneof(self, oneof_group: _Never) -> None: ...
 

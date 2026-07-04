@@ -57,16 +57,34 @@ enum LocalCommsHealthStatus {
   LOCAL_COMMS_HEALTH_STATUS_STARTING_UP = 4;
 }
 
-// Local communications health status for a QSM or Controller mesh node.
+// Diagnostic reason accompanying LocalCommsHealthStatus.
+// APK-confirmed (com.quilt.android 1.0.29, enum class m62). The local mesh is
+// Eclipse Zenoh-based (see ZENOH_SESSION_DOWN), not NATS.
+enum LocalCommsHealthReason {
+  LOCAL_COMMS_HEALTH_REASON_UNSPECIFIED = 0;
+  LOCAL_COMMS_HEALTH_REASON_HEALTHY = 1;
+  LOCAL_COMMS_HEALTH_REASON_BOOT_OR_WARMUP = 2;
+  LOCAL_COMMS_HEALTH_REASON_ZENOH_SESSION_DOWN = 3;
+  LOCAL_COMMS_HEALTH_REASON_NO_PEERS_VISIBLE = 4;
+  LOCAL_COMMS_HEALTH_REASON_PARTIAL_VISIBILITY = 5;
+  LOCAL_COMMS_HEALTH_REASON_NO_MESSAGES_RECEIVED = 6;
+  LOCAL_COMMS_HEALTH_REASON_SESSION_INSTABILITY = 7;
+  LOCAL_COMMS_HEALTH_REASON_NO_ALIVE_PEERS = 8;
+  LOCAL_COMMS_HEALTH_REASON_NO_PEERS_EXPECTED = 9;
+  LOCAL_COMMS_HEALTH_REASON_CREDENTIALS_NOT_READY = 10;
+  LOCAL_COMMS_HEALTH_REASON_CREDENTIALS_EXPIRED = 11;
+}
+
+// Local communications status for a QSM or Controller mesh node.
 // Carried as field 8 on QuiltSmartModule and field 9 on Controller.
-// The `health` subfield (2) is the primary value; subfields 3, 4, 6 semantics TBD.
+// Field numbers/semantics APK-confirmed (1.0.29, message class l62).
 message LocalCommsStatus {
-  google.protobuf.Timestamp updated_ts = 1;      // most-recent server update timestamp
-  LocalCommsHealthStatus health = 2;             // current health
-  int32 link_state = 3;                          // observed: HEALTHY=9, DEGRADED=8; enum TBD
-  int32 version = 4;                             // observed: always 9
-  google.protobuf.Timestamp health_changed_ts = 5; // when health last changed
-  int32 connection_state = 6;                    // observed: HEALTHY=1, DEGRADED=5; enum TBD
+  google.protobuf.Timestamp updated_ts = 1;           // most-recent server update timestamp
+  LocalCommsHealthStatus status = 2;                  // current health status
+  int32 visible_devices_count = 3;                    // mesh peers currently visible
+  int32 expected_devices_count = 4;                   // mesh peers expected on this system
+  google.protobuf.Timestamp last_session_change_ts = 5; // when the mesh session last changed
+  LocalCommsHealthReason reason = 6;                  // diagnostic reason for current status
 }
 
 enum OccupancyMode {
@@ -77,7 +95,7 @@ enum OccupancyMode {
 
 // Freeze-protection setting on SpaceSettings (field 9).
 // UNSPECIFIED is treated as ENABLED by the app (freeze protection on by default).
-// Field number unconfirmed (assumed f9; added post-initial release).
+// APK-confirmed field 9 (com.quilt.android 1.0.29, message class ea2).
 enum SafetyHeatingMode {
   SAFETY_HEATING_MODE_UNSPECIFIED = 0;
   SAFETY_HEATING_MODE_DISABLED = 1;
@@ -243,7 +261,7 @@ message SpaceRelationships {
 // f1=name, f2=description, f3=updated_ts, f4=timezone, f5=OccupancyMode,
 // f6=HvacControllerType, f7=occupied_timeout_s(180.0), f8=unoccupied_timeout_s(1200.0)
 // Wire-confirmed: fields 1–8.
-// f9=SafetyHeatingMode (freeze protection): field number unconfirmed (assumed f9).
+// f9=SafetyHeatingMode (freeze protection): APK-confirmed field 9 (1.0.29, class ea2).
 message SpaceSettings {
   string name = 1;                          // wire-confirmed: f1
   string description = 2;                   // wire-confirmed: f2
@@ -253,7 +271,7 @@ message SpaceSettings {
   HvacControllerType hvac_controller_type = 6; // wire-confirmed: f6
   float occupied_timeout_s = 7;             // seconds of presence before "returned"; default 180s (3 min)
   float unoccupied_timeout_s = 8;           // seconds of no-presence before "away"; default 1200s (20 min)
-  SafetyHeatingMode safety_heating = 9;     // freeze protection; UNSPECIFIED treated as ENABLED; field# unconfirmed
+  SafetyHeatingMode safety_heating = 9;     // freeze protection; UNSPECIFIED treated as ENABLED; APK-confirmed f9
 }
 
 // Wire-confirmed from UpdateSpace binary (hex decode):
@@ -389,6 +407,7 @@ message IndoorUnitConditions {
   ConditionState coil_preheat = 10;
   ConditionState mode_conflict_avoidance = 11;
   ConditionState outdoor_unit_communication_error = 12;
+  ConditionState compressor_minimum_run_time = 13;  // APK-confirmed 1.0.29 (enum class l02)
 }
 
 message IndoorUnitPresenceState {
