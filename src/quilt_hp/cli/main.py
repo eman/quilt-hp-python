@@ -23,7 +23,7 @@ from quilt_hp.cli.settings import SettingsStore
 from quilt_hp.cli.store import FileStore
 from quilt_hp.client import QuiltClient
 from quilt_hp.exceptions import QuiltAuthError, QuiltError
-from quilt_hp.models.enums import HVACMode
+from quilt_hp.models.enums import FanSpeed, HVACMode
 from quilt_hp.models.system import SystemSnapshot
 
 app = typer.Typer(help="Quilt HVAC command-line interface.")
@@ -747,6 +747,7 @@ def set_space(
     mode: str | None = typer.Option(None, help="HVAC mode: COOL, HEAT, AUTO, FAN, DRY, STANDBY"),
     heat: float | None = typer.Option(None, help="Heating setpoint in °C"),
     cool: float | None = typer.Option(None, help="Cooling setpoint in °C"),
+    fan: str | None = typer.Option(None, help="Fan speed: AUTO, QUIET, LOW, MEDIUM, HIGH, BLAST"),
     email: str | None = typer.Option(None, envvar="QUILT_EMAIL", help="Quilt account email"),
     home: str | None = typer.Option(None, help="Specific home name to connect to"),
 ) -> None:
@@ -773,12 +774,34 @@ def set_space(
             else:
                 hvac_mode = None
 
-            await client.set_space(
-                space.id,
-                mode=hvac_mode,
-                heat_setpoint_c=heat,
-                cool_setpoint_c=cool,
-            )
+            if fan:
+                try:
+                    fan_speed: FanSpeed | None = FanSpeed[fan.upper()]
+                except KeyError:
+                    valid = ", ".join(f.name.lower() for f in FanSpeed)
+                    console.print(f"[red]Invalid fan speed {fan!r}. Valid: {valid}[/red]")
+                    raise typer.Exit(1) from None
+            else:
+                fan_speed = None
+
+            if hvac_mode is not None or heat is not None or cool is not None:
+                await client.set_space(
+                    space.id,
+                    mode=hvac_mode,
+                    heat_setpoint_c=heat,
+                    cool_setpoint_c=cool,
+                )
+
+            if fan_speed is not None:
+                idus = snap.indoor_units_for_space(space)
+                if not idus:
+                    console.print(
+                        f"[red]No indoor unit found for {space.name}; cannot set fan speed.[/red]"
+                    )
+                    raise typer.Exit(1)
+                for idu in idus:
+                    await client.set_indoor_unit(idu.id, fan_speed=fan_speed)
+
             console.print(f"[green]✓ Updated {space.name}[/green]")
 
     _run(_set())
