@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 
+from quilt_hp.const import PROTO_TIMESTAMP_UNSET_SECONDS
+
 
 def local_comms_last_session_change(local_comms_status: object) -> datetime | None:
     """Return ``LocalCommsStatus.last_session_change_ts`` as an aware datetime.
@@ -11,6 +13,42 @@ def local_comms_last_session_change(local_comms_status: object) -> datetime | No
     ts = getattr(local_comms_status, "last_session_change_ts", None)
     seconds = getattr(ts, "seconds", 0) if ts is not None else 0
     if not seconds:
+        return None
+    return datetime.fromtimestamp(seconds, tz=UTC)
+
+
+def proto_has_field(proto: object, name: str) -> bool:
+    """Return True when a message-typed field is present on the wire.
+
+    Works with generated protobuf messages (via ``HasField``) and with
+    lightweight test stubs (attribute exists and is not ``None``).  proto3
+    scalar fields without presence semantics (``HasField`` raises
+    ``ValueError``) fall back to the attribute check.
+
+    This is the only reliable proto3 absence test: truthiness does not work
+    because an unset sub-message returns a truthy default instance, and
+    ``getattr(msg, field, None)`` never returns ``None`` for real protos.
+    """
+    has_field = getattr(proto, "HasField", None)
+    if callable(has_field):
+        try:
+            return bool(has_field(name))
+        except ValueError:
+            pass  # field without explicit presence — fall back to attribute check
+    return getattr(proto, name, None) is not None
+
+
+def present_submsg(proto: object, name: str) -> object | None:
+    """Return the sub-message when present on the wire, else ``None``."""
+    return getattr(proto, name) if proto_has_field(proto, name) else None
+
+
+def timestamp_or_none(ts: object) -> datetime | None:
+    """Convert a proto Timestamp to a datetime, or None when unset/absent."""
+    if ts is None:
+        return None
+    seconds = getattr(ts, "seconds", PROTO_TIMESTAMP_UNSET_SECONDS)
+    if seconds == PROTO_TIMESTAMP_UNSET_SECONDS:
         return None
     return datetime.fromtimestamp(seconds, tz=UTC)
 

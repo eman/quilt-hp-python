@@ -8,20 +8,23 @@ from __future__ import annotations
 import logging
 import time
 from collections.abc import Callable, Sequence
-from typing import Protocol, cast
+from typing import TYPE_CHECKING, Protocol, cast
 
-import grpc.aio
 from google.protobuf.timestamp_pb2 import Timestamp
+
+if TYPE_CHECKING:
+    import grpc.aio
 
 from quilt_hp._proto import quilt_hds_pb2 as hds
 from quilt_hp._proto import quilt_hds_pb2_grpc as hds_grpc
-from quilt_hp.exceptions import QuiltError, QuiltNotFoundError
+from quilt_hp.exceptions import QuiltNotFoundError
 from quilt_hp.models.comfort import ComfortSetting
 from quilt_hp.models.enums import FanSpeed, HVACMode, LouverMode
 from quilt_hp.models.indoor_unit import IndoorUnit
 from quilt_hp.models.schedule import ScheduleDay, ScheduleEvent, ScheduleWeek, ScheduleWeekDay
 from quilt_hp.models.space import Space
 from quilt_hp.models.system import SystemSnapshot
+from quilt_hp.services import grpc_call
 
 logger = logging.getLogger(__name__)
 
@@ -86,13 +89,12 @@ class HomeDatastoreService:
         """Fetch a full system snapshot."""
         logger.debug("RPC GetHomeDatastoreSystem system_id=%s", system_id)
         try:
-            snap = await self._stub.GetHomeDatastoreSystem(
-                hds.GetHomeDatastoreSystemRequest(system_id=system_id)
-            )
-        except grpc.aio.AioRpcError as exc:
-            if exc.code() == grpc.StatusCode.NOT_FOUND:
-                raise QuiltNotFoundError(f"System {system_id} not found") from exc
-            raise QuiltError(f"GetHomeDatastoreSystem failed: {exc.details()}") from exc
+            async with grpc_call("GetHomeDatastoreSystem"):
+                snap = await self._stub.GetHomeDatastoreSystem(
+                    hds.GetHomeDatastoreSystemRequest(system_id=system_id)
+                )
+        except QuiltNotFoundError as exc:
+            raise QuiltNotFoundError(f"System {system_id} not found") from exc
         return SystemSnapshot.from_proto(snap)
 
     async def update_space(
@@ -160,10 +162,8 @@ class HomeDatastoreService:
         logger.debug(
             "RPC UpdateSpace space_id=%s system_id=%s", snapshot_space.id, snapshot_space.system_id
         )
-        try:
+        async with grpc_call("UpdateSpace"):
             result = await self._stub.UpdateSpace(hds.UpdateSpaceRequest(diff=diff))
-        except grpc.aio.AioRpcError as exc:
-            raise QuiltError(f"UpdateSpace failed: {exc.details()}") from exc
         return Space.from_proto(result)
 
     async def update_space_settings(
@@ -206,10 +206,8 @@ class HomeDatastoreService:
             snapshot_space.id,
             snapshot_space.system_id,
         )
-        try:
+        async with grpc_call("UpdateSpace settings"):
             result = await self._stub.UpdateSpace(hds.UpdateSpaceRequest(diff=diff))
-        except grpc.aio.AioRpcError as exc:
-            raise QuiltError(f"UpdateSpace settings failed: {exc.details()}") from exc
         return Space.from_proto(result)
 
     async def update_indoor_unit(
@@ -255,10 +253,8 @@ class HomeDatastoreService:
             ),
         )
         logger.debug("RPC UpdateIndoorUnit indoor_unit_id=%s system_id=%s", idu.id, idu.system_id)
-        try:
+        async with grpc_call("UpdateIndoorUnit"):
             result = await self._stub.UpdateIndoorUnit(hds.UpdateIndoorUnitRequest(diff=diff))
-        except grpc.aio.AioRpcError as exc:
-            raise QuiltError(f"UpdateIndoorUnit failed: {exc.details()}") from exc
         return IndoorUnit.from_proto(result)
 
     async def update_indoor_unit_settings(
@@ -309,10 +305,8 @@ class HomeDatastoreService:
         logger.debug(
             "RPC UpdateIndoorUnit settings indoor_unit_id=%s system_id=%s", idu.id, idu.system_id
         )
-        try:
+        async with grpc_call("UpdateIndoorUnit settings"):
             result = await self._stub.UpdateIndoorUnit(hds.UpdateIndoorUnitRequest(diff=diff))
-        except grpc.aio.AioRpcError as exc:
-            raise QuiltError(f"UpdateIndoorUnit settings failed: {exc.details()}") from exc
         return IndoorUnit.from_proto(result)
 
     async def update_comfort_setting(
@@ -326,9 +320,13 @@ class HomeDatastoreService:
         fan_speed: FanSpeed | None = None,
     ) -> ComfortSetting:
         """Update a comfort setting preset."""
-        fan_mode_val, fan_pct = (
-            fan_speed.to_wire() if fan_speed is not None else setting.fan_speed.to_wire()
-        )
+        if fan_speed is not None:
+            fan_mode_val, fan_pct = fan_speed.to_wire()
+        else:
+            # Echo the raw wire values back: from_wire cannot distinguish
+            # "absent" (mode 0) from an explicit AUTO (mode 1), so re-encoding
+            # via the FanSpeed enum would convert absent into an AUTO write.
+            fan_mode_val, fan_pct = setting.fan_speed_mode_raw, setting.fan_speed_percent_raw
         diff = hds.ComfortSetting(
             header=hds.EntityMetadata(
                 object_id=setting.id,
@@ -357,12 +355,10 @@ class HomeDatastoreService:
             setting.id,
             setting.system_id,
         )
-        try:
+        async with grpc_call("UpdateComfortSetting"):
             result = await self._stub.UpdateComfortSetting(
                 hds.UpdateComfortSettingRequest(comfort_setting=diff)
             )
-        except grpc.aio.AioRpcError as exc:
-            raise QuiltError(f"UpdateComfortSetting failed: {exc.details()}") from exc
         return ComfortSetting.from_proto(result)
 
     async def create_schedule_day(
@@ -381,12 +377,10 @@ class HomeDatastoreService:
             events=wire_events,
         )
         logger.debug("RPC CreateScheduleDay system_id=%s space_id=%s", system_id, space_id)
-        try:
+        async with grpc_call("CreateScheduleDay"):
             result = await self._stub.CreateScheduleDay(
                 hds.CreateScheduleDayRequest(schedule_day=diff)
             )
-        except grpc.aio.AioRpcError as exc:
-            raise QuiltError(f"CreateScheduleDay failed: {exc.details()}") from exc
         return ScheduleDay.from_proto(result)
 
     async def create_schedule_week(
@@ -403,12 +397,10 @@ class HomeDatastoreService:
             days=wire_days,
         )
         logger.debug("RPC CreateScheduleWeek system_id=%s space_id=%s", system_id, space_id)
-        try:
+        async with grpc_call("CreateScheduleWeek"):
             result = await self._stub.CreateScheduleWeek(
                 hds.CreateScheduleWeekRequest(schedule_week=diff)
             )
-        except grpc.aio.AioRpcError as exc:
-            raise QuiltError(f"CreateScheduleWeek failed: {exc.details()}") from exc
         return ScheduleWeek.from_proto(result)
 
     async def update_schedule_week(
@@ -434,23 +426,19 @@ class HomeDatastoreService:
             system_id,
             space_id,
         )
-        try:
+        async with grpc_call("UpdateScheduleWeek"):
             result = await self._stub.UpdateScheduleWeek(
                 hds.UpdateScheduleWeekRequest(schedule_week=diff)
             )
-        except grpc.aio.AioRpcError as exc:
-            raise QuiltError(f"UpdateScheduleWeek failed: {exc.details()}") from exc
         return ScheduleWeek.from_proto(result)
 
     async def delete_schedule_day(self, schedule_day_id: str) -> None:
         """Delete a schedule day program."""
         logger.debug("RPC DeleteScheduleDay schedule_day_id=%s", schedule_day_id)
-        try:
+        async with grpc_call("DeleteScheduleDay"):
             await self._stub.DeleteScheduleDay(
                 hds.DeleteScheduleDayRequest(schedule_day_id=schedule_day_id)
             )
-        except grpc.aio.AioRpcError as exc:
-            raise QuiltError(f"DeleteScheduleDay failed: {exc.details()}") from exc
 
     async def update_schedule_day(
         self,
@@ -478,23 +466,19 @@ class HomeDatastoreService:
             system_id,
             space_id,
         )
-        try:
+        async with grpc_call("UpdateScheduleDay"):
             result = await self._stub.UpdateScheduleDay(
                 hds.UpdateScheduleDayRequest(schedule_day=diff)
             )
-        except grpc.aio.AioRpcError as exc:
-            raise QuiltError(f"UpdateScheduleDay failed: {exc.details()}") from exc
         return ScheduleDay.from_proto(result)
 
     async def delete_schedule_week(self, schedule_week_id: str) -> None:
         """Delete a schedule week."""
         logger.debug("RPC DeleteScheduleWeek schedule_week_id=%s", schedule_week_id)
-        try:
+        async with grpc_call("DeleteScheduleWeek"):
             await self._stub.DeleteScheduleWeek(
                 hds.DeleteScheduleWeekRequest(schedule_week_id=schedule_week_id)
             )
-        except grpc.aio.AioRpcError as exc:
-            raise QuiltError(f"DeleteScheduleWeek failed: {exc.details()}") from exc
 
     async def update_location_schedule_execution(
         self,
@@ -516,7 +500,5 @@ class HomeDatastoreService:
             controls=hds.LocationControls(schedule_execution=execution),
         )
         logger.debug("RPC UpdateLocation location_id=%s system_id=%s", location_id, system_id)
-        try:
+        async with grpc_call("UpdateLocation"):
             await self._stub.UpdateLocation(hds.UpdateLocationRequest(location=diff))
-        except grpc.aio.AioRpcError as exc:
-            raise QuiltError(f"UpdateLocation failed: {exc.details()}") from exc

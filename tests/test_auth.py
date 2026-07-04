@@ -186,3 +186,61 @@ async def test_authenticate_refresh_failure_uses_policy(
     assert len(hooks.starts) == 1
     assert hooks.successes == []
     assert len(hooks.failures) == 1
+
+
+@pytest.mark.asyncio
+async def test_authenticate_forces_refresh_when_server_rejected_token(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A locally-unexpired token the server just rejected must not be
+    returned as-is — the UNAUTHENTICATED context forces a refresh."""
+    import time
+
+    store = _AsyncStore(
+        loaded=CachedTokens(
+            id_token="rejected-but-unexpired",
+            refresh_token="refresh-1",
+            expires_at=time.time() + 3600,
+        )
+    )
+
+    async def _fake_refresh(_refresh: str) -> dict[str, str | int]:
+        return {"IdToken": "fresh-token", "ExpiresIn": 3600}
+
+    monkeypatch.setattr(auth, "_do_refresh", _fake_refresh)
+
+    token = await auth.authenticate(
+        "user@example.com",
+        token_store=store,
+        refresh_context=TokenRefreshContext(
+            reason=TokenRefreshReason.STREAM_UNAUTHENTICATED,
+            source="streaming",
+        ),
+    )
+    assert token == "fresh-token"
+
+
+@pytest.mark.asyncio
+async def test_authenticate_persists_rotated_refresh_token(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import time
+
+    store = _AsyncStore(
+        loaded=CachedTokens(
+            id_token="expired",
+            refresh_token="old-refresh",
+            expires_at=time.time() - 10,
+        )
+    )
+
+    async def _fake_refresh(_refresh: str) -> dict[str, str | int]:
+        return {"IdToken": "fresh", "RefreshToken": "rotated-refresh", "ExpiresIn": 3600}
+
+    monkeypatch.setattr(auth, "_do_refresh", _fake_refresh)
+
+    await auth.authenticate("user@example.com", token_store=store)
+
+    assert store.saved, "rotated tokens must be persisted"
+    _, saved_tokens = store.saved[-1]
+    assert saved_tokens.refresh_token == "rotated-refresh"

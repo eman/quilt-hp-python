@@ -12,8 +12,13 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from datetime import datetime
+from typing import Any, cast
 
-from quilt_hp.models._helpers import local_comms_last_session_change, parse_wifi_state
+from quilt_hp.models._helpers import (
+    local_comms_last_session_change,
+    parse_wifi_state,
+    present_submsg,
+)
 from quilt_hp.models.enums import LocalCommsHealthReason, LocalCommsHealthStatus
 
 
@@ -109,12 +114,18 @@ class QuiltSmartModule:
 
     @classmethod
     def from_proto(cls, proto: object) -> QuiltSmartModule:
-        """Construct from a protobuf QuiltSmartModule message."""
-        c = proto.controls  # type: ignore[attr-defined]
-        s = proto.state  # type: ignore[attr-defined]
+        """Construct from a protobuf QuiltSmartModule message.
+
+        Sub-messages absent from a sparse stream diff parse to ``None`` /
+        sentinel defaults; ``SystemSnapshot.apply_qsm`` preserves existing
+        snapshot data for them.
+        """
+        p = cast("Any", proto)
+        c = cast("Any", present_submsg(proto, "controls"))
+        s = cast("Any", present_submsg(proto, "state"))
 
         sensors: QsmSensors | None = None
-        if s.updated_ts:
+        if s is not None:
             sensors = QsmSensors(
                 phase_detected_raw=s.phase_detected_raw,
                 target_detected_raw=s.target_detected_raw,
@@ -126,23 +137,26 @@ class QuiltSmartModule:
                 accel_z_raw=s.accel_z_raw,
             )
 
-        def _wifi(w: object) -> WifiInfo | None:
+        def _wifi(w: object | None) -> WifiInfo | None:
+            if w is None:
+                return None
             info = WifiInfo.from_proto(w)
             return info if info.connected else None
 
+        rel = cast("Any", present_submsg(proto, "relationships"))
         return cls(
-            id=proto.header.object_id,  # type: ignore[attr-defined]
-            system_id=proto.header.system_id,  # type: ignore[attr-defined]
-            led_color_code=c.led_color_code,
+            id=p.header.object_id,
+            system_id=p.header.system_id,
+            led_color_code=c.led_color_code if c is not None else 0,
             sensors=sensors,
-            hosted_wifi=_wifi(proto.hosted_wifi_state),  # type: ignore[attr-defined]
-            ap_wifi=_wifi(proto.ap_wifi_state),  # type: ignore[attr-defined]
-            p2p_wifi=_wifi(proto.p2p_wifi_state),  # type: ignore[attr-defined]
+            hosted_wifi=_wifi(present_submsg(proto, "hosted_wifi_state")),
+            ap_wifi=_wifi(present_submsg(proto, "ap_wifi_state")),
+            p2p_wifi=_wifi(present_submsg(proto, "p2p_wifi_state")),
             software_update_info_id=(
-                proto.relationships.software_update_info_id or None  # type: ignore[attr-defined]
+                (rel.software_update_info_id or None) if rel is not None else None
             ),
             firmware_update_info_id=(
-                proto.relationships.firmware_update_info_id or None  # type: ignore[attr-defined]
+                (rel.firmware_update_info_id or None) if rel is not None else None
             ),
             local_comms_health=LocalCommsHealthStatus(
                 getattr(getattr(proto, "local_comms_status", None), "status", 0)

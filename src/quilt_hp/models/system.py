@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import Any, cast
 
 from quilt_hp.models._helpers import _id_variants
@@ -11,6 +11,7 @@ from quilt_hp.models.controller import Controller
 from quilt_hp.models.enums import (
     ComfortSettingType,
     HVACMode,
+    HVACState,
     LightState,
     LocalCommsHealthStatus,
     LouverMode,
@@ -166,11 +167,9 @@ class SystemSnapshot:
         self.enrich_space(space)
         for i, s in enumerate(self.spaces):
             if s.id == space.id:
-                from dataclasses import replace
-
                 updates: dict[str, Any] = {}
                 # state absent: ambient_temperature_c is None
-                # (set only when updated_ts present)
+                # (set only when the state sub-message is present on the wire)
                 if (
                     space.state.ambient_temperature_c is None
                     and s.state.ambient_temperature_c is not None
@@ -183,11 +182,20 @@ class SystemSnapshot:
                     and s.controls.hvac_mode != HVACMode.UNSPECIFIED
                 ):
                     updates["controls"] = s.controls
+                    # enrich_space resolved the diff's (empty) comfort setting
+                    # id; restore the type matching the preserved controls.
+                    updates["active_comfort_setting_type"] = s.active_comfort_setting_type
                 # settings absent: name is empty (settings.name is always
                 # non-empty in a real Space)
                 if not space.settings.name and s.settings.name:
                     updates["settings"] = s.settings
                     updates["name"] = s.name
+                # relationships absent: parent_space_id is None — preserve so
+                # is_room stays valid and the room doesn't vanish from rooms.
+                if space.parent_space_id is None and s.parent_space_id is not None:
+                    updates["parent_space_id"] = s.parent_space_id
+                if not space.system_id and s.system_id:
+                    updates["system_id"] = s.system_id
                 if updates:
                     space = replace(space, **updates)
                 self.spaces[i] = space
@@ -210,31 +218,41 @@ class SystemSnapshot:
         """
         for i, u in enumerate(self.indoor_units):
             if u.id == idu.id:
-                from dataclasses import replace
-
                 updates: dict[str, Any] = {}
+                # relationships absent: identity/link fields are empty/None
+                if not idu.space_id and u.space_id:
+                    updates["space_id"] = u.space_id
+                if not idu.hardware_id and u.hardware_id:
+                    updates["hardware_id"] = u.hardware_id
+                if not idu.system_id and u.system_id:
+                    updates["system_id"] = u.system_id
                 if idu.qsm_id is None and u.qsm_id:
                     updates["qsm_id"] = u.qsm_id
                 if idu.outdoor_unit_id is None and u.outdoor_unit_id:
                     updates["outdoor_unit_id"] = u.outdoor_unit_id
+                if idu.firmware_update_info_id is None and u.firmware_update_info_id:
+                    updates["firmware_update_info_id"] = u.firmware_update_info_id
                 if idu.hvac_inputs is None and u.hvac_inputs is not None:
                     updates["hvac_inputs"] = u.hvac_inputs
                 if idu.conditions is None and u.conditions is not None:
                     updates["conditions"] = u.conditions
+                if idu.commands is None and u.commands is not None:
+                    updates["commands"] = u.commands
+                # settings absent from diff: name is empty
+                if not idu.settings.name and u.settings.name:
+                    updates["settings"] = u.settings
                 # state absent from diff: updated_at is None — preserve
                 # existing so is_online stays valid
                 if idu.state.updated_at is None and u.state.updated_at is not None:
                     updates["state"] = u.state
-                # controls absent detection: state IS in diff
-                # (timestamped state-only update), and all control sentinel
-                # fields are at proto3 defaults. When controls are genuinely
-                # sent: led_color_code is non-zero, OR led_state is explicit
-                # ON/OFF, OR louver_mode is set. Brightness alone is not a
-                # safe sentinel because mobile_led_scheduling_enabled preserves
+                # controls absent detection: all control sentinel fields are
+                # at proto3 defaults. When controls are genuinely sent:
+                # led_color_code is non-zero, OR led_state is explicit ON/OFF,
+                # OR louver_mode is set. Brightness alone is not a safe
+                # sentinel because mobile_led_scheduling_enabled preserves
                 # brightness when LED is OFF.
                 if (
-                    idu.state.updated_at is not None
-                    and idu.controls.fan_speed_mode_raw == 0
+                    idu.controls.fan_speed_mode_raw == 0
                     and idu.controls.louver_mode == LouverMode.UNSPECIFIED
                     and idu.controls.led_color_code == 0
                     and idu.controls.led_state == LightState.UNSPECIFIED
@@ -265,14 +283,22 @@ class SystemSnapshot:
         lack hardware info (no hw_map available at parse time). Preserve any
         existing non-default values so partial updates don't erase them.
         """
-        from dataclasses import replace
-
         for i, u in enumerate(self.outdoor_units):
             if u.id == odu.id:
                 updates: dict[str, Any] = {}
                 # Preserve hvac_state when stream diff has a default-zero state
-                if not odu.hvac_state and u.hvac_state:
+                if odu.hvac_state == HVACState.UNSPECIFIED and u.hvac_state:
                     updates["hvac_state"] = u.hvac_state
+                # Preserve identity/link fields absent from a sparse diff
+                if not odu.space_id and u.space_id:
+                    updates["space_id"] = u.space_id
+                if not odu.system_id and u.system_id:
+                    updates["system_id"] = u.system_id
+                if odu.firmware_update_info_id is None and u.firmware_update_info_id:
+                    updates["firmware_update_info_id"] = u.firmware_update_info_id
+                # Preserve compressor telemetry when the diff omits it
+                if odu.performance_data is None and u.performance_data is not None:
+                    updates["performance_data"] = u.performance_data
                 # Preserve hardware info — stream diffs are parsed without hw_map
                 if odu.model_sku is None and u.model_sku is not None:
                     updates["model_sku"] = u.model_sku
@@ -293,13 +319,32 @@ class SystemSnapshot:
         Hardware info (serial, model_sku, firmware_version) is only populated at
         initial snapshot load and is never in stream diffs; always preserve it.
         """
-        from dataclasses import replace
-
         for i, c in enumerate(self.controllers):
             if c.id == ctrl.id:
                 updates: dict[str, Any] = {}
                 if not ctrl.name and c.name:
                     updates["name"] = c.name
+                if not ctrl.space_id and c.space_id:
+                    updates["space_id"] = c.space_id
+                if not ctrl.system_id and c.system_id:
+                    updates["system_id"] = c.system_id
+                # state absent from diff: temperatures parse to None — preserve
+                # the last real readings (calibrated_ambient_c is the primary
+                # display value).
+                if ctrl.calibrated_ambient_c is None and c.calibrated_ambient_c is not None:
+                    updates["calibrated_ambient_c"] = c.calibrated_ambient_c
+                if ctrl.raw_thermistor_c is None and c.raw_thermistor_c is not None:
+                    updates["raw_thermistor_c"] = c.raw_thermistor_c
+                if ctrl.pcb_temperature_a_c is None and c.pcb_temperature_a_c is not None:
+                    updates["pcb_temperature_a_c"] = c.pcb_temperature_a_c
+                if ctrl.pcb_temperature_b_c is None and c.pcb_temperature_b_c is not None:
+                    updates["pcb_temperature_b_c"] = c.pcb_temperature_b_c
+                if ctrl.state_updated_at is None and c.state_updated_at is not None:
+                    updates["state_updated_at"] = c.state_updated_at
+                if ctrl.software_update_info_id is None and c.software_update_info_id:
+                    updates["software_update_info_id"] = c.software_update_info_id
+                if ctrl.firmware_update_info_id is None and c.firmware_update_info_id:
+                    updates["firmware_update_info_id"] = c.firmware_update_info_id
                 if ctrl.wifi_ssid is None and c.wifi_ssid is not None:
                     updates["wifi_ssid"] = c.wifi_ssid
                     updates["wifi_ip"] = c.wifi_ip
@@ -339,11 +384,18 @@ class SystemSnapshot:
         Stream diffs are sparse — a controls diff omits state (sensors) and wifi
         state sub-messages.  Preserve existing non-None values.
         """
-        from dataclasses import replace
-
         for i, q in enumerate(self.quilt_smart_modules):
             if q.id == qsm.id:
                 updates: dict[str, Any] = {}
+                if not qsm.system_id and q.system_id:
+                    updates["system_id"] = q.system_id
+                # controls absent: led_color_code defaults to 0
+                if qsm.led_color_code == 0 and q.led_color_code != 0:
+                    updates["led_color_code"] = q.led_color_code
+                if qsm.software_update_info_id is None and q.software_update_info_id:
+                    updates["software_update_info_id"] = q.software_update_info_id
+                if qsm.firmware_update_info_id is None and q.firmware_update_info_id:
+                    updates["firmware_update_info_id"] = q.firmware_update_info_id
                 if qsm.sensors is None and q.sensors is not None:
                     updates["sensors"] = q.sensors
                 if qsm.hosted_wifi is None and q.hosted_wifi is not None:
@@ -372,11 +424,14 @@ class SystemSnapshot:
         omits state, zeroing all sensor readings. Preserve existing non-None
         values.
         """
-        from dataclasses import replace
-
         for i, r in enumerate(self.remote_sensors):
             if r.id == rs.id:
                 updates: dict[str, Any] = {}
+                # relationships/attributes absent: link and mac are empty/None
+                if not rs.indoor_unit_id and r.indoor_unit_id:
+                    updates["indoor_unit_id"] = r.indoor_unit_id
+                if rs.mac is None and r.mac is not None:
+                    updates["mac"] = r.mac
                 # controls absent: control_mode defaults to UNSPECIFIED.
                 if (
                     rs.control_mode == RemoteSensorControlMode.UNSPECIFIED
@@ -403,11 +458,13 @@ class SystemSnapshot:
         self, crs: ControllerRemoteSensor
     ) -> ControllerRemoteSensor:
         """Patch a stream-updated ControllerRemoteSensor into the snapshot."""
-        from dataclasses import replace
-
         for i, r in enumerate(self.controller_remote_sensors):
             if r.id == crs.id:
                 updates: dict[str, Any] = {}
+                if not crs.controller_id and r.controller_id:
+                    updates["controller_id"] = r.controller_id
+                if crs.mac is None and r.mac is not None:
+                    updates["mac"] = r.mac
                 if (
                     crs.control_mode == RemoteSensorControlMode.UNSPECIFIED
                     and r.control_mode != RemoteSensorControlMode.UNSPECIFIED
@@ -427,6 +484,20 @@ class SystemSnapshot:
                 return crs
         self.controller_remote_sensors.append(crs)
         return crs
+
+    def apply_software_update_info(self, sui: SoftwareUpdateInfo) -> SoftwareUpdateInfo:
+        """Patch a stream-updated SoftwareUpdateInfo into the snapshot.
+
+        Update records are replaced wholesale: an all-empty/zero record is a
+        legitimate state ("no update pending"), so there is no absence
+        sentinel to preserve against.
+        """
+        for i, existing in enumerate(self.software_update_infos):
+            if existing.id == sui.id:
+                self.software_update_infos[i] = sui
+                return sui
+        self.software_update_infos.append(sui)
+        return sui
 
     def odu_for_idu(self, idu: IndoorUnit) -> OutdoorUnit | None:
         """Return the OutdoorUnit connected to the given IDU, or None."""
@@ -448,7 +519,12 @@ class SystemSnapshot:
         """Return the NotifierService topic strings for this snapshot.
 
         Pass the result directly to ``client.stream(topics)``.  Covers all
-        rooms, indoor units, outdoor units, and controllers.
+        rooms, indoor units, outdoor units, controllers, QSMs, remote
+        sensors, and software-update records.
+
+        Note: comfort settings, schedules, and locations are not delivered
+        over the notifier stream — re-fetch a snapshot to pick up changes to
+        those (e.g. after editing presets in the Quilt app).
         """
         topics: list[str] = []
         for space in self.rooms:

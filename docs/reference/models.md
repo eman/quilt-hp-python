@@ -65,7 +65,7 @@ service = UserService(channel)
 ### `NotifierStream`
 
 ```python
-from quilt_hp.services.streaming import NotifierStream
+from quilt_hp import NotifierStream  # also importable from quilt_hp.services.streaming
 
 # metadata_provider returns gRPC call metadata (e.g. auth headers).
 # Obtain a token from your QuiltClient or token store.
@@ -84,10 +84,11 @@ stream = NotifierStream.create(
 
 See [Streaming protocol behavior](../explanation/streaming-protocol.md) for the full state machine, event types, and reconnect behavior.
 
-Callback registration methods:
+Callback registration methods (each returns an *unsubscribe* callable —
+call it to detach the callback without stopping the stream):
 
 ```python
-stream.on_space_update(callback)
+unsub = stream.on_space_update(callback)
 stream.on_indoor_unit_update(callback)
 stream.on_outdoor_unit_update(callback)
 stream.on_controller_update(callback)
@@ -95,8 +96,14 @@ stream.on_qsm_update(callback)
 stream.on_remote_sensor_update(callback)
 stream.on_controller_remote_sensor_update(callback)
 stream.on_software_update_info(callback)
-stream.on_error(callback)
+stream.on_error(callback)       # fatal stream errors
+stream.on_connected(callback)   # fired on every successful (re)connect
+unsub()                         # detach the space callback
 ```
+
+`on_connected` fires on every successful connect and reconnect. Events
+published while disconnected are lost — use it to re-fetch a snapshot and
+close the gap.
 
 Lifecycle methods:
 
@@ -158,6 +165,7 @@ snapshot.apply_controller(controller)
 snapshot.apply_qsm(qsm)
 snapshot.apply_remote_sensor(sensor)
 snapshot.apply_controller_remote_sensor(sensor)
+snapshot.apply_software_update_info(info)
 ```
 
 ---
@@ -291,19 +299,28 @@ class IndoorUnitState:
 class OutdoorUnit:
     id: str
     system_id: str
+    space_id: str
+    hvac_state: HVACState
+    model_sku: str | None
     serial_number: str | None
-    model_name: str | None
-    state: OutdoorUnitState
+    firmware_version: str | None
+    firmware_update_info_id: str | None
+    performance_data: OutdoorUnitPerformanceData | None
 ```
 
-#### `OutdoorUnitState`
+#### `OutdoorUnitPerformanceData`
 
 ```python
 @dataclass
-class OutdoorUnitState:
-    updated_at: datetime | None
-    outdoor_temp_c: float | None
-    is_online: bool
+class OutdoorUnitPerformanceData:
+    measurement_interval_s: float
+    energy_measurement_j: float
+    compressor_frequency_hz: float
+    ambient_temperature_c: float
+    coil_temperature_c: float
+    exhaust_temperature_c: float
+    high_pressure_kpa: float
+    low_pressure_kpa: float
 ```
 
 ---
@@ -315,19 +332,31 @@ class OutdoorUnitState:
 class Controller:
     id: str
     system_id: str
+    space_id: str
+    name: str
+    raw_thermistor_c: float | None      # None when no state reading available
+    pcb_temperature_a_c: float | None
+    pcb_temperature_b_c: float | None
+    calibrated_ambient_c: float | None  # exposed as ambient_temperature_c
+    wifi_ssid: str | None
+    wifi_ip: str | None
+    wifi_signal_dbm: int | None
+    wifi_freq_mhz: int | None
+    wifi_last_seen: datetime | None
+    ap_wifi: WifiInfo | None
+    p2p_wifi: WifiInfo | None
+    remote_sensor_mode: RemoteSensorControlMode
+    software_update_info_id: str | None
+    firmware_update_info_id: str | None
     serial_number: str | None
+    model_sku: str | None
     firmware_version: str | None
-    state: ControllerState
+    state_updated_at: datetime | None
+    local_comms_health: LocalCommsHealthStatus
 ```
 
-#### `ControllerState`
-
-```python
-@dataclass
-class ControllerState:
-    updated_at: datetime | None
-    is_online: bool
-```
+Useful properties: `ambient_temperature_c` (→ `calibrated_ambient_c`, `None`
+when no state reading is available), `wifi_band`, `is_online`.
 
 ---
 
