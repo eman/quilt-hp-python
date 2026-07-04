@@ -1157,6 +1157,7 @@ def test_system_snapshot_rooms() -> None:
         indoor_units=[],
         outdoor_units=[],
         outdoor_unit_hardware=[],
+        indoor_unit_hardware=[],
         controller_hardware=[],
         controllers=[],
         quilt_smart_modules=[],
@@ -1218,6 +1219,7 @@ def test_system_snapshot_primary_location() -> None:
         indoor_units=[],
         outdoor_units=[],
         outdoor_unit_hardware=[],
+        indoor_unit_hardware=[],
         controller_hardware=[],
         controllers=[],
         quilt_smart_modules=[],
@@ -1247,6 +1249,7 @@ def test_system_snapshot_no_locations() -> None:
         indoor_units=[],
         outdoor_units=[],
         outdoor_unit_hardware=[],
+        indoor_unit_hardware=[],
         controller_hardware=[],
         controllers=[],
         quilt_smart_modules=[],
@@ -1274,6 +1277,7 @@ def test_system_snapshot_space_by_name() -> None:
         indoor_units=[],
         outdoor_units=[],
         outdoor_unit_hardware=[],
+        indoor_unit_hardware=[],
         controller_hardware=[],
         controllers=[],
         quilt_smart_modules=[],
@@ -1324,6 +1328,7 @@ def test_system_snapshot_hardware_map_deserializes_model_sku_with_prefixed_ids()
                 ),
             )
         ],
+        indoor_unit_hardware=[],
         controller_hardware=[
             _ns(
                 header=_make_header("controller_hardware/ctrl-hw-1"),
@@ -1394,6 +1399,49 @@ def test_system_snapshot_hardware_map_deserializes_model_sku_with_prefixed_ids()
     assert snap.controllers[0].firmware_version == "9.8.7"
 
 
+def test_system_snapshot_resolves_indoor_unit_hardware() -> None:
+    """IDU serial/firmware/model_sku are resolved from indoor_unit_hardware."""
+    proto = _ns(
+        spaces=[],
+        indoor_units=[_make_idu_proto("idu-1")],  # relationships.hardware_id == "hw-1"
+        outdoor_units=[],
+        outdoor_unit_hardware=[],
+        indoor_unit_hardware=[
+            _ns(
+                header=_make_header("hw-1"),
+                attributes=_ns(
+                    model_sku="IDU-SKU-1",
+                    serial_number="QS1-1B0RG633B",
+                    firmware_version="43",
+                ),
+            )
+        ],
+        controller_hardware=[],
+        controllers=[],
+        quilt_smart_modules=[],
+        comfort_settings=[],
+        schedule_weeks=[],
+        schedule_days=[],
+        remote_sensors=[],
+        controller_remote_sensors=[],
+        software_update_infos=[],
+        locations=[],
+    )
+
+    snap = SystemSnapshot.from_proto(proto)
+    assert snap.indoor_units[0].model_sku == "IDU-SKU-1"
+    assert snap.indoor_units[0].serial_number == "QS1-1B0RG633B"
+    assert snap.indoor_units[0].firmware_version == "43"
+
+    # A sparse stream diff (no hw_map) must not erase the resolved hardware info.
+    diff = IndoorUnit.from_proto(_make_idu_proto("idu-1"))
+    assert diff.serial_number is None
+    merged = snap.apply_indoor_unit(diff)
+    assert merged.serial_number == "QS1-1B0RG633B"
+    assert merged.firmware_version == "43"
+    assert merged.model_sku == "IDU-SKU-1"
+
+
 def test_system_snapshot_hardware_map_deserializes_model_sku_with_colon_and_case_variants() -> (
     None
 ):
@@ -1421,6 +1469,7 @@ def test_system_snapshot_hardware_map_deserializes_model_sku_with_colon_and_case
                 ),
             )
         ],
+        indoor_unit_hardware=[],
         controller_hardware=[
             _ns(
                 header=_make_header("controller_hardware:ctrl-hw-1"),
@@ -1525,6 +1574,7 @@ def _make_snap_with_comfort_settings() -> SystemSnapshot:
         indoor_units=[],
         outdoor_units=[],
         outdoor_unit_hardware=[],
+        indoor_unit_hardware=[],
         controller_hardware=[],
         controllers=[],
         quilt_smart_modules=[],
@@ -1701,6 +1751,7 @@ def _make_snap_with_multiple_odus() -> SystemSnapshot:
                 _make_odu_proto("odu-3"),  # present but not linked to any IDU
             ],
             outdoor_unit_hardware=[],
+            indoor_unit_hardware=[],
             controller_hardware=[],
             controllers=[],
             quilt_smart_modules=[],

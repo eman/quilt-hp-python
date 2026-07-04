@@ -224,6 +224,10 @@ class SystemSnapshot:
         which would make ``state.updated_at=None`` and therefore
         ``is_online=False``, causing ``led_on`` and
         ``effective_occupancy_state`` to report stale data.
+
+        Hardware info (``model_sku``, ``serial_number``, ``firmware_version``)
+        is only populated at initial snapshot load from ``indoor_unit_hardware``
+        and is never present in stream diffs, so preserve it.
         """
         for i, u in enumerate(self.indoor_units):
             if u.id == idu.id:
@@ -278,6 +282,11 @@ class SystemSnapshot:
                     updates["presence"] = u.presence
                 if idu.occupancy is None and u.occupancy is not None:
                     updates["occupancy"] = u.occupancy
+                # Preserve hardware info — stream diffs are parsed without hw_map
+                if idu.model_sku is None and u.model_sku is not None:
+                    updates["model_sku"] = u.model_sku
+                    updates["serial_number"] = u.serial_number
+                    updates["firmware_version"] = u.firmware_version
                 if updates:
                     idu = replace(idu, **updates)
                 self.indoor_units[i] = idu
@@ -571,6 +580,7 @@ class SystemSnapshot:
             return hw_map
 
         odu_hw_map = _build_hw_map(p.outdoor_unit_hardware)
+        idu_hw_map = _build_hw_map(p.indoor_unit_hardware)
         ctrl_hw_map = _build_hw_map(p.controller_hardware)
 
         locations = [Location.from_proto(loc) for loc in p.locations]
@@ -589,7 +599,7 @@ class SystemSnapshot:
 
         return cls(
             spaces=spaces,
-            indoor_units=[IndoorUnit.from_proto(u) for u in p.indoor_units],
+            indoor_units=[IndoorUnit.from_proto(u, idu_hw_map) for u in p.indoor_units],
             outdoor_units=[OutdoorUnit.from_proto(u, odu_hw_map) for u in p.outdoor_units],
             controllers=[Controller.from_proto(c, ctrl_hw_map) for c in p.controllers],
             quilt_smart_modules=[QuiltSmartModule.from_proto(q) for q in p.quilt_smart_modules],
