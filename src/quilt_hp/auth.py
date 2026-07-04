@@ -207,12 +207,20 @@ async def authenticate(
 
     Token persistence is delegated to *token_store*. Pass ``None`` for
     purely in-memory/stateless operation (caller handles caching).
+
+    When *refresh_context* indicates the server rejected the current token
+    (transport/stream ``UNAUTHENTICATED``), the locally cached IdToken is
+    not trusted even if unexpired — a refresh is forced.  Otherwise a
+    revoked-but-unexpired token would be returned right back to the caller.
     """
-    now = time.time()
     cached = await _load_tokens(token_store, email) if token_store else None
+    server_rejected_token = refresh_context is not None and refresh_context.reason in (
+        TokenRefreshReason.TRANSPORT_UNAUTHENTICATED,
+        TokenRefreshReason.STREAM_UNAUTHENTICATED,
+    )
 
     # 1. Valid cached IdToken
-    if cached is not None and not cached.is_expired:
+    if cached is not None and not cached.is_expired and not server_rejected_token:
         logger.debug("Using cached token")
         return cached.id_token
 
@@ -239,10 +247,15 @@ async def authenticate(
                 raise
             logger.warning("Refresh failed; falling back to OTP")
         else:
+            # Cognito user pools may rotate the refresh token; persist the
+            # new one or the stored token dies after first use.
+            rotated = result.get("RefreshToken")
             tokens = CachedTokens(
                 id_token=_require_str(result, "IdToken"),
-                refresh_token=cached.refresh_token,
-                expires_at=now + _expires_in_s(result),
+                refresh_token=(
+                    rotated if isinstance(rotated, str) and rotated else cached.refresh_token
+                ),
+                expires_at=time.time() + _expires_in_s(result),
             )
             if token_store:
                 await _save_tokens(token_store, email, tokens)
@@ -260,10 +273,12 @@ async def authenticate(
         )
 
     result = await _do_otp_login(email, otp_callback)
+    # Expiry is measured from token receipt — the user may take minutes to
+    # enter the OTP code.
     tokens = CachedTokens(
         id_token=_require_str(result, "IdToken"),
         refresh_token=_require_str(result, "RefreshToken") if "RefreshToken" in result else "",
-        expires_at=now + _expires_in_s(result),
+        expires_at=time.time() + _expires_in_s(result),
     )
     if token_store:
         await _save_tokens(token_store, email, tokens)

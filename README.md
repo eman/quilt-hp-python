@@ -36,11 +36,15 @@ async def main():
         spaces = await client.list_spaces()
         await client.set_space(spaces[0].id, mode=HVACMode.COOL, cool_setpoint_c=22.0)
 
-        # Stream real-time updates
-        spaces = await client.list_spaces()
-        topics = [f"hds/space/{s.id}" for s in spaces]
-        async with client.stream(topics) as stream:
-            stream.on_space_update(lambda s: print(f"{s.name}: {s.state.ambient_temperature_c}°C"))
+        # Stream real-time updates — stream events are sparse diffs, so
+        # always merge them into a snapshot before use
+        snapshot = await client.get_snapshot()
+        async with client.stream(snapshot.stream_topics()) as stream:
+            def on_space(space):
+                merged = snapshot.apply_space(space)
+                print(f"{merged.name}: {merged.state.ambient_temperature_c}°C")
+
+            stream.on_space_update(on_space)
             await asyncio.sleep(60)
 
 asyncio.run(main())

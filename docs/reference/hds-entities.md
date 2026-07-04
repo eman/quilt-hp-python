@@ -142,8 +142,8 @@ The Quilt Dial is a compact circular thermostat (58 mm diameter) that can be wal
 | `id` | `str` | Unique object ID |
 | `space_id` | `str` | Space this Dial controls |
 | `name` | `str` | Display name |
-| `ambient_temperature_c` | `float` | Temperature measured by the Dial's built-in sensor |
-| `raw_thermistor_c` | `float` | Raw uncalibrated thermistor reading |
+| `ambient_temperature_c` | `float \| None` | Temperature measured by the Dial's built-in sensor; `None` when no state reading is available |
+| `raw_thermistor_c` | `float \| None` | Raw uncalibrated thermistor reading; `None` when no state reading is available |
 | `remote_sensor_mode` | `HvacControllerType` | How the Dial's temperature reading influences the space setpoint |
 | `model_sku` | `str \| None` | Hardware model identifier |
 | `serial_number` | `str \| None` | Unit serial number |

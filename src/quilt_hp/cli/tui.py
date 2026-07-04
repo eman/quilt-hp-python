@@ -8,8 +8,11 @@ Screen flow:
 
 from __future__ import annotations
 
+import asyncio
 import contextlib
 import datetime
+import logging
+from dataclasses import replace
 from typing import TYPE_CHECKING, ClassVar
 
 from rich.text import Text
@@ -24,11 +27,12 @@ from textual.containers import (
 )
 from textual.css.query import NoMatches
 from textual.reactive import reactive
-from textual.screen import Screen
+from textual.screen import ModalScreen, Screen
 from textual.widgets import (
     DataTable,
     Footer,
     Header,
+    Input,
     Label,
     ListItem,
     ListView,
@@ -39,9 +43,15 @@ from textual.widgets import (
     TabPane,
 )
 
+from quilt_hp.cli.constants import (
+    DEFAULT_COOL_SETPOINT_C,
+    DEFAULT_HEAT_SETPOINT_C,
+    clamp_setpoint_c,
+)
 from quilt_hp.cli.settings import SettingsStore
 from quilt_hp.cli.store import FileStore
 from quilt_hp.client import QuiltClient
+from quilt_hp.exceptions import QuiltAuthError
 from quilt_hp.models.controller import Controller
 from quilt_hp.models.enums import (
     FanSpeed,
@@ -62,6 +72,9 @@ from quilt_hp.models.sensor import RemoteSensor, RemoteSensorControlMode
 if TYPE_CHECKING:
     from quilt_hp.models.space import Space
     from quilt_hp.models.system import SystemSnapshot
+    from quilt_hp.services.streaming import NotifierStream
+
+logger = logging.getLogger(__name__)
 
 # ──────────────────────────────────────────────────────────────────
 # Persistent settings (delegates to quilt_hp.cli.settings)
@@ -156,7 +169,16 @@ _LOUVER_CYCLE = [
     LouverMode.FIXED,
     LouverMode.CLOSED,
 ]
-_OCC_CYCLE = [OccupancyMode.DISABLED, OccupancyMode.ENABLED]
+
+_WEEKDAY_NAMES = [
+    "Monday",
+    "Tuesday",
+    "Wednesday",
+    "Thursday",
+    "Friday",
+    "Saturday",
+    "Sunday",
+]
 
 
 def _tc(val_c: float | None, use_f: bool) -> str:
@@ -200,12 +222,6 @@ def _led_color_str(color_code: int) -> str:
         b = (color_code >> 8) & 0xFF
         w = color_code & 0xFF
         return f"#{r:02X}{g:02X}{b:02X}w{w:02X}"
-
-
-def _bar(level: float, width: int = 10) -> str:
-    """Render a simple block-character progress bar."""
-    filled = max(0, min(width, round(level * width)))
-    return "█" * filled + "░" * (width - filled)
 
 
 def _sku_or_none(model_sku: str | None) -> str | None:
@@ -289,6 +305,38 @@ def _cycle_next(current: object, cycle: list) -> object:
         return cycle[0]
 
 
+def _odu_for_space(
+    snapshot: SystemSnapshot, space_id: str, idu: IndoorUnit | None
+) -> OutdoorUnit | None:
+    """Resolve a room's ODU from the IDU link first, then by room relationship."""
+    if idu:
+        odu = snapshot.odu_for_idu(idu)
+        if odu is not None:
+            return odu
+    space_ids = _id_tokens(space_id)
+    return next(
+        (u for u in snapshot.outdoor_units if _id_tokens(u.space_id) & space_ids),
+        None,
+    )
+
+
+def _patch_schedule_paused(snapshot: SystemSnapshot, paused: bool) -> None:
+    """Patch the cached snapshot's primary location with a new paused state."""
+    loc = snapshot.primary_location
+    if loc is None:
+        return
+    idx = snapshot.locations.index(loc)
+    snapshot.locations[idx] = replace(loc, schedule_paused=paused)
+
+
+async def _set_schedule_paused(
+    client: QuiltClient, snapshot: SystemSnapshot, paused: bool
+) -> None:
+    """Toggle schedule execution server-side and patch the local cache."""
+    await client.set_schedule_execution(paused)
+    _patch_schedule_paused(snapshot, paused)
+
+
 # ──────────────────────────────────────────────────────────────────
 # CSS
 # ──────────────────────────────────────────────────────────────────
@@ -307,6 +355,41 @@ Screen {
     margin-top: 2;
     text-align: center;
     color: $text-muted;
+}
+
+/* Boot error */
+#boot-error-container {
+    align: center middle;
+    height: 100%;
+}
+#boot-error-title {
+    text-style: bold;
+    color: $error;
+    text-align: center;
+}
+#boot-error-message {
+    margin-top: 1;
+    text-align: center;
+}
+#boot-error-hint {
+    margin-top: 2;
+    text-align: center;
+    color: $text-muted;
+}
+
+/* OTP modal */
+OtpScreen {
+    align: center middle;
+}
+#otp-dialog {
+    width: 60;
+    height: auto;
+    border: round $primary;
+    padding: 1 2;
+    background: $surface;
+}
+#otp-label {
+    margin-bottom: 1;
 }
 
 /* Dashboard */
@@ -481,6 +564,46 @@ class LoadingScreen(Screen):
             self.query_one("#loading-label", Label).update(msg)
 
 
+class BootErrorScreen(Screen):
+    """Shown when startup fails — no perpetual spinner."""
+
+    def __init__(self, message: str, hint: str | None = None) -> None:
+        super().__init__()
+        self._message = message
+        self._hint = hint or "Check your connection and try again."
+
+    def compose(self) -> ComposeResult:
+        with Container(id="boot-error-container"):
+            yield Label("✗ Failed to start", id="boot-error-title")
+            yield Label(self._message, id="boot-error-message")
+            yield Label(f"{self._hint}\nPress q to quit.", id="boot-error-hint")
+
+
+class OtpScreen(ModalScreen[str]):
+    """Modal prompting for the one-time passcode emailed during login."""
+
+    def __init__(self, email: str) -> None:
+        super().__init__()
+        self._email = email
+
+    def compose(self) -> ComposeResult:
+        with Vertical(id="otp-dialog"):
+            yield Label(
+                f"✉ A one-time code was sent to {self._email}.\nEnter it below:",
+                id="otp-label",
+            )
+            yield Input(placeholder="123456", id="otp-input")
+
+    def on_mount(self) -> None:
+        self.query_one("#otp-input", Input).focus()
+
+    @on(Input.Submitted, "#otp-input")
+    def _submit(self, event: Input.Submitted) -> None:
+        code = event.value.strip()
+        if code:
+            self.dismiss(code)
+
+
 # ──────────────────────────────────────────────────────────────────
 # DashboardScreen
 # ──────────────────────────────────────────────────────────────────
@@ -494,6 +617,7 @@ class RoomListItem(ListItem):
         self._space_id = space.id
         self._space_name = space.name
         self._idu = idu
+        self._use_f = use_f
         self.update_space(space, idu, use_f)
 
     @property
@@ -535,6 +659,7 @@ class RoomListItem(ListItem):
         self, space: Space, idu: IndoorUnit | None = None, use_f: bool = False
     ) -> None:
         self._space = space
+        self._use_f = use_f
         if idu is not None:
             self._idu = idu
         with contextlib.suppress(NoMatches):
@@ -542,7 +667,7 @@ class RoomListItem(ListItem):
 
     def compose(self) -> ComposeResult:
         yield Static(
-            self._build_row(self._space, self._idu, False),
+            self._build_row(self._space, self._idu, self._use_f),
             id=f"room-row-{self._space_id}",
         )
 
@@ -557,17 +682,33 @@ class DashboardScreen(Screen):
         Binding("enter", "select_room", "Room Detail"),
     ]
 
-    use_f: reactive[bool] = reactive(False)
-
     def __init__(
         self,
         snapshot: SystemSnapshot,
         client: QuiltClient,
     ) -> None:
         super().__init__()
-        self._snapshot = snapshot
+        self._snapshot = snapshot  # fallback when not attached to a QuiltApp
         self._client = client
         self._items: dict[str, RoomListItem] = {}  # space_id → ListItem
+
+    @property
+    def snapshot(self) -> SystemSnapshot:
+        """The app-owned snapshot, falling back to the constructor value."""
+        with contextlib.suppress(Exception):
+            app = self.app
+            if isinstance(app, QuiltApp) and app.snapshot is not None:
+                return app.snapshot
+        return self._snapshot
+
+    @property
+    def use_f(self) -> bool:
+        """App-level °C/°F preference (falls back to °C when unmounted)."""
+        with contextlib.suppress(Exception):
+            app = self.app
+            if isinstance(app, QuiltApp):
+                return app.use_f
+        return False
 
     def compose(self) -> ComposeResult:
         yield Header(show_clock=True)
@@ -577,51 +718,71 @@ class DashboardScreen(Screen):
 
     def _idu_for(self, space_id: str) -> IndoorUnit | None:
         return next(
-            (u for u in self._snapshot.indoor_units if u.space_id == space_id),
+            (u for u in self.snapshot.indoor_units if u.space_id == space_id),
             None,
         )
 
     def _odu_for(self, space_id: str, idu: IndoorUnit | None) -> OutdoorUnit | None:
         """Resolve room ODU from IDU link first, then by room relationship."""
-        if idu:
-            odu = self._snapshot.odu_for_idu(idu)
-            if odu is not None:
-                return odu
-        space_ids = _id_tokens(space_id)
-        return next(
-            (u for u in self._snapshot.outdoor_units if _id_tokens(u.space_id) & space_ids),
-            None,
-        )
+        return _odu_for_space(self.snapshot, space_id, idu)
 
     def on_mount(self) -> None:
         lv = self.query_one(ListView)
-        for space in self._snapshot.rooms:
+        for space in self.snapshot.rooms:
             item = RoomListItem(space, self._idu_for(space.id), self.use_f)
             self._items[space.id] = item
             lv.append(item)
         self._refresh_statusbar()
         self.set_interval(60, self._auto_refresh)
 
+    def on_screen_resume(self) -> None:
+        """Re-render rows from the merged snapshot when returning to this screen."""
+        self.refresh_units()
+
+    def refresh_units(self) -> None:
+        """Re-render all room rows and the statusbar from the current snapshot."""
+        snap = self.snapshot
+        use_f = self.use_f
+        for space_id, item in self._items.items():
+            space = next((s for s in snap.rooms if s.id == space_id), None)
+            if space:
+                item.update_space(space, self._idu_for(space_id), use_f)
+                item.refresh()
+        self._refresh_statusbar()
+
     async def _apply_snapshot(self, snap: SystemSnapshot) -> None:
-        """Replace the current snapshot and rebuild the room list in-place."""
+        """Adopt a fresh snapshot and rebuild the room list in-place."""
         self._snapshot = snap
-        # Keep app-level snapshot in sync for stream dispatcher comfort maps.
-        self.app._snapshot = snap  # type: ignore[attr-defined]
-        self._items.clear()
+        app = self.app
+        if isinstance(app, QuiltApp):
+            app.update_snapshot(snap)
         lv = self.query_one(ListView)
+        # Preserve the highlighted room across the rebuild.
+        highlighted = lv.highlighted_child
+        selected_id = highlighted.space_id if isinstance(highlighted, RoomListItem) else None
+        old_index = lv.index
+        self._items.clear()
         await lv.clear()
         for space in snap.rooms:
             item = RoomListItem(space, self._idu_for(space.id), self.use_f)
             self._items[space.id] = item
             lv.append(item)
+        if self._items:
+            ids = list(self._items)
+            if selected_id in self._items:
+                lv.index = ids.index(selected_id)
+            elif old_index is not None:
+                lv.index = min(old_index, len(ids) - 1)
         self._refresh_statusbar()
 
     @work
     async def _auto_refresh(self) -> None:
         """Periodic silent re-sync with server state (called every 60 s)."""
-        with contextlib.suppress(Exception):
+        try:
             snap = await self._client.get_snapshot()
             await self._apply_snapshot(snap)
+        except Exception as exc:
+            logger.warning("Dashboard auto-refresh failed: %s", exc)
 
     @work
     async def action_refresh(self) -> None:
@@ -633,7 +794,7 @@ class DashboardScreen(Screen):
             self.notify(f"Refresh failed: {exc}", severity="error")
 
     def _refresh_statusbar(self) -> None:
-        snap = self._snapshot
+        snap = self.snapshot
         tz = snap.timezone or "?"
         loc = snap.primary_location
         sched = "⏸ PAUSED" if (loc and loc.schedule_paused) else "▶ RUNNING"
@@ -654,23 +815,31 @@ class DashboardScreen(Screen):
             item.update_space(space, idu, self.use_f)
             item.refresh()
 
-    def update_odu(self, odu: OutdoorUnit) -> None:
-        """Called when an ODU stream event arrives — refresh the statusbar."""
+    def update_idu(self, idu: IndoorUnit) -> None:
+        """Called from stream callbacks — refresh the row for the IDU's room."""
+        space = next((s for s in self.snapshot.rooms if s.id == idu.space_id), None)
+        if space is None:
+            return
+        item = self._items.get(space.id)
+        if item:
+            item.update_space(space, idu, self.use_f)
+            item.refresh()
+
+    def update_odu(self, _odu: OutdoorUnit) -> None:
+        """Called when an ODU stream event arrives — refresh the statusbar.
+
+        The updated ODU is already merged into the snapshot, which the
+        statusbar reads directly.
+        """
         self._refresh_statusbar()
 
-    def watch_use_f(self, use_f: bool) -> None:
-        for space_id, item in self._items.items():
-            space = next((s for s in self._snapshot.spaces if s.id == space_id), None)
-            if space:
-                item.update_space(space, None, use_f)
-                item.refresh()
-
     def action_toggle_units(self) -> None:
-        self.use_f = not self.use_f
-        self.app._persist()
+        app = self.app
+        if isinstance(app, QuiltApp):
+            app.use_f = not app.use_f
 
     def action_system(self) -> None:
-        self.app.push_screen(SystemScreen(self._snapshot, self._client, use_f=self.use_f))
+        self.app.push_screen(SystemScreen(self.snapshot, self._client, use_f=self.use_f))
 
     def action_select_room(self) -> None:
         lv = self.query_one(ListView)
@@ -686,19 +855,20 @@ class DashboardScreen(Screen):
             self._open_room(event.item.space_id)
 
     def _open_room(self, space_id: str) -> None:
-        space = next((s for s in self._snapshot.rooms if s.id == space_id), None)
+        snap = self.snapshot
+        space = next((s for s in snap.rooms if s.id == space_id), None)
         if space is None:
             return
         idu = next(
-            (u for u in self._snapshot.indoor_units if u.space_id == space_id),
+            (u for u in snap.indoor_units if u.space_id == space_id),
             None,
         )
         ctrl = next(
-            (c for c in self._snapshot.controllers if c.space_id == space_id),
+            (c for c in snap.controllers if c.space_id == space_id),
             None,
         )
         odu = self._odu_for(space_id, idu)
-        qsm = self._snapshot.qsm_for_idu(idu) if idu else None
+        qsm = snap.qsm_for_idu(idu) if idu else None
         self.app.push_screen(
             RoomScreen(
                 space=space,
@@ -706,7 +876,7 @@ class DashboardScreen(Screen):
                 controller=ctrl,
                 odu=odu,
                 qsm=qsm,
-                snapshot=self._snapshot,
+                snapshot=snap,
                 client=self._client,
                 use_f=self.use_f,
             )
@@ -744,7 +914,6 @@ class RoomScreen(Screen):
         Binding("f", "cycle_fan", "Fan"),
         Binding("l", "cycle_louver", "Louver"),
         Binding("L", "toggle_led", "LED"),
-        Binding("o", "cycle_occupancy", "Occ"),
         Binding("p", "toggle_schedule", "Pause Sched"),
         Binding("e", "refresh_energy", "Energy ↻"),
         Binding("[", "away_timeout_dec", "Away-5m", show=False),
@@ -759,8 +928,6 @@ class RoomScreen(Screen):
         Binding("alt+r", "radar_height_inc", "Radar H+", show=False),
         Binding("alt+t", "radar_height_dec", "Radar H-", show=False),
     ]
-
-    use_f: reactive[bool] = reactive(False)
 
     def __init__(
         self,
@@ -779,11 +946,51 @@ class RoomScreen(Screen):
         self._controller = controller
         self._odu = odu
         self._qsm = qsm
-        self._snapshot = snapshot
+        self._snapshot = snapshot  # fallback when not attached to a QuiltApp
         self._client = client
-        self.use_f = use_f
+        self._use_f = use_f
         self.title = space.name
         self.sub_title = "Room"
+
+    @property
+    def snapshot(self) -> SystemSnapshot:
+        """The app-owned snapshot, falling back to the constructor value."""
+        with contextlib.suppress(Exception):
+            app = self.app
+            if isinstance(app, QuiltApp) and app.snapshot is not None:
+                return app.snapshot
+        return self._snapshot
+
+    @property
+    def use_f(self) -> bool:
+        """App-level °C/°F preference (falls back to the constructor value)."""
+        with contextlib.suppress(Exception):
+            app = self.app
+            if isinstance(app, QuiltApp):
+                return app.use_f
+        return self._use_f
+
+    # Entity IDs for the app-level stream dispatchers.
+
+    @property
+    def space_id(self) -> str:
+        return self._space.id
+
+    @property
+    def idu_id(self) -> str | None:
+        return self._idu.id if self._idu else None
+
+    @property
+    def odu_id(self) -> str | None:
+        return self._odu.id if self._odu else None
+
+    @property
+    def controller_id(self) -> str | None:
+        return self._controller.id if self._controller else None
+
+    @property
+    def qsm_id(self) -> str | None:
+        return self._qsm.id if self._qsm else None
 
     # ── Layout ──────────────────────────────────────────────────
 
@@ -969,7 +1176,7 @@ class RoomScreen(Screen):
             yield _KVStatic(id="e-7day")
             yield _KVStatic(id="e-30day")
         with Vertical(classes="energy-chart") as v:
-            v.border_title = "Last 24 Hours — Hourly (kWh)"
+            v.border_title = "Today — Hourly (kWh)"
             yield Static("", id="e-sparkline")
         yield DataTable(id="e-table")
 
@@ -995,7 +1202,7 @@ class RoomScreen(Screen):
         preset_name = "--"
         if c.comfort_setting_id:
             cs = next(
-                (x for x in self._snapshot.comfort_settings if x.id == c.comfort_setting_id),
+                (x for x in self.snapshot.comfort_settings if x.id == c.comfort_setting_id),
                 None,
             )
             if cs:
@@ -1022,7 +1229,11 @@ class RoomScreen(Screen):
             "Louver",
             idu.controls.louver_mode.name if idu else "--",
         )
-        if idu and idu.controls.louver_mode.name == "FIXED" and idu.controls.louver_fixed_position:
+        if (
+            idu
+            and idu.controls.louver_mode == LouverMode.FIXED
+            and idu.controls.louver_fixed_position
+        ):
             self._kv(
                 "ctl-louver-pos",
                 "  Fixed Pos",
@@ -1092,7 +1303,7 @@ class RoomScreen(Screen):
         state_preset_name = "--"
         if s.comfort_setting_id:
             cs_state = next(
-                (x for x in self._snapshot.comfort_settings if x.id == s.comfort_setting_id),
+                (x for x in self.snapshot.comfort_settings if x.id == s.comfort_setting_id),
                 None,
             )
             if cs_state:
@@ -1132,7 +1343,7 @@ class RoomScreen(Screen):
         away_cs = next(
             (
                 cs
-                for cs in self._snapshot.comfort_settings
+                for cs in self.snapshot.comfort_settings
                 if cs.space_id == space.id and cs.type.name == "AWAY"
             ),
             None,
@@ -1165,7 +1376,7 @@ class RoomScreen(Screen):
             _tc(s.ambient_temperature_c, use_f),
             "green",
         )
-        if idu and idu.state.calculated_ambient_temperature_c:
+        if idu and idu.state.calculated_ambient_temperature_c is not None:
             self._kv(
                 "sen-calc-ambient",
                 "Ambient (calc)",
@@ -1177,14 +1388,19 @@ class RoomScreen(Screen):
             "sen-humidity",
             "Humidity",
             f"{idu.state.ambient_humidity_percent:.0f}%"
-            if idu and idu.state.ambient_humidity_percent
+            if idu and idu.state.ambient_humidity_percent is not None
             else "--",
         )
         fan_rpm = idu.state.fan_speed_rpm if idu and idu.state else None
+        if fan_rpm is None:
+            fan_rpm_str = "--"
+        else:
+            # 0 RPM is a real reading — the fan is off.
+            fan_rpm_str = f"{fan_rpm:.0f} RPM" if fan_rpm else "Off"
         self._kv(
             "sen-fan-rpm",
             "Fan Speed (actual)",
-            f"{fan_rpm:.0f} RPM" if fan_rpm else "Off",
+            fan_rpm_str,
         )
         fan_sp_rpm = idu.state.fan_speed_setpoint_rpm if idu and idu.state else None
         self._kv(
@@ -1193,7 +1409,7 @@ class RoomScreen(Screen):
             f"{fan_sp_rpm:.0f} RPM" if fan_sp_rpm else "--",
         )
         self._kv("sen-setpoint", "Active Setpoint", _tc(s.setpoint_c, use_f))
-        if idu and idu.state.inlet_temperature_c:
+        if idu and idu.state.inlet_temperature_c is not None:
             self._kv(
                 "sen-inlet",
                 "Inlet Temp",
@@ -1201,7 +1417,7 @@ class RoomScreen(Screen):
             )
         else:
             self._kv("sen-inlet", "Inlet Temp", "--")
-        if idu and idu.state.outlet_temperature_c:
+        if idu and idu.state.outlet_temperature_c is not None:
             self._kv(
                 "sen-outlet",
                 "Outlet Temp",
@@ -1209,7 +1425,7 @@ class RoomScreen(Screen):
             )
         else:
             self._kv("sen-outlet", "Outlet Temp", "--")
-        if idu and idu.state.louver_angle_up_down_degrees:
+        if idu and idu.state.louver_angle_up_down_degrees is not None:
             self._kv(
                 "sen-louver-angle",
                 "Louver Angle",
@@ -1360,11 +1576,7 @@ class RoomScreen(Screen):
             self._kv("dial-remote-sensor", "Zone Sensor", rsm_str, rsm_style)
             # ControllerRemoteSensor — Dial acting as zone sensor
             crs = next(
-                (
-                    r
-                    for r in self._snapshot.controller_remote_sensors
-                    if r.controller_id == ctrl.id
-                ),
+                (r for r in self.snapshot.controller_remote_sensors if r.controller_id == ctrl.id),
                 None,
             )
             if crs:
@@ -1377,12 +1589,14 @@ class RoomScreen(Screen):
                 self._kv(
                     "dial-crs-humidity",
                     "  Zone Humidity",
-                    f"{crs.humidity_percent:.0f}%" if crs.humidity_percent else "--",
+                    f"{crs.humidity_percent:.0f}%" if crs.humidity_percent is not None else "--",
                 )
                 self._kv(
                     "dial-crs-battery",
                     "  Battery",
-                    f"{crs.battery_level_percent:.0f}%" if crs.battery_level_percent else "--",
+                    f"{crs.battery_level_percent:.0f}%"
+                    if crs.battery_level_percent is not None
+                    else "--",
                 )
                 self._kv(
                     "dial-crs-signal",
@@ -1757,21 +1971,11 @@ class RoomScreen(Screen):
 
     def _populate_schedule(self) -> None:
         space_id = self._space.id
-        snap = self._snapshot
+        snap = self.snapshot
 
         week = next((w for w in snap.schedule_weeks if w.space_id == space_id), None)
         self._sched_day_by_id = {d.id: d for d in snap.schedule_days}
         self._sched_cs_by_id = {cs.id: cs for cs in snap.comfort_settings}
-
-        _DAYS = [
-            "Monday",
-            "Tuesday",
-            "Wednesday",
-            "Thursday",
-            "Friday",
-            "Saturday",
-            "Sunday",
-        ]
 
         week_table: DataTable = self.query_one("#sched-week", DataTable)
         if not week_table.columns:
@@ -1780,14 +1984,14 @@ class RoomScreen(Screen):
         week_table.clear()
         # Each weekday can map to multiple day programs (one event each).
         # _sched_row_day_ids[i] is a list of day_ids for weekday i+1.
-        self._sched_row_day_ids: list[list[str]] = [[] for _ in _DAYS]
+        self._sched_row_day_ids: list[list[str]] = [[] for _ in _WEEKDAY_NAMES]
 
         if week:
             for wd in week.days:
                 idx = wd.weekday - 1  # weekday 1=Mon … 7=Sun → 0-based
                 if 0 <= idx < 7:
                     self._sched_row_day_ids[idx].append(wd.day_id)
-            for day_name in _DAYS:
+            for day_name in _WEEKDAY_NAMES:
                 week_table.add_row(day_name)
             # Show Monday's events by default
             self._populate_day_events(
@@ -1800,7 +2004,7 @@ class RoomScreen(Screen):
                 label="Monday",
             )
         else:
-            for day_name in _DAYS:
+            for day_name in _WEEKDAY_NAMES:
                 week_table.add_row(day_name)
             self._populate_day_events([], {}, label="Monday")
 
@@ -1809,22 +2013,13 @@ class RoomScreen(Screen):
 
     @on(DataTable.RowHighlighted, "#sched-week")
     def _on_sched_week_row_highlighted(self, event: DataTable.RowHighlighted) -> None:
-        _DAYS = [
-            "Monday",
-            "Tuesday",
-            "Wednesday",
-            "Thursday",
-            "Friday",
-            "Saturday",
-            "Sunday",
-        ]
         idx = event.cursor_row
-        row_ids = getattr(self, "_sched_row_day_ids", [[] for _ in _DAYS])
+        row_ids = getattr(self, "_sched_row_day_ids", [[] for _ in _WEEKDAY_NAMES])
         cs_by_id = getattr(self, "_sched_cs_by_id", {})
         day_by_id = getattr(self, "_sched_day_by_id", {})
         day_ids = row_ids[idx] if idx < len(row_ids) else []
         days = [day_by_id[did] for did in day_ids if did in day_by_id]
-        self._populate_day_events(days, cs_by_id, label=_DAYS[idx] if idx < 7 else "")
+        self._populate_day_events(days, cs_by_id, label=_WEEKDAY_NAMES[idx] if idx < 7 else "")
 
     def _populate_day_events(self, days: list, cs_by_id: dict, label: str = "") -> None:
         from quilt_hp.models.enums import HVACMode as _HM
@@ -1903,7 +2098,7 @@ class RoomScreen(Screen):
         try:
             self._set_energy_status("⟳ Loading energy data…")
             tz = datetime.UTC
-            snap_tz = self._snapshot.timezone
+            snap_tz = self.snapshot.timezone
             if snap_tz:
                 try:
                     import zoneinfo
@@ -1928,7 +2123,7 @@ class RoomScreen(Screen):
         except NoMatches:
             pass
 
-    def _populate_energy(self, metrics: object | None, tz: datetime.timezone) -> None:
+    def _populate_energy(self, metrics: object | None, tz: datetime.tzinfo) -> None:
         from quilt_hp.models.energy import SpaceEnergyMetrics
 
         table: DataTable = self.query_one("#e-table", DataTable)
@@ -2027,14 +2222,7 @@ class RoomScreen(Screen):
 
     def update_idu(self, idu: IndoorUnit) -> None:
         self._idu = idu
-        odu = self._snapshot.odu_for_idu(idu)
-        if odu is None:
-            space_ids = _id_tokens(self._space.id)
-            odu = next(
-                (u for u in self._snapshot.outdoor_units if _id_tokens(u.space_id) & space_ids),
-                None,
-            )
-        self._odu = odu
+        self._odu = _odu_for_space(self.snapshot, self._space.id, idu)
         self._populate_status()
         self._populate_perf()
 
@@ -2060,8 +2248,12 @@ class RoomScreen(Screen):
         self._fetch_energy()
 
     def action_toggle_units(self) -> None:
-        self.use_f = not self.use_f
-        self.app._persist()
+        app = self.app
+        if isinstance(app, QuiltApp):
+            app.use_f = not app.use_f
+
+    def refresh_units(self) -> None:
+        """Re-render temperature-bearing panels after a °C/°F change."""
         self._populate_status()
         self._populate_perf()
 
@@ -2093,10 +2285,10 @@ class RoomScreen(Screen):
             return
         c = self._space.controls
         if which == "heat":
-            val = (c.heating_setpoint_c or 20.0) + delta
+            val = clamp_setpoint_c((c.heating_setpoint_c or DEFAULT_HEAT_SETPOINT_C) + delta)
             self._mutate_space(heat_setpoint_c=val)
         else:
-            val = (c.cooling_setpoint_c or 26.0) + delta
+            val = clamp_setpoint_c((c.cooling_setpoint_c or DEFAULT_COOL_SETPOINT_C) + delta)
             self._mutate_space(cool_setpoint_c=val)
 
     def action_cycle_fan(self) -> None:
@@ -2114,16 +2306,15 @@ class RoomScreen(Screen):
     def action_toggle_led(self) -> None:
         if not self._idu:
             return
-        new_brightness = 0.0 if self._idu.controls.light_on else 1.0
-        self._mutate_idu(led_brightness=new_brightness)
-
-    def action_cycle_occupancy(self) -> None:
-        if not self._space:
+        if self._idu.controls.light_on:
+            self._mutate_idu(led_brightness=0.0)
             return
-        nxt = _cycle_next(self._space.settings.occupancy_mode, _OCC_CYCLE)
-        # occupancy_mode is a settings field; mutate via a future API if added.
-        # For now notify the user it's read-only in this version.
-        self.notify(f"Occupancy mode would → {nxt.name} (not yet wired)", timeout=3)
+        # Restore the stored brightness (preserved server-side when off);
+        # fall back to the configured default, then full brightness.
+        restore = self._idu.controls.led_brightness
+        if restore <= 0.0:
+            restore = self._idu.settings.light_brightness_default_percent or 1.0
+        self._mutate_idu(led_brightness=restore)
 
     _AWAY_TIMEOUT_STEP_S: float = 300.0  # 5 minutes
     _RETURN_TIMEOUT_STEP_S: float = 60.0  # 1 minute
@@ -2158,7 +2349,7 @@ class RoomScreen(Screen):
         self._mutate_settings(occupied_timeout_s=cur + self._RETURN_TIMEOUT_STEP_S)
 
     def action_toggle_schedule(self) -> None:
-        loc = self._snapshot.primary_location
+        loc = self.snapshot.primary_location
         if loc is None:
             self.notify("No location found", severity="error")
             return
@@ -2288,14 +2479,7 @@ class RoomScreen(Screen):
     @work
     async def _do_toggle_schedule(self, paused: bool) -> None:
         try:
-            await self._client.set_schedule_execution(paused)
-            loc = self._snapshot.primary_location
-            if loc:
-                # patch local cache
-                from dataclasses import replace
-
-                patched = replace(loc, schedule_paused=paused)
-                self._snapshot.locations[0] = patched
+            await _set_schedule_paused(self._client, self.snapshot, paused)
             self._update_schedule_status(paused)
             self.notify("Schedules " + ("paused" if paused else "resumed"), timeout=2)
         except Exception as exc:
@@ -2316,8 +2500,6 @@ class SystemScreen(Screen):
         Binding("p", "toggle_schedule", "Pause Sched"),
     ]
 
-    use_f: reactive[bool] = reactive(False)
-
     def __init__(
         self,
         snapshot: SystemSnapshot,
@@ -2326,9 +2508,27 @@ class SystemScreen(Screen):
         use_f: bool = False,
     ) -> None:
         super().__init__()
-        self._snapshot = snapshot
+        self._snapshot = snapshot  # fallback when not attached to a QuiltApp
         self._client = client
-        self.use_f = use_f
+        self._use_f = use_f
+
+    @property
+    def snapshot(self) -> SystemSnapshot:
+        """The app-owned snapshot, falling back to the constructor value."""
+        with contextlib.suppress(Exception):
+            app = self.app
+            if isinstance(app, QuiltApp) and app.snapshot is not None:
+                return app.snapshot
+        return self._snapshot
+
+    @property
+    def use_f(self) -> bool:
+        """App-level °C/°F preference (falls back to the constructor value)."""
+        with contextlib.suppress(Exception):
+            app = self.app
+            if isinstance(app, QuiltApp):
+                return app.use_f
+        return self._use_f
 
     def compose(self) -> ComposeResult:
         yield Header(show_clock=True)
@@ -2340,12 +2540,12 @@ class SystemScreen(Screen):
 
             # ODU row — one panel per outdoor unit
             with Horizontal(id="odu-row"):
-                if self._snapshot.outdoor_units:
-                    for i in range(len(self._snapshot.outdoor_units)):
+                if self.snapshot.outdoor_units:
+                    for i in range(len(self.snapshot.outdoor_units)):
                         with Vertical(classes="odu-panel") as v:
                             v.border_title = (
                                 f"Outdoor Unit {i + 1}"
-                                if len(self._snapshot.outdoor_units) > 1
+                                if len(self.snapshot.outdoor_units) > 1
                                 else "Outdoor Unit"
                             )
                             yield Static(id=f"sys-odu-{i}")
@@ -2372,7 +2572,7 @@ class SystemScreen(Screen):
         self._populate()
 
     def _populate(self) -> None:
-        snap = self._snapshot
+        snap = self.snapshot
         use_f = self.use_f
 
         # Header
@@ -2475,8 +2675,10 @@ class SystemScreen(Screen):
                 idu_to_room.get(rs.indoor_unit_id, rs.indoor_unit_id[:8]),
                 Text(mode_str, style=mode_style),
                 _tc(rs.ambient_temperature_c, use_f),
-                f"{rs.humidity_percent:.0f}%" if rs.humidity_percent else "--",
-                f"{rs.battery_level_percent:.0f}%" if rs.battery_level_percent else "--",
+                f"{rs.humidity_percent:.0f}%" if rs.humidity_percent is not None else "--",
+                f"{rs.battery_level_percent:.0f}%"
+                if rs.battery_level_percent is not None
+                else "--",
                 f"{rs.signal_level_dbm} dBm" if rs.signal_level_dbm else "--",
             )
         for crs in snap.controller_remote_sensors:
@@ -2505,8 +2707,10 @@ class SystemScreen(Screen):
                 room_name,
                 Text(mode_str, style=mode_style),
                 _tc(crs.ambient_temperature_c, use_f),
-                f"{crs.humidity_percent:.0f}%" if crs.humidity_percent else "--",
-                f"{crs.battery_level_percent:.0f}%" if crs.battery_level_percent else "--",
+                f"{crs.humidity_percent:.0f}%" if crs.humidity_percent is not None else "--",
+                f"{crs.battery_level_percent:.0f}%"
+                if crs.battery_level_percent is not None
+                else "--",
                 f"{crs.signal_level_dbm} dBm" if crs.signal_level_dbm else "--",
             )
 
@@ -2568,8 +2772,12 @@ class SystemScreen(Screen):
     def action_back(self) -> None:
         self.app.pop_screen()
 
-    def update_odu(self, odu: OutdoorUnit) -> None:
-        """Called by QuiltApp stream dispatcher when an ODU update arrives."""
+    def update_odu(self, _odu: OutdoorUnit) -> None:
+        """Called by QuiltApp stream dispatcher when an ODU update arrives.
+
+        The updated ODU is already merged into the snapshot, which
+        ``_populate`` reads directly.
+        """
         self._populate()
 
     def update_remote_sensor(self, rs: RemoteSensor) -> None:
@@ -2577,12 +2785,16 @@ class SystemScreen(Screen):
         self._populate()
 
     def action_toggle_units(self) -> None:
-        self.use_f = not self.use_f
+        app = self.app
+        if isinstance(app, QuiltApp):
+            app.use_f = not app.use_f
+
+    def refresh_units(self) -> None:
+        """Re-render the system panels after a °C/°F change."""
         self._populate()
-        self.app._persist()
 
     def action_toggle_schedule(self) -> None:
-        loc = self._snapshot.primary_location
+        loc = self.snapshot.primary_location
         if loc is None:
             self.notify("No location found", severity="error")
             return
@@ -2591,13 +2803,7 @@ class SystemScreen(Screen):
     @work
     async def _do_toggle_schedule(self, paused: bool) -> None:
         try:
-            await self._client.set_schedule_execution(paused)
-            loc = self._snapshot.primary_location
-            if loc:
-                from dataclasses import replace
-
-                patched = replace(loc, schedule_paused=paused)
-                self._snapshot.locations[0] = patched
+            await _set_schedule_paused(self._client, self.snapshot, paused)
             self._populate()
             self.notify("Schedules " + ("paused" if paused else "resumed"), timeout=2)
         except Exception as exc:
@@ -2619,17 +2825,42 @@ class QuiltApp(App[None]):
         Binding("d", "toggle_dark", "Dark/Light", priority=True),
     ]
 
+    _STREAM_RECOVERY_DELAYS_S: ClassVar = (5.0, 15.0, 30.0)
+
+    use_f: reactive[bool] = reactive(False)
+
     def __init__(self, email: str, home: str | None = None) -> None:
         super().__init__()
         self._email = email
         self._home = home
         self._client = QuiltClient(email, home=home, snapshot_ttl_s=30, token_store=_token_store)
-        self._stream = None
-        self._snapshot = None
+        self._stream: NotifierStream | None = None
+        self._snapshot: SystemSnapshot | None = None
         self._settings = _settings_store.load()
-        # Apply persisted dark/light before first render
+        # Apply persisted preferences before first render; set_reactive avoids
+        # triggering watch_use_f before the app is running.
+        self.set_reactive(QuiltApp.use_f, self._settings.use_fahrenheit)
         if self._settings.dark is not None:
             self.theme = "textual-dark" if self._settings.dark else "textual-light"
+
+    # ── Shared state (single source of truth for all screens) ────
+
+    @property
+    def snapshot(self) -> SystemSnapshot | None:
+        """The current system snapshot shared by all screens."""
+        return self._snapshot
+
+    def update_snapshot(self, snap: SystemSnapshot) -> None:
+        """Adopt a freshly fetched snapshot as the shared source of truth."""
+        self._snapshot = snap
+
+    def watch_use_f(self, use_f: bool) -> None:
+        """Persist the °C/°F preference and re-render every stacked screen."""
+        self._persist()
+        for screen in self.screen_stack:
+            refresh = getattr(screen, "refresh_units", None)
+            if callable(refresh):
+                refresh()
 
     @property
     def _is_dark(self) -> bool:
@@ -2637,9 +2868,7 @@ class QuiltApp(App[None]):
 
     def _persist(self) -> None:
         """Save current toggleable settings to disk."""
-        screen = self.screen
-        use_f = getattr(screen, "use_f", self._settings.use_fahrenheit)
-        self._settings = _settings_store.update(use_fahrenheit=use_f, dark=self._is_dark)
+        self._settings = _settings_store.update(use_fahrenheit=self.use_f, dark=self._is_dark)
 
     def action_toggle_dark(self) -> None:
         self.theme = "textual-light" if self._is_dark else "textual-dark"
@@ -2649,6 +2878,10 @@ class QuiltApp(App[None]):
         self._loading_screen = LoadingScreen()
         self.push_screen(self._loading_screen)
         self._boot()
+
+    async def _prompt_otp(self, email: str) -> str:
+        """OTP callback for first-time logins — modal input in the TUI."""
+        return await self.push_screen_wait(OtpScreen(email))
 
     @work
     async def _boot(self) -> None:
@@ -2663,7 +2896,7 @@ class QuiltApp(App[None]):
 
         try:
             _set_status("Authenticating…")
-            await self._client.login()
+            await self._client.login(otp_callback=self._prompt_otp)
             _set_status("Loading system snapshot…")
             snap = await self._client.get_snapshot()
             self._snapshot = snap
@@ -2679,21 +2912,30 @@ class QuiltApp(App[None]):
             dashboard = DashboardScreen(snap, self._client)
             await self.switch_screen(dashboard)
 
-            # Restore persisted use_fahrenheit
-            # (dark mode already applied in __init__)
-            if self._settings.use_fahrenheit:
-                dashboard.use_f = True
-
             # Start the shared stream
             self._start_stream(snap)
 
+        except QuiltAuthError as exc:
+            self._show_boot_error(
+                str(exc),
+                "Authentication failed. Run `quilt login` in a terminal and retry.",
+            )
         except Exception as exc:
-            self.notify(f"Boot failed: {exc}", severity="error")
+            logger.exception("TUI boot failed")
+            self._show_boot_error(str(exc))
 
-    @work(exclusive=True)
+    def _show_boot_error(self, message: str, hint: str | None = None) -> None:
+        """Replace the loading spinner with an actionable error screen."""
+        self.notify(f"Boot failed: {message}", severity="error")
+        self.switch_screen(BootErrorScreen(message, hint))
+
+    # ── Stream lifecycle ─────────────────────────────────────────
+
+    @work(exclusive=True, group="stream")
     async def _start_stream(self, snap: SystemSnapshot) -> None:
         """Open shared NotifierStream, dispatch events to the active screen."""
         stream = self._client.stream(snap.stream_topics())
+        self._stream = stream
 
         # Stream callbacks are invoked from within async code on the same event
         # loop — call UI dispatch methods directly (no call_from_thread).
@@ -2703,16 +2945,67 @@ class QuiltApp(App[None]):
         stream.on_controller_update(self._dispatch_ctrl)
         stream.on_qsm_update(self._dispatch_qsm)
         stream.on_remote_sensor_update(self._dispatch_remote_sensor)
+        stream.on_error(self._on_stream_error)
 
-        with contextlib.suppress(Exception):
+        try:
             await stream.run_forever()
+        except asyncio.CancelledError:
+            raise
+        except Exception as exc:
+            # Fatal errors are normally reported via on_error; anything that
+            # still escapes run_forever is unexpected — surface it too.
+            logger.exception("NotifierStream terminated unexpectedly")
+            self._on_stream_error(exc)
+
+    def _on_stream_error(self, exc: Exception) -> None:
+        """Fatal stream error — tell the user and try to recover."""
+        logger.error("Notifier stream failed: %s", exc)
+        self._set_stream_disconnected(True)
+        self.notify(
+            f"Live updates disconnected: {exc}. Attempting to reconnect…",
+            severity="error",
+            timeout=8,
+        )
+        self._recover_stream()
+
+    def _set_stream_disconnected(self, disconnected: bool) -> None:
+        """Show/clear a visible 'stream disconnected' indicator."""
+        self.sub_title = "⚠ live updates disconnected" if disconnected else ""
+
+    @work(exclusive=True, group="stream-recovery")
+    async def _recover_stream(self) -> None:
+        """Re-fetch a snapshot and restart the stream, with backoff."""
+        for delay in self._STREAM_RECOVERY_DELAYS_S:
+            await asyncio.sleep(delay)
+            try:
+                snap = await self._client.get_snapshot()
+            except Exception as exc:
+                logger.warning("Stream recovery snapshot fetch failed: %s", exc)
+                continue
+            self.update_snapshot(snap)
+            for screen in self.screen_stack:
+                refresh = getattr(screen, "refresh_units", None)
+                if callable(refresh):
+                    refresh()
+            self._set_stream_disconnected(False)
+            self.notify("Live updates restored", timeout=3)
+            self._start_stream(snap)
+            return
+        self.notify(
+            "Could not restore live updates. Data may be stale — press r to refresh, "
+            "or restart the app.",
+            severity="error",
+            timeout=10,
+        )
+
+    # ── Stream event dispatchers ─────────────────────────────────
 
     def _dispatch_space(self, space: Space) -> None:
         if self._snapshot:
             space = self._snapshot.apply_space(space)
         screen = self.screen
         if isinstance(screen, DashboardScreen) or (
-            isinstance(screen, RoomScreen) and screen._space.id == space.id
+            isinstance(screen, RoomScreen) and screen.space_id == space.id
         ):
             screen.update_space(space)
 
@@ -2720,29 +3013,17 @@ class QuiltApp(App[None]):
         if self._snapshot:
             idu = self._snapshot.apply_indoor_unit(idu)
         screen = self.screen
-        if isinstance(screen, RoomScreen) and screen._idu and screen._idu.id == idu.id:
+        if (isinstance(screen, RoomScreen) and screen.idu_id == idu.id) or isinstance(
+            screen, DashboardScreen
+        ):
             screen.update_idu(idu)
-        elif isinstance(screen, DashboardScreen):
-            space = (
-                next(
-                    (s for s in self._snapshot.rooms if s.id == idu.space_id),
-                    None,
-                )
-                if self._snapshot
-                else None
-            )
-            if space:
-                item = screen._items.get(space.id)
-                if item:
-                    item.update_space(space, idu, screen.use_f)
-                    item.refresh()
 
     def _dispatch_odu(self, odu: OutdoorUnit) -> None:
         if self._snapshot:
             odu = self._snapshot.apply_outdoor_unit(odu)
         screen = self.screen
         if isinstance(screen, (DashboardScreen, SystemScreen)) or (
-            isinstance(screen, RoomScreen) and screen._odu and screen._odu.id == odu.id
+            isinstance(screen, RoomScreen) and screen.odu_id == odu.id
         ):
             screen.update_odu(odu)
 
@@ -2750,18 +3031,14 @@ class QuiltApp(App[None]):
         if self._snapshot:
             ctrl = self._snapshot.apply_controller(ctrl)
         screen = self.screen
-        if (
-            isinstance(screen, RoomScreen)
-            and screen._controller
-            and screen._controller.id == ctrl.id
-        ):
+        if isinstance(screen, RoomScreen) and screen.controller_id == ctrl.id:
             screen.update_ctrl(ctrl)
 
     def _dispatch_qsm(self, qsm: QuiltSmartModule) -> None:
         if self._snapshot:
             qsm = self._snapshot.apply_qsm(qsm)
         screen = self.screen
-        if isinstance(screen, RoomScreen) and screen._qsm and screen._qsm.id == qsm.id:
+        if isinstance(screen, RoomScreen) and screen.qsm_id == qsm.id:
             screen.update_qsm(qsm)
 
     def _dispatch_remote_sensor(self, rs: RemoteSensor) -> None:
@@ -2772,4 +3049,9 @@ class QuiltApp(App[None]):
             screen.update_remote_sensor(rs)
 
     async def on_unmount(self) -> None:
+        stream = self._stream
+        self._stream = None
+        if stream is not None:
+            with contextlib.suppress(Exception):
+                await stream.stop()
         await self._client.close()

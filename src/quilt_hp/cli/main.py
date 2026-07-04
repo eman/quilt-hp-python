@@ -19,6 +19,7 @@ except ImportError:
     sys.exit(1)
 
 from quilt_hp import __version__
+from quilt_hp.cli.constants import SETPOINT_MAX_C, SETPOINT_MIN_C
 from quilt_hp.cli.settings import SettingsStore
 from quilt_hp.cli.store import FileStore
 from quilt_hp.client import QuiltClient
@@ -37,6 +38,25 @@ class OutputMode(StrEnum):
 
     SUMMARY = "summary"
     JSON = "json"
+
+
+class EnergyPeriod(StrEnum):
+    """Reporting period for the energy command."""
+
+    DAY = "day"
+    WEEK = "week"
+    MONTH = "month"
+
+
+# User-settable HVAC modes (FALLBACK_* are device-side fallback states).
+_SETTABLE_MODES = (
+    HVACMode.COOL,
+    HVACMode.HEAT,
+    HVACMode.AUTO,
+    HVACMode.FAN,
+    HVACMode.DRY,
+    HVACMode.STANDBY,
+)
 
 
 class _EntityWithId(Protocol):
@@ -415,7 +435,9 @@ def login(
                 console.print(
                     f"[yellow]✉ OTP sent to {challenge_email} — check your email.[/yellow]"
                 )
-                return cast("str", typer.prompt("Enter OTP code")).strip()
+                # typer.prompt blocks on stdin — run it off the event loop.
+                code = await asyncio.to_thread(typer.prompt, "Enter OTP code")
+                return cast("str", code).strip()
 
             await client.login(otp_callback=_prompt_for_otp)
             console.print("[green]✓ Successfully logged in![/green]")
@@ -647,8 +669,12 @@ def presets(
             console.print("\n[bold]═══ Comfort Settings ═══[/bold]")
             for cs in settings:
                 mode = cs.hvac_mode.name
-                heat = f"{cs.heating_setpoint_c:.1f}°C" if cs.heating_setpoint_c else "--"
-                cool = f"{cs.cooling_setpoint_c:.1f}°C" if cs.cooling_setpoint_c else "--"
+                heat = (
+                    f"{cs.heating_setpoint_c:.1f}°C" if cs.heating_setpoint_c is not None else "--"
+                )
+                cool = (
+                    f"{cs.cooling_setpoint_c:.1f}°C" if cs.cooling_setpoint_c is not None else "--"
+                )
                 fan = cs.fan_speed.name
                 console.print(f"\n  [cyan]{cs.name}[/cyan] ({cs.type.name})")
                 console.print(f"    Mode: {mode}  Heat: {heat}  Cool: {cool}  Fan: {fan}")
@@ -701,7 +727,10 @@ def schedules(
 def energy(
     email: str | None = typer.Option(None, envvar="QUILT_EMAIL", help="Quilt account email"),
     home: str | None = typer.Option(None, help="Specific home name to connect to"),
-    period: str = typer.Option("day", help="Time period: day, week, month"),
+    period: EnergyPeriod = typer.Option(  # noqa: B008
+        EnergyPeriod.DAY,
+        help="Time period: day, week, month",
+    ),
 ) -> None:
     """Show energy consumption metrics."""
     email, home = _resolve(email, home)
@@ -716,12 +745,12 @@ def energy(
             now = datetime.now(tz=zoneinfo.ZoneInfo(snapshot.timezone or "UTC"))
             start = now.replace(hour=0, minute=0, second=0, microsecond=0)
 
-            if period == "day":
+            if period == EnergyPeriod.DAY:
                 end = start + timedelta(days=1) - timedelta(seconds=1)
-            elif period == "week":
+            elif period == EnergyPeriod.WEEK:
                 start = start - timedelta(days=start.weekday())
                 end = start + timedelta(weeks=1) - timedelta(seconds=1)
-            else:  # month
+            else:  # EnergyPeriod.MONTH
                 start = start.replace(day=1)
                 if start.month == 12:
                     end = start.replace(year=start.year + 1, month=1) - timedelta(seconds=1)
@@ -733,7 +762,7 @@ def energy(
             console.print(f"\n  [bold][{period.upper()}][/bold] {header}\n")
             for sm in metrics:
                 name = name_by_id.get(sm.space_id, sm.space_id[:8])
-                total = getattr(sm, "total_kwh", 0)
+                total = sm.total_kwh
                 if total == 0:
                     continue
                 console.print(f"  {name:<22}  total={total:.3f} kWh")
@@ -745,14 +774,42 @@ def energy(
 def set_space(
     space_name: str = typer.Argument(..., help="Exact name of the room to update"),
     mode: str | None = typer.Option(None, help="HVAC mode: COOL, HEAT, AUTO, FAN, DRY, STANDBY"),
-    heat: float | None = typer.Option(None, help="Heating setpoint in °C"),
-    cool: float | None = typer.Option(None, help="Cooling setpoint in °C"),
+    heat: float | None = typer.Option(
+        None,
+        min=SETPOINT_MIN_C,
+        max=SETPOINT_MAX_C,
+        help=f"Heating setpoint in °C ({SETPOINT_MIN_C:.0f}–{SETPOINT_MAX_C:.0f})",
+    ),
+    cool: float | None = typer.Option(
+        None,
+        min=SETPOINT_MIN_C,
+        max=SETPOINT_MAX_C,
+        help=f"Cooling setpoint in °C ({SETPOINT_MIN_C:.0f}–{SETPOINT_MAX_C:.0f})",
+    ),
     fan: str | None = typer.Option(None, help="Fan speed: AUTO, QUIET, LOW, MEDIUM, HIGH, BLAST"),
     email: str | None = typer.Option(None, envvar="QUILT_EMAIL", help="Quilt account email"),
     home: str | None = typer.Option(None, help="Specific home name to connect to"),
 ) -> None:
     """Update HVAC mode and setpoints for a room."""
+    if mode is None and heat is None and cool is None and fan is None:
+        console.print(
+            "[red]Nothing to update:[/red] provide at least one of --mode, --heat, --cool, --fan."
+        )
+        raise typer.Exit(1)
+
     email, home = _resolve(email, home)
+
+    if mode:
+        try:
+            hvac_mode: HVACMode | None = HVACMode[mode.upper()]
+            if hvac_mode not in _SETTABLE_MODES:
+                raise KeyError(mode)
+        except KeyError:
+            valid = ", ".join(m.name.lower() for m in _SETTABLE_MODES)
+            console.print(f"[red]Invalid mode {mode!r}. Valid: {valid}[/red]")
+            raise typer.Exit(1) from None
+    else:
+        hvac_mode = None
 
     async def _set() -> None:
         async with _client_snapshot(email, home) as (client, snap):
@@ -763,16 +820,6 @@ def set_space(
             if not space:
                 console.print(f"[red]Room {space_name!r} not found.[/red]")
                 raise typer.Exit(1)
-
-            if mode:
-                try:
-                    hvac_mode: HVACMode | None = HVACMode[mode.upper()]
-                except KeyError:
-                    valid = ", ".join(m.name.lower() for m in HVACMode if m.value)
-                    console.print(f"[red]Invalid mode {mode!r}. Valid: {valid}[/red]")
-                    raise typer.Exit(1) from None
-            else:
-                hvac_mode = None
 
             if fan:
                 try:
