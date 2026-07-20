@@ -5,10 +5,11 @@
 ### Added
 - `IndoorUnit.presence_detected` — realtime room presence as a single bool: True
   if either radar channel reports DETECTED (mirrors the vendor app's
-  `combinedSensorPresence`), False if a channel reports UNDETECTED, None when the
-  IDU is offline or the radar hasn't reported. This is the fast (seconds-latency)
-  counterpart to the debounced `effective_occupancy_state` (auto-away decision,
-  ~3 min to set / ~20 min to clear by default). ([#21])
+  `combinedSensorPresence`), False if neither channel is DETECTED and at least one
+  is UNDETECTED, None when the IDU is offline or the radar hasn't reported. This
+  is the fast (seconds-latency) counterpart to the debounced
+  `effective_occupancy_state` (auto-away decision, ~3 min to set / ~20 min to
+  clear by default). ([#21])
 
 ### Changed
 - Clarified presence/occupancy semantics throughout ([#21]):

@@ -146,7 +146,7 @@ def controller_device_info(ctrl, snapshot) -> DeviceInfo:
 | `sensor` (temperature) | Living Room Temperature | `IndoorUnit.state` | `ambient_temperature_c` | No |
 | `sensor` (humidity) | Living Room Humidity | `IndoorUnit.state` | `ambient_humidity_percent` | No |
 | `binary_sensor` (presence) | Living Room Presence | `IndoorUnit.presence_detected` | OR of both radar channels | No |
-| `binary_sensor` (occupancy) | Living Room Occupancy (auto-away) | `IndoorUnit.effective_occupancy_state` | `occupancy_state == OccupancyState.DETECTED` | No |
+| `binary_sensor` (occupancy) | Living Room Occupancy (auto-away) | `IndoorUnit.effective_occupancy_state` | `effective_occupancy_state == OccupancyState.DETECTED` | No |
 | `light` | Living Room Light | `IndoorUnit.controls` | `led_state`, `led_brightness`, `led_color_code` | Yes — `client.set_indoor_unit()` |
 | `select` (fan speed) | Living Room Fan Speed | `IndoorUnit.controls` | `fan_speed` | Yes — `client.set_indoor_unit()` |
 | `select` (louver) | Living Room Louver | `IndoorUnit.controls` | `louver_mode` | Yes — `client.set_indoor_unit()` |
