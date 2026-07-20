@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [0.5.7] - 2026-07-20
+
 ### Added
 - `IndoorUnit.presence_detected` — realtime room presence as a single bool: True
   if either radar channel reports DETECTED (mirrors the vendor app's
