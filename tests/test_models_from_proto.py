@@ -1966,16 +1966,13 @@ def _online_idu_with_presence(s0: Presence, s1: Presence) -> IndoorUnit:
 
 def test_presence_detected_true_when_either_channel_detects() -> None:
     assert (
-        _online_idu_with_presence(Presence.DETECTED, Presence.UNDETECTED).presence_detected
-        is True
+        _online_idu_with_presence(Presence.DETECTED, Presence.UNDETECTED).presence_detected is True
     )
     assert (
-        _online_idu_with_presence(Presence.UNDETECTED, Presence.DETECTED).presence_detected
-        is True
+        _online_idu_with_presence(Presence.UNDETECTED, Presence.DETECTED).presence_detected is True
     )
     assert (
-        _online_idu_with_presence(Presence.DETECTED, Presence.DETECTED).presence_detected
-        is True
+        _online_idu_with_presence(Presence.DETECTED, Presence.DETECTED).presence_detected is True
     )
 
 
