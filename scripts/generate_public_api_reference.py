@@ -9,7 +9,6 @@ import pkgutil
 from pathlib import Path
 from typing import Any
 
-
 ROOT = Path(__file__).resolve().parents[1]
 OUT = ROOT / "docs" / "python-api" / "public-api-reference.md"
 

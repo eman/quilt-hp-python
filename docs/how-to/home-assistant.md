@@ -145,13 +145,14 @@ def controller_device_info(ctrl, snapshot) -> DeviceInfo:
 | `climate` | Living Room | `Space.controls` + `IndoorUnit.controls` | `hvac_mode`, `heating_setpoint_c`, `cooling_setpoint_c`, `fan_speed` | Yes — `client.set_space()` / `client.set_indoor_unit()` |
 | `sensor` (temperature) | Living Room Temperature | `IndoorUnit.state` | `ambient_temperature_c` | No |
 | `sensor` (humidity) | Living Room Humidity | `IndoorUnit.state` | `ambient_humidity_percent` | No |
-| `binary_sensor` (presence) | Living Room Presence | `IndoorUnit.effective_occupancy_state` | `occupancy_state != 0` | No |
+| `binary_sensor` (presence) | Living Room Presence | `IndoorUnit.presence_detected` | OR of both radar channels | No |
+| `binary_sensor` (occupancy) | Living Room Occupancy (auto-away) | `IndoorUnit.effective_occupancy_state` | `effective_occupancy_state == OccupancyState.DETECTED` | No |
 | `light` | Living Room Light | `IndoorUnit.controls` | `led_state`, `led_brightness`, `led_color_code` | Yes — `client.set_indoor_unit()` |
 | `select` (fan speed) | Living Room Fan Speed | `IndoorUnit.controls` | `fan_speed` | Yes — `client.set_indoor_unit()` |
 | `select` (louver) | Living Room Louver | `IndoorUnit.controls` | `louver_mode` | Yes — `client.set_indoor_unit()` |
 | `sensor` (Dial temperature) | Living Room Dial Temperature | `Controller` | `ambient_temperature_c` | No |
 
-> **Presence note**: Use `idu.effective_occupancy_state` rather than reading `idu.occupancy` directly. The property returns `None` when the IDU is offline, avoiding stale occupancy data being presented as current.
+> **Presence vs occupancy**: these are different signals — don't expose just one under an ambiguous name. `idu.presence_detected` is the **realtime** radar presence (flips within seconds; the vendor app's combined value). `idu.effective_occupancy_state` is the **derived** auto-away decision, debounced by ~3 min to set and ~20 min to clear (server defaults). Use the properties rather than reading `idu.presence` / `idu.occupancy` directly — both return `None` when the IDU is offline, avoiding stale data being presented as current.
 
 ### Resolving IDUs and Controllers for a space
 
