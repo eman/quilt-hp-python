@@ -208,7 +208,17 @@ class IndoorUnitConditions:
 
 @dataclass(slots=True)
 class IndoorUnitPresence:
-    """Radar presence sensor data — binary DETECTED / UNDETECTED per sensor."""
+    """Realtime radar presence — binary DETECTED / UNDETECTED per channel.
+
+    The IDU has a single mm-wave radar with two detection channels; the two
+    fields are those channels, not two physical sensors.  Which channel maps
+    to which radar measurement is unconfirmed, and in practice they move in
+    lockstep.  The vendor app never distinguishes them — it ORs both into one
+    room-presence value (see :attr:`IndoorUnit.presence_detected`).
+
+    These flip within seconds of someone entering or leaving the detection
+    fence.  For the slow auto-away decision, see :class:`IndoorUnitOccupancy`.
+    """
 
     sensor0_presence: Presence
     sensor1_presence: Presence
@@ -216,7 +226,14 @@ class IndoorUnitPresence:
 
 @dataclass(slots=True)
 class IndoorUnitOccupancy:
-    """Computed room occupancy state."""
+    """Derived occupancy — the server's auto-away engine decision.
+
+    Unlike the realtime :class:`IndoorUnitPresence` channels, this is a
+    debounced state: it needs roughly ``occupied_timeout_s`` (default 3 min)
+    of sustained presence to become DETECTED and ``unoccupied_timeout_s``
+    (default 20 min) of absence to clear.  It drives HVAC away/return setback,
+    so short walk-throughs do not move it.
+    """
 
     occupancy_state: int
 
@@ -287,6 +304,25 @@ class IndoorUnit:
         if not self.is_online or self.occupancy is None:
             return None
         return self.occupancy.occupancy_state
+
+    @property
+    def presence_detected(self) -> bool | None:
+        """Realtime room presence — True if either radar channel detects someone.
+
+        Mirrors the vendor app's ``combinedSensorPresence`` (OR of the two
+        channels).  Flips within seconds; use :attr:`effective_occupancy_state`
+        for the debounced auto-away decision instead.  Returns None when the
+        IDU is offline, has no presence data, or neither channel has reported
+        (both UNSPECIFIED).
+        """
+        if not self.is_online or self.presence is None:
+            return None
+        channels = (self.presence.sensor0_presence, self.presence.sensor1_presence)
+        if Presence.DETECTED in channels:
+            return True
+        if Presence.UNDETECTED in channels:
+            return False
+        return None
 
 
 def _idu_from_proto(proto: object, hw_map: dict[str, object] | None = None) -> IndoorUnit:

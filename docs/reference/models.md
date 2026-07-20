@@ -286,11 +286,33 @@ class IndoorUnitState:
     target_temp_c: float | None
     actual_temp_c: float | None
     is_online: bool         # updated_at within last 5 minutes
-    presence_detected: bool
     led_on: bool            # True only when is_online
 ```
 
 `is_online` is computed locally from `updated_at`: `datetime.now(UTC) - updated_at < timedelta(minutes=5)`. `led_on` returns `False` whenever `is_online` is `False`, even if `led_color_code` is non-zero.
+
+#### `IndoorUnitPresence` and `IndoorUnitOccupancy` — realtime vs derived
+
+```python
+@dataclass
+class IndoorUnitPresence:
+    sensor0_presence: Presence  # radar detection channel 0
+    sensor1_presence: Presence  # radar detection channel 1
+
+@dataclass
+class IndoorUnitOccupancy:
+    occupancy_state: int  # OccupancyState proto value
+```
+
+Occupancy data comes in three tiers — don't treat them as interchangeable:
+
+| Tier | Accessor | Latency | Meaning |
+|---|---|---|---|
+| Raw radar channels | `idu.presence.sensor0_presence` / `sensor1_presence` | seconds | The two detection channels of the IDU's single mm-wave radar. Channel semantics are unconfirmed and they move in lockstep in practice — avoid labeling them "motion" vs "presence". |
+| Realtime presence | `idu.presence_detected` | seconds | OR of both channels — the value the vendor app uses. `True`/`False`, or `None` when offline or unreported. |
+| Derived occupancy | `idu.effective_occupancy_state` | minutes | The server's auto-away decision: ~3 min of sustained presence to set, ~20 min of absence to clear (configurable via `SpaceSettings.occupied_timeout_s` / `unoccupied_timeout_s`). |
+
+Use `presence_detected` for "is someone in the room right now" and `effective_occupancy_state` for "does Quilt consider the room occupied for away/return setback". Both return `None` for offline IDUs so stale data is never presented as current.
 
 ---
 

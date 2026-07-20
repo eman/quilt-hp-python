@@ -1447,9 +1447,11 @@ class RoomScreen(Screen):
             occ_str, occ_style = "--", "dim italic"
         # occupancy_state is the auto-away engine decision (lags real presence
         # unoccupied_timeout_s).  It controls HVAC setback, not live radar.
-        self._kv("sen-occ-state", "Occupancy", occ_str, occ_style)
+        self._kv("sen-occ-state", "Occupancy (auto-away)", occ_str, occ_style)
 
-        # Presence sensors — binary DETECTED / UNDETECTED per radar sensor.
+        # Presence channels — binary DETECTED / UNDETECTED per radar detection
+        # channel.  One physical radar, two channels; they move in lockstep in
+        # practice and the vendor app ORs them (never "left"/"right" sensors).
         if idu and idu.presence:
             from quilt_hp.models.enums import Presence
 
@@ -1460,13 +1462,13 @@ class RoomScreen(Screen):
                     return "Not Detected", "dim"
                 return "--", "dim italic"
 
-            l_str, l_style = _presence_str(idu.presence.sensor0_presence)
-            r_str, r_style = _presence_str(idu.presence.sensor1_presence)
-            self._kv("sen-presence-l", "Radar L", l_str, l_style)
-            self._kv("sen-presence-r", "Radar R", r_str, r_style)
+            ch0_str, ch0_style = _presence_str(idu.presence.sensor0_presence)
+            ch1_str, ch1_style = _presence_str(idu.presence.sensor1_presence)
+            self._kv("sen-presence-l", "Radar ch 0", ch0_str, ch0_style)
+            self._kv("sen-presence-r", "Radar ch 1", ch1_str, ch1_style)
         else:
-            self._kv("sen-presence-l", "Radar L", "--")
-            self._kv("sen-presence-r", "Radar R", "--")
+            self._kv("sen-presence-l", "Radar ch 0", "--")
+            self._kv("sen-presence-r", "Radar ch 1", "--")
 
         # Presence detection level and fence geometry (from IDU settings)
         if idu:

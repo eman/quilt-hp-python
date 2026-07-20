@@ -2,6 +2,29 @@
 
 ## [Unreleased]
 
+### Added
+- `IndoorUnit.presence_detected` — realtime room presence as a single bool: True
+  if either radar channel reports DETECTED (mirrors the vendor app's
+  `combinedSensorPresence`), False if neither channel is DETECTED and at least one
+  is UNDETECTED, None when the IDU is offline or the radar hasn't reported. This
+  is the fast (seconds-latency) counterpart to the debounced
+  `effective_occupancy_state` (auto-away decision, ~3 min to set / ~20 min to
+  clear by default). ([#21])
+
+### Changed
+- Clarified presence/occupancy semantics throughout ([#21]):
+  `IndoorUnitPresence.sensor0_presence`/`sensor1_presence` are the two detection
+  channels of the IDU's single mm-wave radar (they move in lockstep in practice;
+  channel semantics unconfirmed) — not two physical sensors. TUI labels renamed
+  accordingly: "Radar L"/"Radar R" → "Radar ch 0"/"Radar ch 1", and "Occupancy" →
+  "Occupancy (auto-away)". Docs: removed the phantom
+  `IndoorUnitState.presence_detected` field from the model reference, documented
+  the three-tier presence model (raw channels / realtime presence / derived
+  occupancy), and fixed the Home Assistant guide, which previously mapped the
+  *derived* occupancy state to an entity named "Presence".
+
+[#21]: https://github.com/eman/quilt-hp-python/issues/21
+
 ## [0.5.6] - 2026-07-04
 
 ### Fixed
