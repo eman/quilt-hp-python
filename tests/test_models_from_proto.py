@@ -25,10 +25,11 @@ from quilt_hp.models.enums import (
     LocalCommsHealthStatus,
     LouverMode,
     OccupancyMode,
+    Presence,
     RemoteSensorControlMode,
     SafetyHeatingMode,
 )
-from quilt_hp.models.indoor_unit import IndoorUnit
+from quilt_hp.models.indoor_unit import IndoorUnit, IndoorUnitPresence
 from quilt_hp.models.outdoor_unit import OutdoorUnit
 from quilt_hp.models.qsm import QuiltSmartModule, WifiInfo
 from quilt_hp.models.schedule import ScheduleDay, ScheduleEvent, ScheduleWeek
@@ -1952,3 +1953,59 @@ def test_apply_controller_preserves_local_comms_health_on_sparse_diff() -> None:
     result = snap.apply_controller(diff)
 
     assert result.local_comms_health == LocalCommsHealthStatus.DEGRADED
+
+
+# ---------------------------------------------------------------- presence_detected
+
+
+def _online_idu_with_presence(s0: Presence, s1: Presence) -> IndoorUnit:
+    idu = IndoorUnit.from_proto(_make_idu_proto())
+    idu.presence = IndoorUnitPresence(sensor0_presence=s0, sensor1_presence=s1)
+    return idu
+
+
+def test_presence_detected_true_when_either_channel_detects() -> None:
+    assert (
+        _online_idu_with_presence(Presence.DETECTED, Presence.UNDETECTED).presence_detected
+        is True
+    )
+    assert (
+        _online_idu_with_presence(Presence.UNDETECTED, Presence.DETECTED).presence_detected
+        is True
+    )
+    assert (
+        _online_idu_with_presence(Presence.DETECTED, Presence.DETECTED).presence_detected
+        is True
+    )
+
+
+def test_presence_detected_false_when_both_channels_clear() -> None:
+    assert (
+        _online_idu_with_presence(Presence.UNDETECTED, Presence.UNDETECTED).presence_detected
+        is False
+    )
+    # One channel silent, the other reporting absence → still False
+    assert (
+        _online_idu_with_presence(Presence.UNSPECIFIED, Presence.UNDETECTED).presence_detected
+        is False
+    )
+
+
+def test_presence_detected_none_when_unreported_offline_or_absent() -> None:
+    # Both channels UNSPECIFIED = sensor has not reported
+    assert (
+        _online_idu_with_presence(Presence.UNSPECIFIED, Presence.UNSPECIFIED).presence_detected
+        is None
+    )
+    # No presence sub-message at all
+    idu = IndoorUnit.from_proto(_make_idu_proto())
+    assert idu.presence is None
+    assert idu.presence_detected is None
+    # Offline IDU gates out stale presence data
+    proto = _make_idu_proto()
+    proto.state.updated_ts = _ns(seconds=0)
+    offline = IndoorUnit.from_proto(proto)
+    offline.presence = IndoorUnitPresence(
+        sensor0_presence=Presence.DETECTED, sensor1_presence=Presence.DETECTED
+    )
+    assert offline.presence_detected is None
