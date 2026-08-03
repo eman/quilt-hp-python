@@ -8,6 +8,11 @@ from typing import Any, cast
 from quilt_hp.models._helpers import _id_variants
 from quilt_hp.models.comfort import ComfortSetting
 from quilt_hp.models.controller import Controller
+from quilt_hp.models.diagnostics import (
+    IndoorUnitDiagnostics,
+    OutdoorUnitDiagnostics,
+    SystemDiagnostics,
+)
 from quilt_hp.models.enums import (
     ComfortSettingType,
     HVACMode,
@@ -575,6 +580,26 @@ class SystemSnapshot:
         for sui in self.software_update_infos:
             topics.append(f"hds/software_update_info/{sui.id}")
         return topics
+
+    def diagnostics(self) -> SystemDiagnostics:
+        """Assemble the installer-style diagnostic view from this snapshot.
+
+        Returns per-indoor-unit fault conditions (including the outdoor-unit /
+        refrigerant conditions surfaced through each IDU), refrigerant-circuit
+        temperatures, and power, plus a coarse per-outdoor-unit entry. The ODU's
+        own raw sensors are not on the cloud plane; see
+        :class:`~quilt_hp.models.diagnostics.OutdoorUnitDiagnostics`.
+        """
+        space_names = {space.id: space.name for space in self.spaces}
+        return SystemDiagnostics(
+            indoor_units=[
+                IndoorUnitDiagnostics.from_indoor_unit(idu, space_names.get(idu.space_id, ""))
+                for idu in self.indoor_units
+            ],
+            outdoor_units=[
+                OutdoorUnitDiagnostics.from_outdoor_unit(odu) for odu in self.outdoor_units
+            ],
+        )
 
     @classmethod
     def from_proto(cls, proto: object) -> SystemSnapshot:

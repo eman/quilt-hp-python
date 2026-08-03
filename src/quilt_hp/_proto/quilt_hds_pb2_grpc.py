@@ -1730,3 +1730,75 @@ class HomeDatastoreService(object):
             timeout,
             metadata,
             _registered_method=True)
+
+
+class CommandServiceStub(object):
+    """Missing associated documentation comment in .proto file."""
+
+    def __init__(self, channel):
+        """Constructor.
+
+        Args:
+            channel: A grpc.Channel.
+        """
+        self.RequestFastUpdates = channel.unary_unary(
+                '/core.protos.home_datastore.CommandService/RequestFastUpdates',
+                request_serializer=quilt__hds__pb2.RequestFastUpdatesRequest.SerializeToString,
+                response_deserializer=google_dot_protobuf_dot_empty__pb2.Empty.FromString,
+                _registered_method=True)
+
+
+class CommandServiceServicer(object):
+    """Missing associated documentation comment in .proto file."""
+
+    def RequestFastUpdates(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+
+def add_CommandServiceServicer_to_server(servicer, server):
+    rpc_method_handlers = {
+            'RequestFastUpdates': grpc.unary_unary_rpc_method_handler(
+                    servicer.RequestFastUpdates,
+                    request_deserializer=quilt__hds__pb2.RequestFastUpdatesRequest.FromString,
+                    response_serializer=google_dot_protobuf_dot_empty__pb2.Empty.SerializeToString,
+            ),
+    }
+    generic_handler = grpc.method_handlers_generic_handler(
+            'core.protos.home_datastore.CommandService', rpc_method_handlers)
+    server.add_generic_rpc_handlers((generic_handler,))
+    server.add_registered_method_handlers('core.protos.home_datastore.CommandService', rpc_method_handlers)
+
+
+ # This class is part of an EXPERIMENTAL API.
+class CommandService(object):
+    """Missing associated documentation comment in .proto file."""
+
+    @staticmethod
+    def RequestFastUpdates(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/core.protos.home_datastore.CommandService/RequestFastUpdates',
+            quilt__hds__pb2.RequestFastUpdatesRequest.SerializeToString,
+            google_dot_protobuf_dot_empty__pb2.Empty.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)

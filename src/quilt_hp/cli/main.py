@@ -7,6 +7,7 @@ import json
 import sys
 from collections.abc import AsyncIterator, Callable, Coroutine, Sequence
 from contextlib import asynccontextmanager
+from dataclasses import asdict
 from enum import StrEnum
 from functools import wraps
 from typing import Any, Protocol, cast
@@ -156,6 +157,18 @@ def _resolve(email: str | None, home: str | None) -> tuple[str, str | None]:
 
 def _space_name_by_id(snap: SystemSnapshot) -> dict[str, str]:
     return {space.id: space.name for space in snap.spaces}
+
+
+def _fmt_c(value: float | None) -> str:
+    return "n/a" if value is None else f"{value:.1f}°C"
+
+
+def _fmt_pct(value: float | None) -> str:
+    return "n/a" if value is None else f"{value:.0f}%"
+
+
+def _fmt_w(value: float | None) -> str:
+    return "n/a" if value is None else f"{value:.2f}W"
 
 
 def _snapshot_payload(snap: SystemSnapshot) -> dict[str, Any]:
@@ -649,6 +662,84 @@ def values(
                 )
 
     _run(_values())
+
+
+@app.command()
+def diagnostics(
+    email: str | None = typer.Option(None, envvar="QUILT_EMAIL", help="Quilt account email"),
+    home: str | None = typer.Option(None, help="Specific home name to connect to"),
+    faults_only: bool = typer.Option(
+        False, "--faults-only", help="Only show indoor units with an active fault condition."
+    ),
+    output: OutputMode = typer.Option(  # noqa: B008
+        OutputMode.SUMMARY,
+        "--output",
+        "-o",
+        help="Output mode: summary or json",
+    ),
+) -> None:
+    """Show system diagnostics: fault conditions, refrigerant temps, and power.
+
+    Assembles the installer-style diagnostic view from data the cloud API
+    returns on the indoor units. The outdoor unit's own raw sensors (compressor
+    Hz, pressures, discharge temp) are withheld from the cloud plane and are not
+    shown.
+    """
+    email, home = _resolve(email, home)
+
+    async def _diagnostics() -> None:
+        async with _client_snapshot(email, home) as (_, snapshot):
+            diag = snapshot.diagnostics()
+
+            if output == OutputMode.JSON:
+                console.print(json.dumps(asdict(diag), indent=2, sort_keys=True, default=str))
+                return
+
+            idus = (
+                [d for d in diag.indoor_units if d.active_faults]
+                if faults_only
+                else (diag.indoor_units)
+            )
+            fault_total = len(diag.active_faults)
+            header = (
+                f"[red]{fault_total} active fault(s)[/red]"
+                if fault_total
+                else "[green]No active faults[/green]"
+            )
+            console.print(f"[bold]Diagnostics[/bold] — {header}\n")
+
+            if not idus:
+                console.print("  (no indoor units to show)")
+
+            for d in idus:
+                status = "online" if d.online else "[dim]offline[/dim]"
+                faults = (
+                    "[red]" + ", ".join(d.active_faults) + "[/red]" if d.active_faults else "none"
+                )
+                name = d.name or d.space_name or d.indoor_unit_id
+                console.print(
+                    f"[bold]{name}[/bold] ({d.space_name}) — {status}, state={d.hvac_state}"
+                )
+                console.print(f"    faults: {faults}")
+                console.print(
+                    "    refrigerant: "
+                    f"coil={_fmt_c(d.coil_temperature_c)} "
+                    f"gas={_fmt_c(d.gas_pipe_temperature_c)} "
+                    f"liquid={_fmt_c(d.liquid_pipe_temperature_c)} "
+                    f"inlet={_fmt_c(d.inlet_temperature_c)} "
+                    f"outlet={_fmt_c(d.outlet_temperature_c)} "
+                    f"humidity={_fmt_pct(d.inlet_humidity_pct)}"
+                )
+                console.print(f"    power: {_fmt_w(d.hvac_power_w)}\n")
+
+            console.print("[bold]Outdoor Units[/bold]")
+            for o in diag.outdoor_units:
+                console.print(
+                    f"  {o.outdoor_unit_id} state={o.hvac_state} "
+                    f"raw_sensors={'yes' if o.raw_sensors_available else 'no (cloud-withheld)'}"
+                )
+
+    _run(_diagnostics())
 
 
 @app.command()

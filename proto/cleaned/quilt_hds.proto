@@ -1045,3 +1045,31 @@ service HomeDatastoreService {
   rpc ListLocations(ListLocationsRequest)   returns (ListLocationsResponse);
 }
 
+// ---------------------------------------------------------------------------
+// CommandService — imperative device commands (new in com.quilt.android 255)
+// ---------------------------------------------------------------------------
+//
+// A separate service in the same home_datastore package. Registered in the
+// cloud gRPC stub only (api.prod.quilt.cloud) — there is no local endpoint.
+// Field numbers, method name, and enum values APK-confirmed from
+// com.quilt.android versionCode 255 (request class sh1, reason enum qh1).
+
+// Why the app is asking the cloud to raise the per-system telemetry cadence.
+enum FastUpdateReason {
+  FAST_UPDATE_REASON_UNSPECIFIED = 0;
+  // Local Zenoh mesh is degraded/offline, so the app leans on the cloud to
+  // poll the devices faster instead (there is no app-side local fast path).
+  FAST_UPDATE_REASON_LOCAL_COMMS_UNHEALTHY = 1;
+  // The user is actively interacting in the app.
+  FAST_UPDATE_REASON_USER_ACTIVITY = 2;
+}
+
+message RequestFastUpdatesRequest {
+  string system_id = 1;
+  FastUpdateReason reason = 2;
+}
+
+service CommandService {
+  rpc RequestFastUpdates(RequestFastUpdatesRequest) returns (google.protobuf.Empty);
+}
+

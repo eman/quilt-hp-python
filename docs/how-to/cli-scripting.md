@@ -49,6 +49,25 @@ quilt snapshot | jq '[.indoor_units[] | select(.state.is_online == false)]'
 
 ---
 
+## Check diagnostics
+
+```bash
+# Human-readable: per-IDU fault conditions, refrigerant temps, and power
+quilt diagnostics
+
+# Only indoor units with an active fault
+quilt diagnostics --faults-only
+
+# JSON for scripting — e.g. list every active fault system-wide
+quilt diagnostics --output json | jq '.indoor_units[] | select(.active_faults | length > 0) | {name, active_faults}'
+```
+
+The outdoor unit's own raw sensors (compressor Hz, pressures, discharge temp)
+are withheld from the cloud plane; the diagnostic conditions and refrigerant
+pipe temperatures for each ODU circuit are surfaced through its indoor units.
+
+---
+
 ## Control spaces from the shell
 
 ```bash
