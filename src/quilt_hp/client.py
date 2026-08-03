@@ -23,6 +23,8 @@ from typing import TYPE_CHECKING, Protocol, Self, TypeVar
 from quilt_hp.auth import OtpCallback, authenticate
 from quilt_hp.const import Environment
 from quilt_hp.exceptions import QuiltAuthError, QuiltError, QuiltNotFoundError
+from quilt_hp.models.enums import FastUpdateReason
+from quilt_hp.services.command import CommandService
 from quilt_hp.services.hds import HomeDatastoreService
 from quilt_hp.services.streaming import NotifierStream
 from quilt_hp.services.system import SystemInformationService
@@ -44,6 +46,7 @@ if TYPE_CHECKING:
     import grpc.aio
 
     from quilt_hp.models.comfort import ComfortSetting
+    from quilt_hp.models.diagnostics import SystemDiagnostics
     from quilt_hp.models.energy import SpaceEnergyMetrics
     from quilt_hp.models.enums import FanSpeed, HVACMode, LouverMode
     from quilt_hp.models.indoor_unit import IndoorUnit
@@ -102,6 +105,7 @@ class QuiltClient:
         self._hds: HomeDatastoreService | None = None
         self._sysinfo: SystemInformationService | None = None
         self._user_svc: UserService | None = None
+        self._command: CommandService | None = None
 
         # Snapshot cache
         self._snapshot_cache: SystemSnapshot | None = None
@@ -135,6 +139,7 @@ class QuiltClient:
             self._hds = HomeDatastoreService(self._channel)
             self._sysinfo = SystemInformationService(self._channel)
             self._user_svc = UserService(self._channel)
+            self._command = CommandService(self._channel)
         return self._channel
 
     def _require_channel(self) -> grpc.aio.Channel:
@@ -156,6 +161,11 @@ class QuiltClient:
         if self._user_svc is None:
             raise QuiltError("Client not connected. Call login() first.")
         return self._user_svc
+
+    def _require_command(self) -> CommandService:
+        if self._command is None:
+            raise QuiltError("Client not connected. Call login() first.")
+        return self._command
 
     async def _resolve_system_id(self, system_id: str | None = None) -> str:
         return system_id or await self.get_system_id()
@@ -312,6 +322,19 @@ class QuiltClient:
         logger.debug("Invalidating snapshot cache")
         self._snapshot_cache = None
         self._snapshot_cached_at = 0.0
+
+    async def get_diagnostics(self, system_id: str | None = None) -> SystemDiagnostics:
+        """Fetch the installer-style diagnostic view for a system.
+
+        Convenience wrapper over ``get_snapshot().diagnostics()``. Returns the
+        per-indoor-unit fault/condition matrix (including outdoor-unit and
+        refrigerant conditions surfaced through each IDU), refrigerant-circuit
+        temperatures, and per-unit power — the diagnostic data the cloud plane
+        exposes. The outdoor unit's own raw sensors are not included (see
+        :class:`~quilt_hp.models.diagnostics.OutdoorUnitDiagnostics`).
+        """
+        snapshot = await self.get_snapshot(system_id)
+        return snapshot.diagnostics()
 
     # --- Space control ---
 
@@ -586,6 +609,30 @@ class QuiltClient:
         sid = await self._resolve_system_id(system_id)
         return await self._require_sysinfo().get_energy_metrics(sid, start, end)
 
+    # --- Telemetry cadence ---
+
+    async def request_fast_updates(
+        self,
+        *,
+        reason: FastUpdateReason = FastUpdateReason.USER_ACTIVITY,
+        system_id: str | None = None,
+    ) -> None:
+        """Ask the cloud to raise the telemetry cadence for a system.
+
+        Calls ``CommandService/RequestFastUpdates`` — the same lever the mobile
+        app pulls when the user is active or a device's local mesh is degraded.
+        The effect is a faster stream of state updates over the
+        NotifierService stream; there is no return value.
+
+        Args:
+            reason: Why fast updates are being requested (default:
+                ``USER_ACTIVITY``).
+            system_id: Target system; defaults to the client's resolved system.
+        """
+        command = self._require_command()
+        sid = await self._resolve_system_id(system_id)
+        await command.request_fast_updates(sid, reason)
+
     # --- Streaming ---
 
     def stream(
@@ -695,6 +742,7 @@ class QuiltClient:
         self._hds = None
         self._sysinfo = None
         self._user_svc = None
+        self._command = None
 
     async def __aenter__(self) -> Self:
         return self

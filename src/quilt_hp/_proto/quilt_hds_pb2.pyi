@@ -544,6 +544,42 @@ WIFI_STATE_GROUP_HANDSHAKE: WifiConnectionState.ValueType  # 9
 WIFI_STATE_WPA_COMPLETED: WifiConnectionState.ValueType  # 10
 Global___WifiConnectionState: _TypeAlias = WifiConnectionState  # noqa: Y015
 
+class _FastUpdateReason:
+    ValueType = _typing.NewType("ValueType", _builtins.int)
+    V: _TypeAlias = ValueType  # noqa: Y015
+
+class _FastUpdateReasonEnumTypeWrapper(_enum_type_wrapper._EnumTypeWrapper[_FastUpdateReason.ValueType], _builtins.type):
+    DESCRIPTOR: _descriptor.EnumDescriptor
+    FAST_UPDATE_REASON_UNSPECIFIED: _FastUpdateReason.ValueType  # 0
+    FAST_UPDATE_REASON_LOCAL_COMMS_UNHEALTHY: _FastUpdateReason.ValueType  # 1
+    """Local Zenoh mesh is degraded/offline, so the app leans on the cloud to
+    poll the devices faster instead (there is no app-side local fast path).
+    """
+    FAST_UPDATE_REASON_USER_ACTIVITY: _FastUpdateReason.ValueType  # 2
+    """The user is actively interacting in the app."""
+
+class FastUpdateReason(_FastUpdateReason, metaclass=_FastUpdateReasonEnumTypeWrapper):
+    """---------------------------------------------------------------------------
+    CommandService — imperative device commands (new in com.quilt.android 255)
+    ---------------------------------------------------------------------------
+
+    A separate service in the same home_datastore package. Registered in the
+    cloud gRPC stub only (api.prod.quilt.cloud) — there is no local endpoint.
+    Field numbers, method name, and enum values APK-confirmed from
+    com.quilt.android versionCode 255 (request class sh1, reason enum qh1).
+
+    Why the app is asking the cloud to raise the per-system telemetry cadence.
+    """
+
+FAST_UPDATE_REASON_UNSPECIFIED: FastUpdateReason.ValueType  # 0
+FAST_UPDATE_REASON_LOCAL_COMMS_UNHEALTHY: FastUpdateReason.ValueType  # 1
+"""Local Zenoh mesh is degraded/offline, so the app leans on the cloud to
+poll the devices faster instead (there is no app-side local fast path).
+"""
+FAST_UPDATE_REASON_USER_ACTIVITY: FastUpdateReason.ValueType  # 2
+"""The user is actively interacting in the app."""
+Global___FastUpdateReason: _TypeAlias = FastUpdateReason  # noqa: Y015
+
 @_typing.final
 class LocalCommsStatus(_message.Message):
     """Local communications status for a QSM or Controller mesh node.
@@ -3995,3 +4031,25 @@ class ListLocationsResponse(_message.Message):
     def WhichOneof(self, oneof_group: _Never) -> None: ...
 
 Global___ListLocationsResponse: _TypeAlias = ListLocationsResponse  # noqa: Y015
+
+@_typing.final
+class RequestFastUpdatesRequest(_message.Message):
+    DESCRIPTOR: _descriptor.Descriptor
+
+    SYSTEM_ID_FIELD_NUMBER: _builtins.int
+    REASON_FIELD_NUMBER: _builtins.int
+    system_id: _builtins.str
+    reason: Global___FastUpdateReason.ValueType
+    def __init__(
+        self,
+        *,
+        system_id: _builtins.str = ...,
+        reason: Global___FastUpdateReason.ValueType = ...,
+    ) -> None: ...
+    _HasFieldArgType: _TypeAlias = _Never  # noqa: Y015
+    def HasField(self, field_name: _HasFieldArgType) -> _builtins.bool: ...
+    _ClearFieldArgType: _TypeAlias = _typing.Literal["reason", b"reason", "system_id", b"system_id"]  # noqa: Y015
+    def ClearField(self, field_name: _ClearFieldArgType) -> None: ...
+    def WhichOneof(self, oneof_group: _Never) -> None: ...
+
+Global___RequestFastUpdatesRequest: _TypeAlias = RequestFastUpdatesRequest  # noqa: Y015

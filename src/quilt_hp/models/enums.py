@@ -389,3 +389,23 @@ class LocalCommsHealthReason(IntEnum):
 
     def __str__(self) -> str:
         return self.name
+
+
+class FastUpdateReason(IntEnum):
+    """Reason passed to ``CommandService/RequestFastUpdates``.
+
+    The app calls ``RequestFastUpdates`` to ask the cloud to raise the
+    telemetry cadence for a system.  APK-confirmed from com.quilt.android
+    versionCode 255 (reason enum ``qh1``).
+
+    ``LOCAL_COMMS_UNHEALTHY`` is sent when the device's local Zenoh mesh is
+    degraded and the app is falling back to cloud polling; ``USER_ACTIVITY``
+    is sent while the user is actively interacting in the app.
+    """
+
+    UNSPECIFIED = 0
+    LOCAL_COMMS_UNHEALTHY = 1
+    USER_ACTIVITY = 2
+
+    def __str__(self) -> str:
+        return self.name
