@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import UTC, datetime
-from typing import Any, cast
+from typing import Any, ClassVar, cast
 
 from quilt_hp.const import (
     ABSENT_FAN_SPEED_MODE_SENTINEL,
@@ -12,6 +12,7 @@ from quilt_hp.const import (
 )
 from quilt_hp.models._helpers import lookup_hardware, present_submsg, timestamp_or_none
 from quilt_hp.models.enums import (
+    ConditionState,
     FallbackControlCommand,
     FanSpeed,
     HvacControllerType,
@@ -167,9 +168,44 @@ class IndoorUnitCommands:
     fallback_control_command: FallbackControlCommand
 
 
+def _safe_condition_state(value: int) -> ConditionState:
+    """``ConditionState`` for a raw wire value, tolerating unknown integers.
+
+    proto3 preserves unknown enum integers, so a firmware/backend that adds a
+    new condition state would otherwise make ``ConditionState(value)`` raise.
+    Mirrors the defensive fallback used elsewhere (e.g. ``OutdoorUnit.hvac_state``).
+    """
+    try:
+        return ConditionState(value)
+    except ValueError:
+        return ConditionState.UNSPECIFIED
+
+
 @dataclass(slots=True)
 class IndoorUnitConditions:
-    """IDU diagnostic conditions (ODU-linked conditions included)."""
+    """IDU diagnostic conditions (ODU-linked conditions included).
+
+    Each field is a raw ``ConditionState`` wire value (``UNSPECIFIED=0``,
+    ``INACTIVE=1``, ``ACTIVE=2``). Several conditions describe the outdoor
+    unit / refrigerant system as reported through the indoor unit — e.g.
+    ``outdoor_unit_communication_error``, ``defrost_cycle``, ``oil_return``.
+    """
+
+    #: All condition field names, in wire order. Shared by the helpers below.
+    FIELD_NAMES: ClassVar[tuple[str, ...]] = (
+        "mode_conflict",
+        "anti_cold_wind",
+        "abnormal_outdoor_air_temperature",
+        "hvac_mode_switching_delay",
+        "defrost_cycle",
+        "safety_heating",
+        "oil_return",
+        "modbus_communication_error",
+        "coil_preheat",
+        "mode_conflict_avoidance",
+        "outdoor_unit_communication_error",
+        "compressor_minimum_run_time",
+    )
 
     mode_conflict: int
     anti_cold_wind: int
@@ -184,26 +220,23 @@ class IndoorUnitConditions:
     outdoor_unit_communication_error: int
     compressor_minimum_run_time: int = 0
 
+    def states(self) -> dict[str, ConditionState]:
+        """Every condition mapped to its :class:`ConditionState`.
+
+        Unknown wire values (proto3 preserves them) fall back to
+        ``UNSPECIFIED`` rather than raising.
+        """
+        return {name: _safe_condition_state(getattr(self, name)) for name in self.FIELD_NAMES}
+
+    @property
+    def active(self) -> list[str]:
+        """Names of the conditions currently ``ACTIVE`` (i.e. faults)."""
+        return [name for name in self.FIELD_NAMES if getattr(self, name) == ConditionState.ACTIVE]
+
     @property
     def any_active(self) -> bool:
         """True if any condition is ACTIVE (value 2)."""
-        return any(
-            getattr(self, f) == 2
-            for f in (
-                "mode_conflict",
-                "anti_cold_wind",
-                "abnormal_outdoor_air_temperature",
-                "hvac_mode_switching_delay",
-                "defrost_cycle",
-                "safety_heating",
-                "oil_return",
-                "modbus_communication_error",
-                "coil_preheat",
-                "mode_conflict_avoidance",
-                "outdoor_unit_communication_error",
-                "compressor_minimum_run_time",
-            )
-        )
+        return bool(self.active)
 
 
 @dataclass(slots=True)
