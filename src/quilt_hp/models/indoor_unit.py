@@ -168,6 +168,19 @@ class IndoorUnitCommands:
     fallback_control_command: FallbackControlCommand
 
 
+def _safe_condition_state(value: int) -> ConditionState:
+    """``ConditionState`` for a raw wire value, tolerating unknown integers.
+
+    proto3 preserves unknown enum integers, so a firmware/backend that adds a
+    new condition state would otherwise make ``ConditionState(value)`` raise.
+    Mirrors the defensive fallback used elsewhere (e.g. ``OutdoorUnit.hvac_state``).
+    """
+    try:
+        return ConditionState(value)
+    except ValueError:
+        return ConditionState.UNSPECIFIED
+
+
 @dataclass(slots=True)
 class IndoorUnitConditions:
     """IDU diagnostic conditions (ODU-linked conditions included).
@@ -208,8 +221,12 @@ class IndoorUnitConditions:
     compressor_minimum_run_time: int = 0
 
     def states(self) -> dict[str, ConditionState]:
-        """Every condition mapped to its :class:`ConditionState`."""
-        return {name: ConditionState(getattr(self, name)) for name in self.FIELD_NAMES}
+        """Every condition mapped to its :class:`ConditionState`.
+
+        Unknown wire values (proto3 preserves them) fall back to
+        ``UNSPECIFIED`` rather than raising.
+        """
+        return {name: _safe_condition_state(getattr(self, name)) for name in self.FIELD_NAMES}
 
     @property
     def active(self) -> list[str]:
