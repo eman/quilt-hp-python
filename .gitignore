@@ -48,3 +48,8 @@ tokens.json
 .env
 .env.*
 
+
+# uv lockfile — not tracked: this is a library (consumers resolve from
+# pyproject.toml) and CI does not use the lock. Commit it only if dev/CI
+# standardize on `uv sync --locked`.
+uv.lock
