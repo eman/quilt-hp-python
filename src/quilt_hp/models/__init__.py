@@ -2,6 +2,11 @@
 
 from quilt_hp.models.comfort import ComfortSetting
 from quilt_hp.models.controller import Controller
+from quilt_hp.models.diagnostics import (
+    IndoorUnitDiagnostics,
+    OutdoorUnitDiagnostics,
+    SystemDiagnostics,
+)
 from quilt_hp.models.energy import EnergyBucket, SpaceEnergyMetrics
 from quilt_hp.models.enums import (
     BoostMode,
@@ -10,6 +15,7 @@ from quilt_hp.models.enums import (
     ConditionState,
     FallbackControlCommand,
     FanSpeed,
+    FastUpdateReason,
     HvacControllerType,
     HVACMode,
     HVACState,
@@ -28,6 +34,7 @@ from quilt_hp.models.enums import (
 from quilt_hp.models.indoor_unit import (
     IndoorUnit,
     IndoorUnitCommands,
+    IndoorUnitConditions,
     IndoorUnitControls,
     IndoorUnitSettings,
     IndoorUnitState,
@@ -55,12 +62,15 @@ __all__ = [
     "EnergyBucket",
     "FallbackControlCommand",
     "FanSpeed",
+    "FastUpdateReason",
     "HVACMode",
     "HVACState",
     "HvacControllerType",
     "IndoorUnit",
     "IndoorUnitCommands",
+    "IndoorUnitConditions",
     "IndoorUnitControls",
+    "IndoorUnitDiagnostics",
     "IndoorUnitSettings",
     "IndoorUnitState",
     "LedAnimation",
@@ -74,6 +84,7 @@ __all__ = [
     "OccupancyMode",
     "OccupancyState",
     "OutdoorUnit",
+    "OutdoorUnitDiagnostics",
     "RemoteSensor",
     "RemoteSensorControlMode",
     "SafetyHeatingMode",
@@ -86,6 +97,7 @@ __all__ = [
     "SpaceEnergyMetrics",
     "SpaceSettings",
     "SpaceState",
+    "SystemDiagnostics",
     "SystemInfo",
     "SystemSnapshot",
 ]

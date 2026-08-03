@@ -2,6 +2,29 @@
 
 ## [Unreleased]
 
+### Added
+- **Diagnostics view.** `QuiltClient.get_diagnostics()` and
+  `SystemSnapshot.diagnostics()` return a new `SystemDiagnostics` — the
+  installer-style diagnostic picture assembled from data the cloud API already
+  returns on the indoor units: the per-IDU fault/condition matrix (including the
+  outdoor-unit / refrigerant conditions surfaced through each IDU, e.g.
+  `outdoor_unit_communication_error`, `defrost_cycle`, `oil_return`),
+  refrigerant-circuit temperatures (coil / gas-pipe / liquid-pipe / inlet /
+  outlet) and humidity, and per-unit power. New models `IndoorUnitDiagnostics`,
+  `OutdoorUnitDiagnostics`, `SystemDiagnostics`, plus `IndoorUnitConditions.active`
+  / `.states()` helpers. New CLI command `quilt diagnostics` (with `--faults-only`
+  and `--output json`). The outdoor unit's own raw sensors (compressor Hz,
+  pressures, discharge temp) remain withheld from the cloud plane and are flagged
+  as such rather than reported.
+- `QuiltClient.request_fast_updates(reason=..., system_id=...)` and the
+  underlying `CommandService.request_fast_updates()` wrapper — calls the new
+  `core.protos.home_datastore.CommandService/RequestFastUpdates` RPC to ask the
+  cloud to raise a system's telemetry cadence. This is the same lever the Quilt
+  mobile app pulls (new in app versionCode 255) when the user is active or a
+  device's local mesh is degraded; the effect is a faster stream of updates over
+  `NotifierStream`. New `FastUpdateReason` enum (`UNSPECIFIED`,
+  `LOCAL_COMMS_UNHEALTHY`, `USER_ACTIVITY`) in `quilt_hp.models.enums`.
+
 ## [0.5.7] - 2026-07-20
 
 ### Added

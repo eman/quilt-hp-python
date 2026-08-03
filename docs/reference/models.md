@@ -62,6 +62,21 @@ service = UserService(channel)
 | `get_user_attributes()` | Returns `UserAttributes` including declared user type. |
 | `patch_user_attributes(declared_user_type)` | Updates user attributes. |
 
+### `CommandService`
+
+```python
+from quilt_hp.services.command import CommandService
+
+service = CommandService(channel)
+```
+
+Wraps the `CommandService` gRPC stub (new in the Quilt app versionCode 255).
+Registered in the cloud stub only — there is no local endpoint.
+
+| Method | Description |
+|--------|-------------|
+| `request_fast_updates(system_id, reason=FastUpdateReason.USER_ACTIVITY)` | Asks the cloud to raise the telemetry cadence for a system. Returns `None`; the effect is a faster stream of updates over `NotifierStream`. |
+
 ### `NotifierStream`
 
 ```python
@@ -573,6 +588,74 @@ Firmware/software update record associated with an indoor unit, outdoor unit, co
 
 ---
 
+### SystemDiagnostics
+
+```python
+@dataclass(slots=True)
+class SystemDiagnostics:
+    indoor_units: list[IndoorUnitDiagnostics]
+    outdoor_units: list[OutdoorUnitDiagnostics]
+
+    @property
+    def active_faults(self) -> list[tuple[str, str]]: ...   # (indoor_unit_id, condition_name)
+    @property
+    def has_faults(self) -> bool: ...
+```
+
+The installer-style diagnostic view, assembled from data the cloud API already
+returns. Obtain one from `SystemSnapshot.diagnostics()` or
+`QuiltClient.get_diagnostics()`.
+
+#### IndoorUnitDiagnostics
+
+```python
+@dataclass(slots=True)
+class IndoorUnitDiagnostics:
+    indoor_unit_id: str
+    name: str
+    space_id: str
+    space_name: str
+    online: bool
+    hvac_state: HVACState
+    active_faults: list[str]                 # condition names currently ACTIVE
+    conditions: dict[str, ConditionState]    # every condition → state (empty if none reported)
+    coil_temperature_c: float | None
+    gas_pipe_temperature_c: float | None
+    liquid_pipe_temperature_c: float | None
+    inlet_temperature_c: float | None
+    outlet_temperature_c: float | None
+    inlet_humidity_pct: float | None
+    hvac_power_w: float | None
+```
+
+Per-indoor-unit diagnostics. The condition matrix includes the outdoor-unit and
+refrigerant conditions surfaced through the IDU (`outdoor_unit_communication_error`,
+`abnormal_outdoor_air_temperature`, `defrost_cycle`, `oil_return`, `coil_preheat`,
+`modbus_communication_error`, `compressor_minimum_run_time`, …). Refrigerant temps
+and power come from `IndoorUnit.performance_data` / `performance_metrics` and are
+`None` when the unit reported none.
+
+The underlying `IndoorUnitConditions` model exposes `active` (list of ACTIVE
+condition names) and `states()` (dict of every condition → `ConditionState`).
+
+#### OutdoorUnitDiagnostics
+
+```python
+@dataclass(slots=True)
+class OutdoorUnitDiagnostics:
+    outdoor_unit_id: str
+    hvac_state: HVACState
+    raw_sensors_available: bool
+```
+
+Per-outdoor-unit diagnostics. `raw_sensors_available` is `False` over the cloud
+plane — the ODU's own `performance_data` (compressor Hz, suction/discharge
+pressures, coil/discharge temps) is withheld from the mobile API; that telemetry
+is only reachable on the local/hardware track. The refrigerant conditions and
+pipe temperatures for this ODU's circuit are surfaced through its indoor units.
+
+---
+
 ## Enum types
 
 All enums live in `quilt_hp.models.enums` and subclass `IntEnum`, mirroring Quilt's wire values.
@@ -596,5 +679,6 @@ All enums live in `quilt_hp.models.enums` and subclass `IntEnum`, mirroring Quil
 | `HvacControllerType` | Controller algorithm variant | `PASS_THROUGH_TEMPERATURE`, `INTEGRAL_TEMPERATURE_V1`, `INTEGRAL_TEMPERATURE_V2` |
 | `FallbackControlCommand` | Offline fallback command sent to an IDU | `COMPLETE`, `EXIT` |
 | `RemoteSensorControlMode` | Whether a remote sensor participates in control | `DISABLED`, `ENABLED` |
+| `FastUpdateReason` | Why `request_fast_updates()` is asking the cloud to raise the telemetry cadence | `UNSPECIFIED`, `LOCAL_COMMS_UNHEALTHY`, `USER_ACTIVITY` |
 
 `FanSpeed.to_wire()` and `FanSpeed.from_wire()` handle the Quilt protocol's `(fan_speed_mode, fan_speed_percent)` encoding. `LouverAngle.to_wire()` and `LouverAngle.from_wire()` do the same for fixed louver positions.

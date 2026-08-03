@@ -215,6 +215,29 @@ def invalidate_snapshot(self) -> None
 
 Discards the cached snapshot. The next `get_snapshot()` call fetches fresh data from the server.
 
+---
+
+### `get_diagnostics`
+
+```python
+async def get_diagnostics(self, system_id: str | None = None) -> SystemDiagnostics
+```
+
+Fetches the installer-style diagnostic view — a convenience wrapper over
+`get_snapshot().diagnostics()`. Returns a [`SystemDiagnostics`](models.md#systemdiagnostics)
+with, per indoor unit: the fault/condition matrix (including the outdoor-unit and
+refrigerant conditions surfaced through each IDU), refrigerant-circuit temperatures
+(coil / gas-pipe / liquid-pipe / inlet / outlet) and humidity, and per-unit power.
+
+The outdoor unit's own raw sensors (compressor Hz, pressures, discharge temp) are
+withheld from the cloud plane and are **not** included; `OutdoorUnitDiagnostics`
+reports `raw_sensors_available=False`.
+
+**Parameters:**
+- `system_id`: explicit system ID; defaults to the client's resolved system.
+
+**Raises:** `QuiltError` if the RPC fails.
+
 ### `close`
 
 ```python
@@ -507,6 +530,36 @@ Returns hourly energy consumption for all spaces.
 - `system_id`: explicit system ID; defaults to the primary system.
 
 **Returns:** List of `SpaceEnergyMetrics`, each with `space_id` and a list of `EnergyBucket` objects (each with `start_time`, `energy_kwh`, `status`).
+
+---
+
+## Telemetry cadence
+
+### `request_fast_updates`
+
+```python
+async def request_fast_updates(
+    self,
+    *,
+    reason: FastUpdateReason = FastUpdateReason.USER_ACTIVITY,
+    system_id: str | None = None,
+) -> None
+```
+
+Asks the cloud to raise the telemetry cadence for a system by calling
+`CommandService/RequestFastUpdates` — the same lever the mobile app pulls when
+the user is active or a device's local mesh is degraded. New in the Quilt app
+versionCode 255.
+
+The RPC response is empty; the effect is a faster stream of state updates over
+a `NotifierStream`, so pair this with `stream()`. There is no local endpoint —
+the request flows through the cloud API like every other call.
+
+**Parameters:**
+- `reason`: `FastUpdateReason.USER_ACTIVITY` (default), `LOCAL_COMMS_UNHEALTHY`, or `UNSPECIFIED`. Imported from `quilt_hp.models.enums`.
+- `system_id`: explicit system ID; defaults to the client's resolved system.
+
+**Raises:** `QuiltError` if the client is not connected or the RPC fails.
 
 ---
 

@@ -20,6 +20,14 @@ Defined in `quilt_hds.proto`. Package: `core.protos.home_datastore`.
 | `DeleteScheduleWeek` | `DeleteScheduleWeekRequest` | `Empty` | `HomeDatastoreService.delete_schedule_week()` |
 | `UpdateLocation` | `UpdateLocationRequest` | `Location` | `HomeDatastoreService.update_location_schedule_execution()`; pauses/resumes schedules |
 
+## CommandService
+
+Defined in `quilt_hds.proto`. Package: `core.protos.home_datastore`. New in the Quilt app versionCode 255; cloud stub only (no local endpoint).
+
+| Method | Request | Response | Library wrapper |
+| --- | --- | --- | --- |
+| `RequestFastUpdates` | `RequestFastUpdatesRequest` | `Empty` | `CommandService.request_fast_updates()` → `None`; also `QuiltClient.request_fast_updates()` |
+
 ## SystemInformationService
 
 Defined in `quilt_services.proto`. Package: `core.protos.app`.
