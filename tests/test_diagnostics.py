@@ -211,6 +211,17 @@ def test_conditions_healthy() -> None:
     assert conds.active == []
 
 
+def test_conditions_tolerates_unknown_wire_value() -> None:
+    # proto3 preserves unknown enum integers; states() must not raise.
+    conds = _conditions()
+    conds.defrost_cycle = 99  # value outside ConditionState
+    states = conds.states()
+    assert states["defrost_cycle"] is ConditionState.UNSPECIFIED
+    # the unknown value is not ACTIVE, so it does not register as a fault
+    assert conds.active == []
+    assert conds.any_active is False
+
+
 # --- IndoorUnitDiagnostics ---------------------------------------------------
 
 
