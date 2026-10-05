@@ -82,11 +82,17 @@ class IndoorUnitDiagnostics:
             under_test=idu.is_under_test,
             test=(
                 {
-                    "mode": idu.test_state.test_mode.name,
-                    "coordination": idu.test_state.test_coordination.name,
-                    "phase": idu.test_state.test_phase.name,
+                    "mode": idu.effective_test_mode.name,
+                    **(
+                        {
+                            "coordination": idu.test_state.test_coordination.name,
+                            "phase": idu.test_state.test_phase.name,
+                        }
+                        if idu.test_state is not None
+                        else {}
+                    ),
                 }
-                if idu.is_under_test and idu.test_state is not None
+                if idu.is_under_test
                 else {}
             ),
         )

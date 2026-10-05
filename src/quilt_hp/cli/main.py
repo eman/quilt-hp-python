@@ -254,7 +254,7 @@ def _snapshot_payload(snap: SystemSnapshot) -> dict[str, Any]:
                     idu.performance_metrics.odu_usage_fraction if idu.performance_metrics else None
                 ),
                 "under_test": idu.is_under_test,
-                "test_mode": idu.test_state.test_mode.name if idu.test_state else None,
+                "test_mode": idu.effective_test_mode.name,
             }
             for idu in snap.indoor_units
         ],
@@ -765,10 +765,8 @@ def diagnostics(
                 )
                 console.print(f"    power: {_fmt_w(d.hvac_power_w)}{share}")
                 if d.under_test:
-                    console.print(
-                        f"    [yellow]under test: {d.test.get('mode')} "
-                        f"phase={d.test.get('phase')} coordination={d.test.get('coordination')}[/yellow]"
-                    )
+                    detail = " ".join(f"{k}={v}" for k, v in d.test.items())
+                    console.print(f"    [yellow]under test: {detail}[/yellow]")
                 console.print()
 
             console.print("[bold]Outdoor Units[/bold]")

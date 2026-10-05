@@ -135,8 +135,9 @@ HEADERS = {
 // NotifierEvent.payload carries a core.protos.home_datastore.HdsNotification (quilt_hds.proto).
 """,
     "quilt_system.proto": """// quilt_system.proto
-// SystemService lives in package core.protos.system on the wire path. Its only RPC is
-// DeleteSystem; systems are created via MobileAppService/CreateAndConfigureSystem.
+// SystemService lives in package core.protos.system on the wire path. The server implements
+// Get/Create/Update/Delete/ListSystems; the Quilt app itself calls only DeleteSystem and creates
+// systems via MobileAppService/CreateAndConfigureSystem.
 """,
     "quilt_device_pairing.proto": """// quilt_device_pairing.proto
 // BLE/WiFi device pairing protocol — serialized over Bluetooth, and also the payloads of

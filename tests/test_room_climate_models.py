@@ -171,3 +171,31 @@ def test_diagnostics_include_new_fields() -> None:
     assert diag.odu_usage_fraction == pytest.approx(0.5)
     assert diag.under_test is True
     assert diag.test == {"mode": "HEALTH_CHECK", "coordination": "PARALLEL", "phase": "SELF_TEST"}
+
+
+def test_state_test_mode_alone_marks_unit_under_test() -> None:
+    """Only IndoorUnitState.test_mode reported (no test_state sub-message)."""
+    idu = IndoorUnit.from_proto(_idu(state_test_mode=hds.INDOOR_UNIT_TEST_MODE_HEALTH_CHECK))
+    assert idu.test_state is None
+    assert idu.effective_test_mode is IndoorUnitTestMode.HEALTH_CHECK
+    assert idu.is_under_test is True
+
+    diag = IndoorUnitDiagnostics.from_indoor_unit(idu, "Dining Room")
+    assert diag.under_test is True
+    assert diag.test == {"mode": "HEALTH_CHECK"}
+
+
+def test_effective_test_mode_prefers_test_state() -> None:
+    test = hds.IndoorUnitTestState(test_mode=hds.INDOOR_UNIT_TEST_MODE_COMMISSIONING)
+    idu = IndoorUnit.from_proto(
+        _idu(test=test, state_test_mode=hds.INDOOR_UNIT_TEST_MODE_INACTIVE)
+    )
+    assert idu.effective_test_mode is IndoorUnitTestMode.COMMISSIONING
+    assert idu.is_under_test is True
+
+
+def test_effective_test_mode_falls_back_when_test_state_unspecified() -> None:
+    test = hds.IndoorUnitTestState()  # present but test_mode UNSPECIFIED
+    idu = IndoorUnit.from_proto(_idu(test=test, state_test_mode=hds.INDOOR_UNIT_TEST_MODE_STANDBY))
+    assert idu.effective_test_mode is IndoorUnitTestMode.STANDBY
+    assert idu.is_under_test is True
