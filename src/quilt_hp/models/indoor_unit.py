@@ -110,9 +110,11 @@ class IndoorUnitState:
     outlet_temperature_c: float = 0.0
     calculated_ambient_temperature_c: float = 0.0
     louver_angle_up_down_degrees: float = 0.0
-    test_mode: IndoorUnitTestMode = IndoorUnitTestMode.UNSPECIFIED  # mirrors test_state.test_mode
     # proto field 1: timestamp of last state update (used for online detection)
     updated_at: datetime | None = None
+    test_mode: IndoorUnitTestMode = (
+        IndoorUnitTestMode.UNSPECIFIED
+    )  # see IndoorUnit.effective_test_mode
 
 
 @dataclass(slots=True)
@@ -156,6 +158,7 @@ class IndoorUnitPerformanceMetrics:
 
     Observed live in standby as an even split among the indoor units on one outdoor unit
     (0.5 / 0.5 for two, 1.0 for one). Use it to apportion outdoor-unit energy per room.
+    0.0 means not reported (the proto3 default), as with the other metrics here.
     """
 
 
@@ -350,16 +353,24 @@ class IndoorUnit:
 
     @property
     def effective_test_mode(self) -> IndoorUnitTestMode:
-        """The unit's test mode: ``test_state.test_mode`` when reported, else ``state.test_mode``.
+        """The unit's current test mode, from ``test_state`` or ``state``, whichever is newer.
 
-        The server reports the mode in both places; either may be absent from a sparse diff.
+        The server reports the mode in both places, and a snapshot merged from sparse stream
+        diffs can hold an older copy of one of them, so the more recently updated source wins.
+        A source that reports UNSPECIFIED (absent) is ignored.
         """
-        if (
-            self.test_state is not None
-            and self.test_state.test_mode != IndoorUnitTestMode.UNSPECIFIED
-        ):
-            return self.test_state.test_mode
-        return self.state.test_mode
+        ts = self.test_state
+        ts_mode = ts.test_mode if ts is not None else IndoorUnitTestMode.UNSPECIFIED
+        st_mode = self.state.test_mode
+        if ts_mode == IndoorUnitTestMode.UNSPECIFIED:
+            return st_mode
+        if st_mode == IndoorUnitTestMode.UNSPECIFIED:
+            return ts_mode
+        ts_at = ts.updated_at if ts is not None else None
+        st_at = self.state.updated_at
+        if ts_at is not None and st_at is not None and st_at > ts_at:
+            return st_mode
+        return ts_mode
 
     @property
     def is_under_test(self) -> bool:

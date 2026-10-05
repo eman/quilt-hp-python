@@ -39,7 +39,7 @@ class WifiSecurityType(_WifiSecurityType, metaclass=_WifiSecurityTypeEnumTypeWra
     Enums
     ---------------------------------------------------------------------------
 
-    1.0.33. Was WIFI_SECURITY_TYPE_{UNKNOWN,NONE,WPAPSK}.
+    app 1.0.33. Was WIFI_SECURITY_TYPE_{UNKNOWN,NONE,WPAPSK}.
     """
 
 KEY_MGMT_UNKNOWN: WifiSecurityType.ValueType  # 0
@@ -66,7 +66,7 @@ class _DeviceTypeEnumTypeWrapper(_enum_type_wrapper._EnumTypeWrapper[_DeviceType
     DEVICE_TYPE_AHU: _DeviceType.ValueType  # 11
 
 class DeviceType(_DeviceType, metaclass=_DeviceTypeEnumTypeWrapper):
-    """1.0.33. Earlier revisions numbered this from iOS app ordinals and were wrong from 4 up
+    """app 1.0.33. Earlier revisions numbered this from iOS app ordinals and were wrong from 4 up
     (CONTROLLER was 5; it is 6). There is no value 4.
     """
 
@@ -127,7 +127,7 @@ class WifiScan(_message.Message):
     RSSI_FIELD_NUMBER: _builtins.int
     KEY_MGMT_FIELD_NUMBER: _builtins.int
     mac_address: _builtins.str
-    """Field ordering based on iOS app model (WifiScan.kt) and confirmed.
+    """Field ordering based on iOS app model and confirmed.
     observed data: field 4 contains negative dBm values (RSSI).
     Not to be confused with WifiState (used for established connections).
     BSSID
@@ -240,7 +240,7 @@ class DeviceConfiguration(_message.Message):
     def wifi_configs(self) -> _containers.RepeatedCompositeFieldContainer[Global___WifiConfiguration]: ...
     @_builtins.property
     def pairing_ts(self) -> _timestamp_pb2.Timestamp:
-        """1.0.33"""
+        """app 1.0.33"""
 
     def __init__(
         self,

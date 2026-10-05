@@ -37,10 +37,10 @@ python -m grpc_tools.protoc \
     "$PROTO_SRC/quilt_device_config.proto" \
     "$PROTO_SRC/quilt_actions.proto"
 
-# Fix imports in generated files: grpc stubs use absolute imports that won't
+# Fix imports in generated files (.py and .pyi): protoc emits absolute imports that won't
 # work inside our package. Rewrite them to relative imports.
 cd "$OUT_DIR"
-for f in *.py; do
+for f in *.py *.pyi; do
     # quilt_hds_pb2 → .quilt_hds_pb2 (relative import within _proto package)
     sed -i '' 's/^import quilt_hds_pb2/from . import quilt_hds_pb2/' "$f" 2>/dev/null || \
     sed -i  's/^import quilt_hds_pb2/from . import quilt_hds_pb2/' "$f"

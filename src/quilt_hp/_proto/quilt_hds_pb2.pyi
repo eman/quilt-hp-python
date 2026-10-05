@@ -3,7 +3,7 @@
 isort:skip_file
 quilt_hds.proto
 Home Datastore (HDS) messages — objects managed by the gRPC API, plus the notifier
-payloads (HdsNotification / HomeDatastoreObjectDiff).
+payloads (Notification / HomeDatastoreObjectDiff).
 Field numbers and wire types confirmed against the Quilt app and live captures.
 """
 
@@ -47,8 +47,8 @@ class HVACMode(_HVACMode, metaclass=_HVACModeEnumTypeWrapper):
     Enums
     ---------------------------------------------------------------------------
 
-    Confirmed by app proto Java enum QJ (implements ProtocolMessageEnum).
-    COOL=2, HEAT=3 confirmed. No DRY mode in the proto (was iOS app-only artifact).
+    Confirmed against the app.
+    COOL=2, HEAT=3 confirmed. No DRY mode in the proto (was iOS iOS-app-only artifact).
     """
 
 HVAC_MODE_UNSPECIFIED: HVACMode.ValueType  # 0
@@ -88,7 +88,7 @@ class _HVACStateEnumTypeWrapper(_enum_type_wrapper._EnumTypeWrapper[_HVACState.V
     """iOS app 1.0.26: DRY compressor pre-conditioning"""
 
 class HVACState(_HVACState, metaclass=_HVACStateEnumTypeWrapper):
-    """Confirmed by app proto Java enum SJ (implements ProtocolMessageEnum).
+    """Confirmed against the app.
     DRY states added in iOS app 1.0.26 alongside HVAC_MODE_DRY.
     """
 
@@ -126,7 +126,7 @@ class _LocalCommsHealthStatusEnumTypeWrapper(_enum_type_wrapper._EnumTypeWrapper
 class LocalCommsHealthStatus(_LocalCommsHealthStatus, metaclass=_LocalCommsHealthStatusEnumTypeWrapper):
     """Local communications health for QSM and Controller mesh nodes.
     Added in iOS app 1.0.26 alongside the local-control over-the-air update.
-    confirmed against the app values (app 1.0.29).
+    Values confirmed against the app (app 1.0.29).
     """
 
 LOCAL_COMMS_HEALTH_STATUS_UNSPECIFIED: LocalCommsHealthStatus.ValueType  # 0
@@ -157,7 +157,7 @@ class _LocalCommsHealthReasonEnumTypeWrapper(_enum_type_wrapper._EnumTypeWrapper
 
 class LocalCommsHealthReason(_LocalCommsHealthReason, metaclass=_LocalCommsHealthReasonEnumTypeWrapper):
     """Diagnostic reason accompanying LocalCommsHealthStatus.
-    confirmed against the app (app 1.0.29). The local mesh is
+    Confirmed against the app (app 1.0.29). The local mesh is
     Eclipse Zenoh-based (note ZENOH_SESSION_DOWN), not NATS.
     """
 
@@ -205,7 +205,7 @@ class _SafetyHeatingModeEnumTypeWrapper(_enum_type_wrapper._EnumTypeWrapper[_Saf
 class SafetyHeatingMode(_SafetyHeatingMode, metaclass=_SafetyHeatingModeEnumTypeWrapper):
     """Freeze-protection setting on SpaceSettings (field 9).
     UNSPECIFIED is treated as ENABLED by the app (freeze protection on by default).
-    iOS app: SafetyHeatingMode — confirmed against the app field 9 (app 1.0.29).
+    iOS app: SafetyHeatingMode — field 9, confirmed against the app (app 1.0.29).
     """
 
 SAFETY_HEATING_MODE_UNSPECIFIED: SafetyHeatingMode.ValueType  # 0
@@ -855,7 +855,7 @@ class _AssignedOutdoorUnitTerminalPortEnumTypeWrapper(_enum_type_wrapper._EnumTy
     ASSIGNED_OUTDOOR_UNIT_TERMINAL_PORT_THREE: _AssignedOutdoorUnitTerminalPort.ValueType  # 3
 
 class AssignedOutdoorUnitTerminalPort(_AssignedOutdoorUnitTerminalPort, metaclass=_AssignedOutdoorUnitTerminalPortEnumTypeWrapper):
-    """Which outdoor-unit terminal an IDU is wired to (IndoorUnitSettings f9). New in 271."""
+    """Which outdoor-unit terminal an IDU is wired to (IndoorUnitSettings f9). New in 1.0.33."""
 
 ASSIGNED_OUTDOOR_UNIT_TERMINAL_PORT_UNSPECIFIED: AssignedOutdoorUnitTerminalPort.ValueType  # 0
 ASSIGNED_OUTDOOR_UNIT_TERMINAL_PORT_ONE: AssignedOutdoorUnitTerminalPort.ValueType  # 1
@@ -879,7 +879,7 @@ class _DemandResponseEventPhaseEnumTypeWrapper(_enum_type_wrapper._EnumTypeWrapp
     """returning to normal setpoints"""
 
 class DemandResponseEventPhase(_DemandResponseEventPhase, metaclass=_DemandResponseEventPhaseEnumTypeWrapper):
-    """Utility demand-response event phase. New in 271."""
+    """Utility demand-response event phase. New in 1.0.33."""
 
 DEMAND_RESPONSE_EVENT_PHASE_UNSPECIFIED: DemandResponseEventPhase.ValueType  # 0
 DEMAND_RESPONSE_EVENT_PHASE_IDLE: DemandResponseEventPhase.ValueType  # 1
@@ -904,7 +904,7 @@ class _DamperPortEnumTypeWrapper(_enum_type_wrapper._EnumTypeWrapper[_DamperPort
     DAMPER_PORT_FOUR: _DamperPort.ValueType  # 4
 
 class DamperPort(_DamperPort, metaclass=_DamperPortEnumTypeWrapper):
-    """Ducted-zone damper wiring port on the air handling unit. New in 271."""
+    """Ducted-zone damper wiring port on the air handling unit. New in 1.0.33."""
 
 DAMPER_PORT_UNSPECIFIED: DamperPort.ValueType  # 0
 DAMPER_PORT_ONE: DamperPort.ValueType  # 1
@@ -1002,7 +1002,7 @@ class _OccupancyStateEnumTypeWrapper(_enum_type_wrapper._EnumTypeWrapper[_Occupa
     OCCUPANCY_DETECTED: _OccupancyState.ValueType  # 2
 
 class OccupancyState(_OccupancyState, metaclass=_OccupancyStateEnumTypeWrapper):
-    """confirmed against the app: occupancy detection result for this IDU/space.
+    """Confirmed against the app: occupancy detection result for this IDU/space.
     OccupancyState: UNSPECIFIED=0, UNDETECTED=1, DETECTED=2.
     Value names confirmed against the app. Shared by IndoorUnit f12 and Space f76.
     """
@@ -1063,7 +1063,7 @@ class NotificationType(_NotificationType, metaclass=_NotificationTypeEnumTypeWra
     Notifier payloads
     NotifierService delivers each change as NotifierEvent{topic, payload: Any}. The live Any
     type_url is "type.googleapis.com/core.protos.home_datastore.Notification" (verified
-    2026-10-05), so the real message name is Notification and `any.Unpack(Notification)` works.
+    2026-10-05), so the real message name is Notification and `any.Unpack(Notification())` works.
     (Older notes said "core.protos.hds.Notification"; that was wrong.)
     ---------------------------------------------------------------------------
     """
@@ -1090,7 +1090,7 @@ class _FastUpdateReasonEnumTypeWrapper(_enum_type_wrapper._EnumTypeWrapper[_Fast
 
 class FastUpdateReason(_FastUpdateReason, metaclass=_FastUpdateReasonEnumTypeWrapper):
     """---------------------------------------------------------------------------
-    CommandService — package core.protos.home_datastore (new in 255; unchanged in 271)
+    CommandService — package core.protos.home_datastore (new in 1.0.31; unchanged in 1.0.33)
     Wire path: /core.protos.home_datastore.CommandService/RequestFastUpdates
     ---------------------------------------------------------------------------
     """
@@ -1286,7 +1286,7 @@ class SpaceRelationships(_message.Message):
     ---------------------------------------------------------------------------
 
     Space relationships. f1 was customer_account_id in an old iOS JSON dump; it is absent from
-    1.0.33 and from every capture (2026-05..07), so it is reserved.
+    app 1.0.33 and from every capture (2026-05..07), so it is reserved.
     """
 
     DESCRIPTOR: _descriptor.Descriptor
@@ -1316,9 +1316,9 @@ class SpaceSettings(_message.Message):
     """Wire-confirmed SpaceSettings fields (from field_3.f3):
     f1=name, f2=description, f3=updated_ts, f4=timezone, f5=OccupancyMode,
     f6=HvacControllerType, f7=occupied_timeout_s(180.0), f8=unoccupied_timeout_s(1200.0)
-    confirmed against the app: fields 1–8 exactly.
+    Confirmed against the app: fields 1–8 exactly.
     f9=SafetyHeatingMode (freeze protection): iOS app-confirmed in SpaceSettings.safetyHeating
-    confirmed against the app field 9 (app 1.0.29).
+    Field 9 confirmed against the app (app 1.0.29).
     """
 
     DESCRIPTOR: _descriptor.Descriptor
@@ -1376,7 +1376,7 @@ Global___SpaceSettings: _TypeAlias = SpaceSettings  # noqa: Y015
 @_typing.final
 class SpaceControls(_message.Message):
     """Wire-confirmed from UpdateSpace binary (hex decode):
-    f1=hvac_mode(varint; COOL=2, HEAT=3 per HVACEnums.kt ordinals),
+    f1=hvac_mode(varint; COOL=2, HEAT=3 per ordinals)
     f2=temperature_setpoint_c(float),
     f3=updated_ts(Timestamp), f4=cooling_setpoint_c(float/22.777°C),
     f5=heating_setpoint_c(float/20.555°C), f6=absent,
@@ -1405,7 +1405,7 @@ class SpaceControls(_message.Message):
     heating_temperature_setpoint_c: _builtins.float
     """wire-confirmed: f5 (heating at 5, not cooling!)"""
     comfort_setting_id: _builtins.str
-    """proto"""
+    """app proto"""
     boost_mode: Global___BoostMode.ValueType
     """wire-confirmed: f7 (varint, 0=UNSPECIFIED)"""
     comfort_setting_override: Global___ComfortSettingOverride.ValueType
@@ -1451,7 +1451,7 @@ class SpaceState(_message.Message):
     HVAC_STATE_FIELD_NUMBER: _builtins.int
     COMFORT_SETTING_ID_FIELD_NUMBER: _builtins.int
     temperature_setpoint_c: _builtins.float
-    """wire-confirmed: f2 (app names; was setpoint_temperature_c)"""
+    """wire-confirmed: f2 (app name; was setpoint_temperature_c)"""
     ambient_temperature_c: _builtins.float
     """wire-confirmed: f3 (observed 21.7°C)"""
     hvac_state: Global___HVACState.ValueType
@@ -1481,7 +1481,7 @@ Global___SpaceState: _TypeAlias = SpaceState  # noqa: Y015
 
 @_typing.final
 class SpaceDemandResponseState(_message.Message):
-    """Live demand-response status for a space. New in 271.
+    """Live demand-response status for a space. New in 1.0.33.
     The offsets are what the event is currently applying to this space's setpoints.
     """
 
@@ -1515,7 +1515,7 @@ Global___SpaceDemandResponseState: _TypeAlias = SpaceDemandResponseState  # noqa
 @_typing.final
 class SpaceOccupancy(_message.Message):
     """Space-level occupancy (the derived auto-away result for the whole room). confirmed against the app
-    in 255 and 271 at Space f76; uses the same IndoorUnitOccupancy.
+    in 1.0.31 and 1.0.33 at Space f76; uses the same enum class as IndoorUnitOccupancy.
     """
 
     DESCRIPTOR: _descriptor.Descriptor
@@ -1543,7 +1543,7 @@ Global___SpaceOccupancy: _TypeAlias = SpaceOccupancy  # noqa: Y015
 class Space(_message.Message):
     """Wire-confirmed Space field positions (from HomeDatastoreSystem field_3 items):
     f1=EntityMetadata(header), f2=relationships, f3=settings, f4=controls, f5=state
-    confirmed against the app: f6=demand_response_state (new in 271), f76=occupancy.
+    Confirmed against the app: f6=demand_response_state (new in 1.0.33), f76=occupancy.
     """
 
     DESCRIPTOR: _descriptor.Descriptor
@@ -1576,10 +1576,12 @@ class Space(_message.Message):
         """wire-confirmed: f5"""
 
     @_builtins.property
-    def demand_response_state(self) -> Global___SpaceDemandResponseState: ...
+    def demand_response_state(self) -> Global___SpaceDemandResponseState:
+        """app 1.0.33: new"""
+
     @_builtins.property
     def occupancy(self) -> Global___SpaceOccupancy:
-        """1.0.31+: INCLUDE_OCCUPANCY=76 in the Space field mask too"""
+        """app 1.0.31+: INCLUDE_OCCUPANCY=76 in the Space field mask too"""
 
     def __init__(
         self,
@@ -1607,7 +1609,7 @@ class IndoorUnitRelationships(_message.Message):
     ---------------------------------------------------------------------------
 
     spaceId=2, outdoorUnitId=3, hardwareId=4, quiltSmartModuleId=5, updatedTs=6.
-    (customer_account_id, old iOS JSON) is absent from app 1.0.33 and all captures.
+    f1 (customer_account_id, old iOS JSON) is absent from app 1.0.33 and all captures.
     """
 
     DESCRIPTOR: _descriptor.Descriptor
@@ -1650,7 +1652,7 @@ class IndoorUnitSettings(_message.Message):
     presenceFenceLeftM=5, presenceFenceRightM=6, presenceFenceForwardM=7,
     radarSensorDistanceFromFloorM=8.
     NOTE: updated_ts at f4 (not f1 as previously assumed).
-    1.0.33: f9=assigned_outdoor_unit_terminal_port (new; absent in 255).
+    app 1.0.33: f9=assigned_outdoor_unit_terminal_port (new; absent in 1.0.31).
     """
 
     DESCRIPTOR: _descriptor.Descriptor
@@ -1673,6 +1675,7 @@ class IndoorUnitSettings(_message.Message):
     presence_fence_forward_m: _builtins.float
     radar_sensor_distance_from_floor_m: _builtins.float
     assigned_outdoor_unit_terminal_port: Global___AssignedOutdoorUnitTerminalPort.ValueType
+    """app 1.0.33: new"""
     @_builtins.property
     def updated_ts(self) -> _timestamp_pb2.Timestamp: ...
     def __init__(
@@ -1699,9 +1702,9 @@ Global___IndoorUnitSettings: _TypeAlias = IndoorUnitSettings  # noqa: Y015
 @_typing.final
 class IndoorUnitControls(_message.Message):
     """Wire-confirmed flat field layout from binary decode of IndoorUnit.f4 (40 bytes):
-    f2=absent; f3=ledColorCode(varint/uint32), f4=ledColorBrightnessPercent(float)
+    f1,f2=absent; f3=ledColorCode(varint/uint32), f4=ledColorBrightnessPercent(float),
     f5=fanSpeedMode(varint), f6=fanSpeedPercent(float), f7=updatedTs(Timestamp),
-    f9=absent; f10=louverMode(varint), f11=louverFixedPosition(float)
+    f8,f9=absent; f10=louverMode(varint), f11=louverFixedPosition(float),
     f12=lightAnimation(varint), f13=lightState(varint).
     NOTE: These are FLAT fields, NOT nested sub-messages.
     """
@@ -1718,7 +1721,7 @@ class IndoorUnitControls(_message.Message):
     LED_ANIMATION_FIELD_NUMBER: _builtins.int
     LED_STATE_FIELD_NUMBER: _builtins.int
     led_color_code: _builtins.int
-    """f2 absent in the app
+    """f1, f2 absent in the app
     RGBW packed uint32
     """
     led_color_brightness_percent: _builtins.float
@@ -1727,11 +1730,11 @@ class IndoorUnitControls(_message.Message):
     fan_speed_percent: _builtins.float
     """0.0–1.0"""
     louver_mode: Global___IndoorUnitLouverMode.ValueType
-    """f9: uuid-string field confirmed at f9 in captures; purpose TBD"""
+    """f8, f9: uuid-string field confirmed at f9 in captures; purpose TBD"""
     louver_fixed_position: _builtins.float
     """position fraction 0.20–1.00, used when louver_mode=FIXED; 0.0 = not applicable"""
     led_animation: Global___LightAnimation.ValueType
-    """confirmed the app"""
+    """confirmed against the app"""
     led_state: Global___LightState.ValueType
     """wire-confirmed f13: UNSPECIFIED=0,ON=1,OFF=2"""
     @_builtins.property
@@ -1759,14 +1762,14 @@ Global___IndoorUnitControls: _TypeAlias = IndoorUnitControls  # noqa: Y015
 
 @_typing.final
 class IndoorUnitState(_message.Message):
-    """Confirmed against the app field layout
+    """Field layout confirmed against the app
     1=updated_ts, 2=temperature_setpoint_c, 3=ambient_temperature_c, 4=hvac_state,
     5=fan_speed_setpoint_rpm, 6=fan_speed_rpm, 7=light_brightness_percent,
     8=presence_detection_level, 9=inlet_temperature_c, 10=outlet_temperature_c,
     11=ambient_humidity_percent, 12=hvac_mode, 13=calculated_ambient_temperature_c,
     14=louver_angle_up_down_degrees
     15=test_mode, 16=coil_temperature_c, 17=led_state, 18=inlet_humidity_percent (app 1.0.33).
-    led_state here is the device-reported state; IndoorUnitControls.led_state is the command.
+    led_state here is the device-reported state; IndoorUnitControls.led_state (f13) is the command.
     """
 
     DESCRIPTOR: _descriptor.Descriptor
@@ -1804,13 +1807,13 @@ class IndoorUnitState(_message.Message):
     calculated_ambient_temperature_c: _builtins.float
     louver_angle_up_down_degrees: _builtins.float
     test_mode: Global___IndoorUnitTestMode.ValueType
-    """1.0.33; seen in captures since 2026-05"""
+    """app 1.0.33; seen in captures since 2026-05"""
     coil_temperature_c: _builtins.float
-    """1.0.33; seen in captures since 2026-05"""
+    """app 1.0.33; seen in captures since 2026-05"""
     led_state: Global___LightState.ValueType
-    """1.0.33; seen in captures since 2026-05 (device-reported LED state)"""
+    """app 1.0.33; seen in captures since 2026-05 (device-reported LED state)"""
     inlet_humidity_percent: _builtins.float
-    """1.0.33; seen live 2026-10-05"""
+    """app 1.0.33; seen live 2026-10-05"""
     @_builtins.property
     def updated_ts(self) -> _timestamp_pb2.Timestamp: ...
     def __init__(
@@ -1872,7 +1875,7 @@ class IndoorUnitConditions(_message.Message):
     mode_conflict_avoidance: Global___ModeConflictAvoidanceState.ValueType
     outdoor_unit_communication_error: Global___OutdoorUnitCommunicationErrorState.ValueType
     compressor_minimum_run_time: Global___CompressorMinimumRunTimeState.ValueType
-    """confirmed against the app 1.0.29"""
+    """Confirmed against the app 1.0.29"""
     @_builtins.property
     def updated_ts(self) -> _timestamp_pb2.Timestamp: ...
     def __init__(
@@ -1908,9 +1911,9 @@ class IndoorUnitPresenceState(_message.Message):
     SENSOR_0_PRESENCE_FIELD_NUMBER: _builtins.int
     SENSOR_1_PRESENCE_FIELD_NUMBER: _builtins.int
     sensor_0_presence: Global___Presence.ValueType
-    """names (was sensor0_presence)"""
+    """app name (was sensor0_presence)"""
     sensor_1_presence: Global___Presence.ValueType
-    """names (was sensor1_presence)"""
+    """app name (was sensor1_presence)"""
     @_builtins.property
     def updated_ts(self) -> _timestamp_pb2.Timestamp: ...
     def __init__(
@@ -2024,7 +2027,7 @@ Global___IndoorUnitHardware: _TypeAlias = IndoorUnitHardware  # noqa: Y015
 
 @_typing.final
 class IndoorUnitHvacInputs(_message.Message):
-    """confirmed against the app: HVAC controller inputs — what the controller sends to the IDU."""
+    """Confirmed against the app: HVAC controller inputs — what the controller sends to the IDU."""
 
     DESCRIPTOR: _descriptor.Descriptor
 
@@ -2067,7 +2070,7 @@ Global___IndoorUnitHvacInputs: _TypeAlias = IndoorUnitHvacInputs  # noqa: Y015
 
 @_typing.final
 class IndoorUnitPerformanceData(_message.Message):
-    """confirmed against the app: raw IDU performance measurements."""
+    """Confirmed against the app: raw IDU performance measurements."""
 
     DESCRIPTOR: _descriptor.Descriptor
 
@@ -2122,7 +2125,7 @@ Global___IndoorUnitPerformanceData: _TypeAlias = IndoorUnitPerformanceData  # no
 
 @_typing.final
 class IndoorUnitPerformanceMetrics(_message.Message):
-    """confirmed against the app: computed energy/power metrics over a measurement window."""
+    """Confirmed against the app: computed energy/power metrics over a measurement window."""
 
     DESCRIPTOR: _descriptor.Descriptor
 
@@ -2139,7 +2142,7 @@ class IndoorUnitPerformanceMetrics(_message.Message):
     HVAC_ENERGY_J_FIELD_NUMBER: _builtins.int
     LED_ENERGY_J_FIELD_NUMBER: _builtins.int
     odu_usage_fraction: _builtins.float
-    """1.0.33; share of the ODU attributed to this IDU; seen in captures"""
+    """app 1.0.33; share of the ODU attributed to this IDU; seen in captures"""
     measurement_duration_s: _builtins.float
     """window length in seconds"""
     energy_total_j: _builtins.float
@@ -2263,11 +2266,11 @@ class IndoorUnit(_message.Message):
     def occupancy(self) -> Global___IndoorUnitOccupancy: ...
     @_builtins.property
     def test_state(self) -> Global___IndoorUnitTestState:
-        """1.0.33; seen live 2026-10-05 (INACTIVE)"""
+        """app 1.0.33; seen live 2026-10-05 (INACTIVE)"""
 
     @_builtins.property
     def climate_state(self) -> Global___IndoorUnitClimateState:
-        """1.0.33; seen live 2026-10-05, updates every few seconds"""
+        """app 1.0.33; seen live 2026-10-05, updates every few seconds"""
 
     def __init__(
         self,
@@ -2361,7 +2364,7 @@ class OutdoorUnitRelationships(_message.Message):
     Outdoor Unit
     ---------------------------------------------------------------------------
 
-    (customer_account_id, old iOS JSON) is absent from app 1.0.33 and all captures.
+    f1 (customer_account_id, old iOS JSON) is absent from app 1.0.33 and all captures.
     """
 
     DESCRIPTOR: _descriptor.Descriptor
@@ -2444,7 +2447,7 @@ Global___OutdoorUnitState: _TypeAlias = OutdoorUnitState  # noqa: Y015
 
 @_typing.final
 class OutdoorUnitPerformanceData(_message.Message):
-    """confirmed against the app — compressor telemetry from the outdoor unit.
+    """Confirmed against the app — compressor telemetry from the outdoor unit.
     Populated during active operation; empty/zero in standby.
     """
 
@@ -2512,7 +2515,7 @@ class OutdoorUnitHardwareAttributes(_message.Message):
     serial_number: _builtins.str
     firmware_version: _builtins.str
     num_ports: Global___NumberOfPorts.ValueType
-    """1.0.33; seen in captures"""
+    """app 1.0.33; seen in captures"""
     @_builtins.property
     def production_ts(self) -> _timestamp_pb2.Timestamp: ...
     @_builtins.property
@@ -2562,7 +2565,7 @@ Global___OutdoorUnitHardware: _TypeAlias = OutdoorUnitHardware  # noqa: Y015
 @_typing.final
 class OutdoorUnit(_message.Message):
     """Wire-confirmed field layout: header=1, relationships=2, settings=3, state=4.
-    confirmed against the app: performance_data=5.
+    Confirmed against the app: performance_data=5.
     """
 
     DESCRIPTOR: _descriptor.Descriptor
@@ -2622,7 +2625,7 @@ class ControllerRelationships(_message.Message):
     software_update_info_id: _builtins.str
     firmware_update_info_id: _builtins.str
     air_handling_unit_id: _builtins.str
-    """1.0.33: ducted installs — the AHU this Dial controls"""
+    """app 1.0.33: ducted installs — the AHU this Dial controls"""
     @_builtins.property
     def updated_ts(self) -> _timestamp_pb2.Timestamp: ...
     def __init__(
@@ -2675,7 +2678,7 @@ Global___ControllerSettings: _TypeAlias = ControllerSettings  # noqa: Y015
 class ControllerState(_message.Message):
     """Dial sensor + display telemetry. Field names/numbers confirmed against the app; every field
     2–22 is present in live captures (2026-05..07). There is NO field 1: the real updated_ts is
-    (an earlier revision put updated_ts at f1, which the server never sends).
+    f15 (an earlier revision put updated_ts at f1, which the server never sends).
     """
 
     DESCRIPTOR: _descriptor.Descriptor
@@ -2790,7 +2793,7 @@ Global___ControllerControls: _TypeAlias = ControllerControls  # noqa: Y015
 
 @_typing.final
 class WifiState(_message.Message):
-    """confirmed against the app field layout. Used in QSM and Controller."""
+    """Field layout confirmed against the app. Used in QSM (f4/f5/f6) and Controller (f5/f6/f7)."""
 
     DESCRIPTOR: _descriptor.Descriptor
 
@@ -2915,7 +2918,7 @@ Global___ControllerHardware: _TypeAlias = ControllerHardware  # noqa: Y015
 
 @_typing.final
 class Controller(_message.Message):
-    """confirmed against the app field layout
+    """Field layout confirmed against the app
     header=1, relationships=2, settings=3, state=4,
     hosted_wifi_state=5, ap_wifi_state=6, p2p_wifi_state=7, controls=8.
     """
@@ -2955,7 +2958,7 @@ class Controller(_message.Message):
     def controls(self) -> Global___ControllerControls: ...
     @_builtins.property
     def local_comms_health(self) -> Global___LocalCommsStatus:
-        """local mesh status for this Dial (app names; was local_comms_status)"""
+        """local mesh status for this Dial (app name; was local_comms_status)"""
 
     def __init__(
         self,
@@ -2984,8 +2987,8 @@ class RemoteSensorAttributes(_message.Message):
     Remote Sensor (BLE temperature/humidity sensor)
     ---------------------------------------------------------------------------
 
-    confirmed against the app.
-    confirmed against the app.
+    Confirmed against the app.
+    Confirmed against the app.
     Shared by both RemoteSensor and ControllerRemoteSensor.
     """
 
@@ -3012,7 +3015,7 @@ Global___RemoteSensorAttributes: _TypeAlias = RemoteSensorAttributes  # noqa: Y0
 
 @_typing.final
 class RemoteSensorState(_message.Message):
-    """confirmed against the app: ambient_temp=1, humidity=2, updated_ts=3, battery=4, signal=5.
+    """Confirmed against the app: ambient_temp=1, humidity=2, updated_ts=3, battery=4, signal=5.
     Shared by both RemoteSensor and ControllerRemoteSensor.
     """
 
@@ -3048,7 +3051,7 @@ Global___RemoteSensorState: _TypeAlias = RemoteSensorState  # noqa: Y015
 
 @_typing.final
 class RemoteSensorRelationships(_message.Message):
-    """confirmed against the app: indoor_unit_id=1, updated_ts=2.
+    """Confirmed against the app: indoor_unit_id=1, updated_ts=2.
     Used by standalone RemoteSensor (field 12 in HomeDatastoreSystem).
     """
 
@@ -3059,7 +3062,7 @@ class RemoteSensorRelationships(_message.Message):
     SPACE_ID_FIELD_NUMBER: _builtins.int
     indoor_unit_id: _builtins.str
     space_id: _builtins.str
-    """1.0.33"""
+    """app 1.0.33"""
     @_builtins.property
     def updated_ts(self) -> _timestamp_pb2.Timestamp: ...
     def __init__(
@@ -3079,7 +3082,7 @@ Global___RemoteSensorRelationships: _TypeAlias = RemoteSensorRelationships  # no
 
 @_typing.final
 class ControllerRemoteSensorRelationships(_message.Message):
-    """confirmed against the app: controller_id=1, updated_ts=2.
+    """Confirmed against the app: controller_id=1, updated_ts=2.
     Used by ControllerRemoteSensor (field 16 in HomeDatastoreSystem).
     """
 
@@ -3106,7 +3109,7 @@ Global___ControllerRemoteSensorRelationships: _TypeAlias = ControllerRemoteSenso
 
 @_typing.final
 class RemoteSensorControls(_message.Message):
-    """confirmed against the app: updated_ts=1, control_mode=2.
+    """Confirmed against the app: updated_ts=1, control_mode=2.
     Shared by both RemoteSensor and ControllerRemoteSensor.
     """
 
@@ -3133,7 +3136,7 @@ Global___RemoteSensorControls: _TypeAlias = RemoteSensorControls  # noqa: Y015
 
 @_typing.final
 class RemoteSensor(_message.Message):
-    """confirmed against the app: header=1, attributes=2, state=3, relationships=4, controls=5.
+    """Confirmed against the app: header=1, attributes=2, state=3, relationships=4, controls=5.
     Standalone remote sensor linked to an IndoorUnit (field 12 in HomeDatastoreSystem).
     Not present in installations without paired remote sensors.
     """
@@ -3176,7 +3179,7 @@ Global___RemoteSensor: _TypeAlias = RemoteSensor  # noqa: Y015
 
 @_typing.final
 class ControllerRemoteSensor(_message.Message):
-    """confirmed against the app: header=1, attributes=2, state=3, relationships=4, controls=5.
+    """Confirmed against the app: header=1, attributes=2, state=3, relationships=4, controls=5.
     Sensor capability of a Controller (Dial) used for zone temperature control.
     Linked to a Controller via controller_id. Field 16 in HomeDatastoreSystem.
     Not present unless remote sensor control mode is configured on a Dial.
@@ -3339,7 +3342,7 @@ class LedScheduleEvent(_message.Message):
     ---------------------------------------------------------------------------
 
     ScheduleEvent: fan_speed is also FLAT here (fanSpeedMode + fanSpeedPercent), not nested.
-    confirmed against the app. Earlier revisions had f3–f5 wrong (color/brightness/animation).
+    Confirmed against the app. Earlier revisions had f3–f5 wrong (color/brightness/animation).
     """
 
     DESCRIPTOR: _descriptor.Descriptor
@@ -3485,7 +3488,7 @@ Global___ScheduleDayRelationships: _TypeAlias = ScheduleDayRelationships  # noqa
 
 @_typing.final
 class ScheduleDay(_message.Message):
-    """confirmed against the app.
+    """Confirmed against the app.
     (Earlier proto.json source had these swapped — app takes precedence.)
     """
 
@@ -3574,7 +3577,7 @@ Global___ScheduleWeekRelationships: _TypeAlias = ScheduleWeekRelationships  # no
 
 @_typing.final
 class ScheduleWeek(_message.Message):
-    """confirmed against the app.
+    """Confirmed against the app.
     (Earlier proto.json source had relationships=2, days=3 — app takes precedence.)
     """
 
@@ -3638,7 +3641,7 @@ Global___QuiltSmartModuleRelationships: _TypeAlias = QuiltSmartModuleRelationshi
 
 @_typing.final
 class QuiltSmartModuleControls(_message.Message):
-    """confirmed against the app."""
+    """Confirmed against the app."""
 
     DESCRIPTOR: _descriptor.Descriptor
 
@@ -3663,7 +3666,7 @@ Global___QuiltSmartModuleControls: _TypeAlias = QuiltSmartModuleControls  # noqa
 
 @_typing.final
 class QuiltSmartModuleState(_message.Message):
-    """confirmed against the app: 9 fields, presence/ALS/accelerometer sensor data."""
+    """Confirmed against the app: 9 fields, presence/ALS/accelerometer sensor data."""
 
     DESCRIPTOR: _descriptor.Descriptor
 
@@ -3717,7 +3720,7 @@ Global___QuiltSmartModuleState: _TypeAlias = QuiltSmartModuleState  # noqa: Y015
 
 @_typing.final
 class QuiltSmartModule(_message.Message):
-    """confirmed against the app
+    """Confirmed against the app
     header=1, controls=2, state=3, hosted_wifi_state=4, ap_wifi_state=5, p2p_wifi_state=6, relationships=7.
     """
 
@@ -3751,7 +3754,7 @@ class QuiltSmartModule(_message.Message):
     def relationships(self) -> Global___QuiltSmartModuleRelationships: ...
     @_builtins.property
     def local_comms_health(self) -> Global___LocalCommsStatus:
-        """local mesh status for this QSM (app names; was local_comms_status)"""
+        """local mesh status for this QSM (app name; was local_comms_status)"""
 
     def __init__(
         self,
@@ -3779,7 +3782,7 @@ class SoftwareUpdateInfoAttributes(_message.Message):
     Software / Firmware Update
     ---------------------------------------------------------------------------
 
-    confirmed against the app: SoftwareUpdateInfoAttributes fields.
+    Confirmed against the app: SoftwareUpdateInfoAttributes fields.
     """
 
     DESCRIPTOR: _descriptor.Descriptor
@@ -3823,7 +3826,7 @@ Global___SoftwareUpdateInfoAttributes: _TypeAlias = SoftwareUpdateInfoAttributes
 
 @_typing.final
 class SoftwareUpdateInfo(_message.Message):
-    """confirmed against the app."""
+    """Confirmed against the app."""
 
     DESCRIPTOR: _descriptor.Descriptor
 
@@ -3853,7 +3856,7 @@ Global___SoftwareUpdateInfo: _TypeAlias = SoftwareUpdateInfo  # noqa: Y015
 class AirHandlingUnitRelationships(_message.Message):
     """---------------------------------------------------------------------------
     Air Handling Unit (ducted systems) — tree fields 19 and 21
-    confirmed against the app from 1.0.33 (schema present since 242).
+    Confirmed against the app from 1.0.33 (schema present since 1.0.29).
     ---------------------------------------------------------------------------
     """
 
@@ -3950,12 +3953,12 @@ class AirHandlingUnitHardwareAttributes(_message.Message):
     firmware_version: _builtins.str
     """Quilt firmware"""
     oem_mcu_firmware_version: _builtins.str
-    """OEM control-board MCU firmware (new in 255)"""
+    """OEM control-board MCU firmware (new in 1.0.31)"""
     @_builtins.property
     def updated_ts(self) -> _timestamp_pb2.Timestamp: ...
     @_builtins.property
     def production_ts(self) -> _timestamp_pb2.Timestamp:
-        """new in 271"""
+        """new in 1.0.33"""
 
     def __init__(
         self,
@@ -4004,7 +4007,7 @@ class DuctedZoneRelationships(_message.Message):
     """---------------------------------------------------------------------------
     Ducted Zone — tree fields 20 and 22
     A zone of an air-handler-driven duct system; spaces join it via DuctedZoneMembership.
-    Damper messages (f7–f9) are new in 271.
+    Damper messages (f7–f9) are new in 1.0.33.
     ---------------------------------------------------------------------------
     """
 
@@ -4132,6 +4135,8 @@ Global___DuctedZoneOperationalState: _TypeAlias = DuctedZoneOperationalState  # 
 
 @_typing.final
 class DamperCommandedState(_message.Message):
+    """new in 1.0.33"""
+
     DESCRIPTOR: _descriptor.Descriptor
 
     UPDATED_TS_FIELD_NUMBER: _builtins.int
@@ -4155,6 +4160,8 @@ Global___DamperCommandedState: _TypeAlias = DamperCommandedState  # noqa: Y015
 
 @_typing.final
 class DamperPosition(_message.Message):
+    """new in 1.0.33"""
+
     DESCRIPTOR: _descriptor.Descriptor
 
     UPDATED_TS_FIELD_NUMBER: _builtins.int
@@ -4179,6 +4186,8 @@ Global___DamperPosition: _TypeAlias = DamperPosition  # noqa: Y015
 
 @_typing.final
 class DamperConfig(_message.Message):
+    """new in 1.0.33"""
+
     DESCRIPTOR: _descriptor.Descriptor
 
     UPDATED_TS_FIELD_NUMBER: _builtins.int
@@ -4227,15 +4236,15 @@ class DuctedZone(_message.Message):
     def operational_state(self) -> Global___DuctedZoneOperationalState: ...
     @_builtins.property
     def damper_commanded_state(self) -> Global___DamperCommandedState:
-        """new in 271"""
+        """new in 1.0.33"""
 
     @_builtins.property
     def damper_position(self) -> Global___DamperPosition:
-        """new in 271"""
+        """new in 1.0.33"""
 
     @_builtins.property
     def damper_config(self) -> Global___DamperConfig:
-        """new in 271"""
+        """new in 1.0.33"""
 
     def __init__(
         self,
@@ -4339,8 +4348,8 @@ Global___DuctedZoneMembership: _TypeAlias = DuctedZoneMembership  # noqa: Y015
 @_typing.final
 class TimeOfDayTrigger(_message.Message):
     """---------------------------------------------------------------------------
-    Automation — tree field 23 (RPCs new in 255; gated by mobile_automation_schedules_enabled)
-    Layout unchanged 255 -> 271.
+    Automation — tree field 23 (RPCs new in 1.0.31; gated by mobile_automation_schedules_enabled)
+    Layout unchanged 1.0.31 -> 1.0.33.
     ---------------------------------------------------------------------------
     """
 
@@ -4670,9 +4679,9 @@ Global___Automation: _TypeAlias = Automation  # noqa: Y015
 @_typing.final
 class DemandResponseSourceInfo(_message.Message):
     """---------------------------------------------------------------------------
-    Demand Response Event — tree field 24 (new in 271)
+    Demand Response Event — tree field 24 (new in 1.0.33)
     A utility demand-response event: precondition -> curtail -> recover. Per-space live
-    status is Space.demand_response_state.
+    status is Space.demand_response_state (f6).
     ---------------------------------------------------------------------------
     """
 
@@ -4921,29 +4930,31 @@ class HomeDatastoreSystem(_message.Message):
 
     @_builtins.property
     def air_handling_units(self) -> _containers.RepeatedCompositeFieldContainer[Global___AirHandlingUnit]:
-        """1.0.33; ducted systems only"""
+        """app 1.0.33; ducted systems only"""
 
     @_builtins.property
     def ducted_zones(self) -> _containers.RepeatedCompositeFieldContainer[Global___DuctedZone]:
-        """1.0.33"""
+        """app 1.0.33"""
 
     @_builtins.property
     def air_handling_unit_hardware(self) -> _containers.RepeatedCompositeFieldContainer[Global___AirHandlingUnitHardware]:
-        """1.0.33"""
+        """app 1.0.33"""
 
     @_builtins.property
     def ducted_zone_memberships(self) -> _containers.RepeatedCompositeFieldContainer[Global___DuctedZoneMembership]:
-        """1.0.33"""
+        """app 1.0.33"""
 
     @_builtins.property
     def automations(self) -> _containers.RepeatedCompositeFieldContainer[Global___Automation]:
-        """1.0.33 (RPCs since 255)"""
+        """app 1.0.33 (RPCs since 1.0.31)"""
 
     @_builtins.property
-    def demand_response_events(self) -> _containers.RepeatedCompositeFieldContainer[Global___DemandResponseEvent]: ...
+    def demand_response_events(self) -> _containers.RepeatedCompositeFieldContainer[Global___DemandResponseEvent]:
+        """app 1.0.33: new"""
+
     @_builtins.property
     def metadata(self) -> Global___HomeDatastoreSystemMetadata:
-        """1.0.33; in every capture"""
+        """app 1.0.33; in every capture"""
 
     def __init__(
         self,

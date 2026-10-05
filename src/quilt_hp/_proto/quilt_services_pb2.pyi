@@ -59,7 +59,7 @@ class _DeclaredUserTypeEnumTypeWrapper(_enum_type_wrapper._EnumTypeWrapper[_Decl
     DECLARED_USER_TYPE_PARTNER: _DeclaredUserType.ValueType  # 2
 
 class DeclaredUserType(_DeclaredUserType, metaclass=_DeclaredUserTypeEnumTypeWrapper):
-    """iOS app-only/UserAttributes model. Not found in the current app, but used
+    """iOS-app-only/UserAttributes model. Not found in the current app, but used
     by iOS source and confirmed via live captures.
     """
 
@@ -82,7 +82,7 @@ class GeocodeService(_GeocodeService, metaclass=_GeocodeServiceEnumTypeWrapper):
     System Information Service (GRPCSystemInformationClientService)
     ---------------------------------------------------------------------------
 
-    Address: confirmed against the app in 255 and 271. Earlier revisions of this file used the
+    Address: confirmed against the app in 1.0.31 and 1.0.33. Earlier revisions of this file used the
     iOS app model, which had the wrong layout from field 8 on (double lat/long
     geocode_source=10, geocode_override=11). Also embedded in PartnerOrganizationPublicProfile.
     """
@@ -135,14 +135,14 @@ class _DataSharingSettingEnumTypeWrapper(_enum_type_wrapper._EnumTypeWrapper[_Da
 
 class DataSharingSetting(_DataSharingSetting, metaclass=_DataSharingSettingEnumTypeWrapper):
     """---------------------------------------------------------------------------
-    Partner designation + data sharing (new in 271)
+    Partner designation + data sharing (new in 1.0.33)
     Assigns a certified installer ("partner") to a home and manages the homeowner's
     consent to share system data with them. SetSystemPartner is a compare-and-set:
     the client sends the state it expects plus the state it wants; a stale `expected`
-    yields RESULT_PRECONDITION_MISMATCH. Message names are ours; classes are 271.
+    yields RESULT_PRECONDITION_MISMATCH. Message names are ours.
     ---------------------------------------------------------------------------
 
-    gja (existed in 255)
+    gja (existed in 1.0.31)
     """
 
 DATA_SHARING_SETTING_UNSPECIFIED: DataSharingSetting.ValueType  # 0
@@ -164,7 +164,7 @@ class _SystemDataSharingStateEnumTypeWrapper(_enum_type_wrapper._EnumTypeWrapper
     SYSTEM_DATA_SHARING_STATE_CONSENT_REQUIRED: _SystemDataSharingState.ValueType  # 5
 
 class SystemDataSharingState(_SystemDataSharingState, metaclass=_SystemDataSharingStateEnumTypeWrapper):
-    """bla (existed in 255)"""
+    """bla (existed in 1.0.31)"""
 
 SYSTEM_DATA_SHARING_STATE_UNSPECIFIED: SystemDataSharingState.ValueType  # 0
 SYSTEM_DATA_SHARING_STATE_NO_PARTNER: SystemDataSharingState.ValueType  # 1
@@ -223,7 +223,8 @@ class _CreateInvitationResultEnumTypeWrapper(_enum_type_wrapper._EnumTypeWrapper
     CREATE_INVITATION_RESULT_ALREADY_INVITED: _CreateInvitationResult.ValueType  # 2
     CREATE_INVITATION_RESULT_ALREADY_MEMBER: _CreateInvitationResult.ValueType  # 3
 
-class CreateInvitationResult(_CreateInvitationResult, metaclass=_CreateInvitationResultEnumTypeWrapper): ...
+class CreateInvitationResult(_CreateInvitationResult, metaclass=_CreateInvitationResultEnumTypeWrapper):
+    """new in 1.0.33"""
 
 CREATE_INVITATION_RESULT_UNSPECIFIED: CreateInvitationResult.ValueType  # 0
 CREATE_INVITATION_RESULT_CREATED: CreateInvitationResult.ValueType  # 1
@@ -244,7 +245,7 @@ class _AfterInviteBehaviorEnumTypeWrapper(_enum_type_wrapper._EnumTypeWrapper[_A
 class AfterInviteBehavior(_AfterInviteBehavior, metaclass=_AfterInviteBehaviorEnumTypeWrapper):
     """---------------------------------------------------------------------------
     Partner Service (GRPCPartnerClientService)
-    All four RPCs are in the app stub registry (255, 271); message layouts
+    All four RPCs are in the app stub registry (1.0.31, 1.0.33); message layouts
     re-checked against app 1.0.33.
     ---------------------------------------------------------------------------
     """
@@ -270,7 +271,7 @@ class DiagnosticType(_DiagnosticType, metaclass=_DiagnosticTypeEnumTypeWrapper):
     called by consumer code; results are not returned to the client (see README).
     ---------------------------------------------------------------------------
 
-    (new in 271)
+    (new in 1.0.33)
     """
 
 DIAGNOSTIC_TYPE_UNSPECIFIED: DiagnosticType.ValueType  # 0
@@ -290,7 +291,7 @@ class _UserTaskKindEnumTypeWrapper(_enum_type_wrapper._EnumTypeWrapper[_UserTask
 class UserTaskKind(_UserTaskKind, metaclass=_UserTaskKindEnumTypeWrapper):
     """---------------------------------------------------------------------------
     User Task Service — onboarding task list + client telemetry. Named
-    UserActionsAppService in 255; renamed in 271 with the same methods.
+    UserActionsAppService in 1.0.31; renamed in 1.0.33 with the same methods.
     ---------------------------------------------------------------------------
 
     neb
@@ -452,7 +453,7 @@ Global___GetUserAttributesRequest: _TypeAlias = GetUserAttributesRequest  # noqa
 
 @_typing.final
 class GetUserAttributesResponse(_message.Message):
-    """GetUserAttributes wraps UserAttributes.
+    """GetUserAttributes wraps UserAttributes (wire bytes 0a 02 08 01 in captures).
     Earlier revisions returned UserAttributes directly, which mis-decodes the response.
     """
 
@@ -559,7 +560,7 @@ class SystemInformation(_message.Message):
     tz_identifier: _builtins.str
     @_builtins.property
     def address(self) -> Global___Address:
-        """confirmed against the app in 271"""
+        """Confirmed against the app in 1.0.33"""
 
     def __init__(
         self,
@@ -814,7 +815,7 @@ Global___DataSharingStatus: _TypeAlias = DataSharingStatus  # noqa: Y015
 
 @_typing.final
 class SystemDataSharing(_message.Message):
-    """ala (fields 1-3 existed in 255)"""
+    """ala (fields 1-3 existed in 1.0.31)"""
 
     DESCRIPTOR: _descriptor.Descriptor
 
@@ -829,7 +830,7 @@ class SystemDataSharing(_message.Message):
     def status(self) -> Global___DataSharingStatus: ...
     @_builtins.property
     def partner_organization_public_profile(self) -> Global___PartnerOrganizationPublicProfile:
-        """new in 271"""
+        """new in 1.0.33"""
 
     def __init__(
         self,
@@ -1139,7 +1140,7 @@ class InviterInformation(_message.Message):
     first_name: _builtins.str
     last_name: _builtins.str
     email: _builtins.str
-    """confirmed against the app in 255 and 271"""
+    """Confirmed against the app in 1.0.31 and 1.0.33"""
     def __init__(
         self,
         *,
@@ -1170,7 +1171,7 @@ class Invitation(_message.Message):
     system_name: _builtins.str
     access_role: Global___AccessRoleToSystem.ValueType
     system_id: _builtins.str
-    """server-only: sent by the server (ListSystemUsers, 2026-10-05) but absent from app 271"""
+    """server-only: sent by the server (ListSystemUsers, 2026-10-05) but absent from app 1.0.33"""
     @_builtins.property
     def invited_by(self) -> Global___InviterInformation: ...
     def __init__(
@@ -1258,7 +1259,7 @@ class CreateInvitationResponse(_message.Message):
     INVITATION_FIELD_NUMBER: _builtins.int
     RESULT_FIELD_NUMBER: _builtins.int
     result: Global___CreateInvitationResult.ValueType
-    """new in 271"""
+    """new in 1.0.33"""
     @_builtins.property
     def invitation(self) -> Global___Invitation: ...
     def __init__(
@@ -1472,7 +1473,7 @@ class InviteSystemOwnerResponse(_message.Message):
     INVITATION_FIELD_NUMBER: _builtins.int
     RESULT_FIELD_NUMBER: _builtins.int
     result: Global___CreateInvitationResult.ValueType
-    """1.0.33"""
+    """app 1.0.33"""
     @_builtins.property
     def invitation(self) -> Global___Invitation: ...
     def __init__(
@@ -1851,7 +1852,7 @@ Global___AuthorizeNewDeviceResponse: _TypeAlias = AuthorizeNewDeviceResponse  # 
 
 @_typing.final
 class CreateAndConfigureDuctedZoneRequest(_message.Message):
-    """New in 271: creates a ducted zone bound to an air handling unit in one call
+    """New in 1.0.33: creates a ducted zone bound to an air handling unit in one call
     (Statsig gate mobile_ducted_pairing_enabled).
     """
 
@@ -2013,7 +2014,7 @@ class StartDiagnosticRunRequest(_message.Message):
     system_id: _builtins.str
     target_serial_number: _builtins.str
     diagnostic_type: Global___DiagnosticType.ValueType
-    """new in 271"""
+    """new in 1.0.33"""
     def __init__(
         self,
         *,
@@ -2054,7 +2055,7 @@ class CancelDiagnosticRunRequest(_message.Message):
     system_id: _builtins.str
     target_serial_number: _builtins.str
     diagnostic_type: Global___DiagnosticType.ValueType
-    """new in 271"""
+    """new in 1.0.33"""
     def __init__(
         self,
         *,
@@ -2266,6 +2267,8 @@ class FeedbackAppInfo(_message.Message):
     """---------------------------------------------------------------------------
     User Feedback Service — in-app "shake to send feedback" (app 1.0.33; not documented before).
     ---------------------------------------------------------------------------
+
+    f27
     """
 
     DESCRIPTOR: _descriptor.Descriptor

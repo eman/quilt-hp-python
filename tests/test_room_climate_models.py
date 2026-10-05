@@ -199,3 +199,56 @@ def test_effective_test_mode_falls_back_when_test_state_unspecified() -> None:
     idu = IndoorUnit.from_proto(_idu(test=test, state_test_mode=hds.INDOOR_UNIT_TEST_MODE_STANDBY))
     assert idu.effective_test_mode is IndoorUnitTestMode.STANDBY
     assert idu.is_under_test is True
+
+
+def test_newer_state_test_mode_beats_stale_test_state() -> None:
+    """A merged snapshot can keep an old test_state while state carries a newer mode."""
+    test = hds.IndoorUnitTestState(test_mode=hds.INDOOR_UNIT_TEST_MODE_HEALTH_CHECK)
+    test.updated_ts.FromSeconds(1_000)
+    proto = _idu(test=test, state_test_mode=hds.INDOOR_UNIT_TEST_MODE_INACTIVE)
+    proto.state.updated_ts.FromSeconds(2_000)
+    idu = IndoorUnit.from_proto(proto)
+    assert idu.effective_test_mode is IndoorUnitTestMode.INACTIVE
+    assert idu.is_under_test is False
+
+    proto.state.updated_ts.FromSeconds(500)  # now test_state is newer
+    assert IndoorUnit.from_proto(proto).effective_test_mode is IndoorUnitTestMode.HEALTH_CHECK
+
+
+def test_indoor_unit_state_positional_fields_unchanged() -> None:
+    """New IndoorUnitState fields are appended, so positional construction keeps working."""
+    from dataclasses import fields
+    from datetime import UTC, datetime
+
+    from quilt_hp.models import HVACMode, HVACState, IndoorUnitState
+
+    names = [f.name for f in fields(IndoorUnitState)]
+    assert names.index("updated_at") < names.index("test_mode")
+    when = datetime(2026, 10, 5, tzinfo=UTC)
+    state = IndoorUnitState(
+        HVACMode.COOL,
+        HVACState.COOL,
+        21.0,
+        45.0,
+        0.0,
+        0.0,
+        0.0,
+        22.0,
+        0.5,
+        21.0,
+        20.0,
+        21.0,
+        0.0,
+        when,
+    )
+    assert state.updated_at == when
+    assert state.test_mode is IndoorUnitTestMode.UNSPECIFIED
+
+
+def test_diagnostics_zero_odu_share_is_not_reported() -> None:
+    """0.0 is the proto3 default, so diagnostics report None rather than a 0% share."""
+    diag = IndoorUnitDiagnostics.from_indoor_unit(
+        IndoorUnit.from_proto(_idu(odu_fraction=0.0)), "Dining Room"
+    )
+    assert diag.hvac_power_w == pytest.approx(2.26)  # performance_metrics present
+    assert diag.odu_usage_fraction is None

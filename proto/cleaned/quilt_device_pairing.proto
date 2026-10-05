@@ -15,14 +15,14 @@ option java_package = "com.quilt.proto.pairing";
 // Enums
 // ---------------------------------------------------------------------------
 
-// 1.0.33. Was WIFI_SECURITY_TYPE_{UNKNOWN,NONE,WPAPSK}.
+// app 1.0.33. Was WIFI_SECURITY_TYPE_{UNKNOWN,NONE,WPAPSK}.
 enum WifiSecurityType {
   KEY_MGMT_UNKNOWN = 0;
   KEY_MGMT_NONE = 1;
   KEY_MGMT_WPA_PSK = 2;
 }
 
-// 1.0.33. Earlier revisions numbered this from iOS app ordinals and were wrong from 4 up
+// app 1.0.33. Earlier revisions numbered this from iOS app ordinals and were wrong from 4 up
 // (CONTROLLER was 5; it is 6). There is no value 4.
 enum DeviceType {
   DEVICE_TYPE_UNSPECIFIED = 0;
@@ -56,7 +56,7 @@ enum DevicePairingStatus {
 // ---------------------------------------------------------------------------
 
 message WifiScan {
-  // Field ordering based on iOS app model (WifiScan.kt) and confirmed.
+  // Field ordering based on iOS app model and confirmed.
   // observed data: field 4 contains negative dBm values (RSSI).
   // Not to be confused with WifiState (used for established connections).
   string mac_address = 1;  // BSSID
@@ -91,7 +91,7 @@ message DeviceConfiguration {
   repeated WifiConfiguration wifi_configs = 8;
   string space_id = 9;
   string system_id = 10;  // system UUID from HDS
-  google.protobuf.Timestamp pairing_ts = 11;  // 1.0.33
+  google.protobuf.Timestamp pairing_ts = 11;  // app 1.0.33
 }
 
 message DeviceConfigurationRequest {

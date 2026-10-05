@@ -133,6 +133,11 @@ async def test_client_wrappers_delegate() -> None:
         get_controller=AsyncMock(return_value="ctrl"),
         get_quilt_smart_module=AsyncMock(return_value="qsm"),
         get_comfort_setting=AsyncMock(return_value="cs"),
+        get_remote_sensor=AsyncMock(return_value="rs"),
+        get_controller_remote_sensor=AsyncMock(return_value="crs"),
+        get_schedule_day=AsyncMock(return_value="day"),
+        get_schedule_week=AsyncMock(return_value="week"),
+        get_software_update_info=AsyncMock(return_value="sui"),
     )
     client._hds = hds_mock
 
@@ -144,3 +149,9 @@ async def test_client_wrappers_delegate() -> None:
     assert await client.get_controller("c") == "ctrl"
     assert await client.get_quilt_smart_module("q") == "qsm"
     assert await client.get_comfort_setting("x") == "cs"
+    assert await client.get_remote_sensor("r") == "rs"
+    assert await client.get_controller_remote_sensor("cr") == "crs"
+    assert await client.get_schedule_day("d") == "day"
+    assert await client.get_schedule_week("w") == "week"
+    assert await client.get_software_update_info("u") == "sui"
+    hds_mock.get_schedule_week.assert_awaited_once_with("w")

@@ -12,7 +12,7 @@ SubscribeEvent (notifier_events=1, control_events=2, system_events=3)
 NotifierEvent (topic=1 string, payload=2 google.protobuf.Any)
 ControlEvent (topics=1 repeated string, type=2 ControlEventType)
 SystemEvent (system_event_type=1)
-NotifierEvent.payload carries a core.protos.home_datastore.HdsNotification (quilt_hds.proto).
+NotifierEvent.payload carries a core.protos.home_datastore.Notification (quilt_hds.proto).
 """
 
 from collections import abc as _abc
@@ -58,8 +58,8 @@ class ControlEventType(_ControlEventType, metaclass=_ControlEventTypeEnumTypeWra
     remote_sensor, quilt_smart_module, schedule_week, schedule_day,
     comfort_setting, location, software_update_info,
     air_handling_unit_hardware, air_handling_unit, ducted_zone,
-    ducted_zone_membership, automation (255+)
-    No demand_response_event topic as of 271, though DR events are HDS tree field 24.
+    ducted_zone_membership, automation (1.0.31+)
+    No demand_response_event topic as of 1.0.33, though DR events are HDS tree field 24.
     """
 
 CONTROL_EVENT_TYPE_UNSPECIFIED: ControlEventType.ValueType  # 0
@@ -183,7 +183,7 @@ Global___NotifierEvent: _TypeAlias = NotifierEvent  # noqa: Y015
 class ControlEvent(_message.Message):
     """Subscription bookkeeping. The server answers every `append` with TOPIC_APPENDED for each
     topic — these are the periodic "heartbeats" older notes describe (our clients re-send the
-    end every 30 s to keep the stream alive).
+    append every 30 s to keep the stream alive).
     """
 
     DESCRIPTOR: _descriptor.Descriptor

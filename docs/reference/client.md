@@ -245,6 +245,11 @@ async def get_outdoor_unit(self, outdoor_unit_id: str) -> OutdoorUnit
 async def get_controller(self, controller_id: str) -> Controller
 async def get_quilt_smart_module(self, qsm_id: str) -> QuiltSmartModule
 async def get_comfort_setting(self, comfort_setting_id: str) -> ComfortSetting
+async def get_remote_sensor(self, sensor_id: str) -> RemoteSensor
+async def get_controller_remote_sensor(self, sensor_id: str) -> ControllerRemoteSensor
+async def get_schedule_day(self, schedule_day_id: str) -> ScheduleDay
+async def get_schedule_week(self, schedule_week_id: str) -> ScheduleWeek
+async def get_software_update_info(self, info_id: str) -> SoftwareUpdateInfo
 ```
 
 Fetch one object straight from the server instead of a full snapshot. The result lacks hardware
@@ -255,12 +260,8 @@ enrichment (`active_comfort_setting_type`). Merge it into a snapshot to keep tho
 idu = snapshot.apply_indoor_unit(await client.get_indoor_unit(idu_id))
 ```
 
-`HomeDatastoreService` (the client's `_hds`) additionally offers `get_remote_sensor`,
-`get_controller_remote_sensor`, `get_schedule_day`, `get_schedule_week`,
-`get_software_update_info`, and per-system `list_spaces`, `list_indoor_units`,
-`list_outdoor_units`, `list_controllers`, `list_quilt_smart_modules`, `list_comfort_settings`,
-`list_schedule_days` and `list_schedule_weeks`, which filter server-side with
-`header.system_id="<id>"`.
+The client's `list_spaces`, `list_indoor_units` and `list_comfort_settings` read from the cached
+snapshot (see `get_snapshot`), which is usually what you want.
 
 **Raises:** `QuiltNotFoundError` if the object does not exist. `QuiltError` for other gRPC failures.
 
