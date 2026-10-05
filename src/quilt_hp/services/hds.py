@@ -8,13 +8,10 @@ from __future__ import annotations
 import logging
 import time
 from collections.abc import Callable, Sequence
-from typing import TYPE_CHECKING, Any, Protocol, cast
+from typing import Any, Protocol, cast
 
-import grpc
+import grpc.aio
 from google.protobuf.timestamp_pb2 import Timestamp
-
-if TYPE_CHECKING:
-    import grpc.aio
 
 from quilt_hp._proto import quilt_hds_pb2 as hds
 from quilt_hp._proto import quilt_hds_pb2_grpc as hds_grpc
