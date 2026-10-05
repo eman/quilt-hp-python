@@ -10,7 +10,7 @@ import pytest
 
 from quilt_hp._proto import quilt_hds_pb2 as hds
 from quilt_hp.client import QuiltClient
-from quilt_hp.exceptions import QuiltNotFoundError
+from quilt_hp.exceptions import QuiltError, QuiltNotFoundError
 from quilt_hp.models import SystemSnapshot
 from quilt_hp.services import hds as hds_service
 
@@ -155,3 +155,27 @@ async def test_client_wrappers_delegate() -> None:
     assert await client.get_schedule_week("w") == "week"
     assert await client.get_software_update_info("u") == "sui"
     hds_mock.get_schedule_week.assert_awaited_once_with("w")
+
+
+@pytest.mark.asyncio
+async def test_get_maps_permission_denied_to_not_found(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The server answers PERMISSION_DENIED for an id that does not exist."""
+    svc = _service(
+        monkeypatch,
+        GetSpace=AsyncMock(
+            side_effect=_FakeRpcError(grpc.StatusCode.PERMISSION_DENIED, "Permission Denied.")
+        ),
+    )
+    with pytest.raises(QuiltNotFoundError):
+        await svc.get_space("no-such-space")
+
+
+@pytest.mark.asyncio
+async def test_get_other_errors_are_not_not_found(monkeypatch: pytest.MonkeyPatch) -> None:
+    svc = _service(
+        monkeypatch,
+        GetSpace=AsyncMock(side_effect=_FakeRpcError(grpc.StatusCode.INVALID_ARGUMENT, "bad")),
+    )
+    with pytest.raises(QuiltError) as info:
+        await svc.get_space("space-1")
+    assert not isinstance(info.value, QuiltNotFoundError)
