@@ -10,6 +10,7 @@ import time
 from collections.abc import Callable, Sequence
 from typing import TYPE_CHECKING, Any, Protocol, cast
 
+import grpc
 from google.protobuf.timestamp_pb2 import Timestamp
 
 if TYPE_CHECKING:
@@ -17,7 +18,7 @@ if TYPE_CHECKING:
 
 from quilt_hp._proto import quilt_hds_pb2 as hds
 from quilt_hp._proto import quilt_hds_pb2_grpc as hds_grpc
-from quilt_hp.exceptions import QuiltNotFoundError
+from quilt_hp.exceptions import QuiltError, QuiltNotFoundError
 from quilt_hp.models.comfort import ComfortSetting
 from quilt_hp.models.controller import Controller
 from quilt_hp.models.enums import FanSpeed, HVACMode, LouverMode
@@ -125,8 +126,18 @@ class HomeDatastoreService:
     async def _get_object(self, method: str, object_id: str, build: Callable[[Any], Any]) -> Any:
         request_cls = getattr(hds, f"{method}Request")
         logger.debug("RPC %s object_id=%s", method, object_id)
-        async with grpc_call(method):
-            reply = await getattr(self._stub, method)(request_cls(object_id=object_id))
+        try:
+            async with grpc_call(method):
+                reply = await getattr(self._stub, method)(request_cls(object_id=object_id))
+        except QuiltError as exc:
+            # The server answers PERMISSION_DENIED (not NOT_FOUND) for an id that does not exist
+            # as well as for one that is not the user's (verified live 2026-10-05), so both mean
+            # "no such object visible to you".
+            if isinstance(exc.__cause__, grpc.aio.AioRpcError) and (
+                exc.__cause__.code() == grpc.StatusCode.PERMISSION_DENIED
+            ):
+                raise QuiltNotFoundError(f"{method}: object {object_id} not found") from exc
+            raise
         return build(reply)
 
     async def _list_objects(

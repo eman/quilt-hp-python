@@ -263,7 +263,8 @@ idu = snapshot.apply_indoor_unit(await client.get_indoor_unit(idu_id))
 The client's `list_spaces`, `list_indoor_units` and `list_comfort_settings` read from the cached
 snapshot (see `get_snapshot`), which is usually what you want.
 
-**Raises:** `QuiltNotFoundError` if the object does not exist. `QuiltError` for other gRPC failures.
+**Raises:** `QuiltNotFoundError` if the object does not exist or is not visible to you (the server
+answers both with `PERMISSION_DENIED`). `QuiltError` for other gRPC failures.
 
 ---
 
