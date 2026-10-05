@@ -397,8 +397,10 @@ class IndoorUnitTestState:
 ```
 
 `idu.dew_point_c` is the inlet dew point, or `None` when the climate reading is absent or flagged
-invalid; the unit updates it every few seconds. `idu.is_under_test` is `True` while the unit runs a
-health check, commissioning or another test, during which its behaviour is driven by the test
+invalid; the unit updates it every few seconds. `idu.effective_test_mode` is
+`test_state.test_mode` when reported, otherwise `state.test_mode` (the server reports the mode in
+both places). `idu.is_under_test` is `True` while that mode is anything but `INACTIVE` (health
+check, commissioning or another test), during which the unit's behaviour is driven by the test
 rather than the room's controls.
 
 #### `IndoorUnitPresence` and `IndoorUnitOccupancy` — realtime vs derived

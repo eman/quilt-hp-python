@@ -82,6 +82,7 @@ class _FakeSnapshot:
                 performance_metrics=SimpleNamespace(odu_usage_fraction=0.5),
                 is_under_test=False,
                 test_state=SimpleNamespace(test_mode=IndoorUnitTestMode.INACTIVE),
+                effective_test_mode=IndoorUnitTestMode.INACTIVE,
                 software_update_info_id="update-software-idu",
             )
         ]

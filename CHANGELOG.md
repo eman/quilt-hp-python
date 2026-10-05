@@ -50,8 +50,9 @@
   calculated ambient) and the `IndoorUnit.dew_point_c` property.
 - **Indoor-unit test state:** `IndoorUnit.test_state` (`IndoorUnitTestState` with the new
   `IndoorUnitTestMode` / `IndoorUnitTestCoordination` / `IndoorUnitTestPhase` enums),
-  `IndoorUnitState.test_mode` and the `IndoorUnit.is_under_test` property (health check,
-  commissioning). `quilt diagnostics` shows dew point, outdoor-unit share and any active test;
+  `IndoorUnitState.test_mode`, and the `IndoorUnit.effective_test_mode` / `is_under_test`
+  properties (health check, commissioning), which fall back to `state.test_mode` when
+  `test_state` is absent. `quilt diagnostics` shows dew point, outdoor-unit share and any active test;
   `quilt info --output json` includes all four.
 - **Single-object fetches:** `QuiltClient.get_space` / `get_indoor_unit` / `get_outdoor_unit` /
   `get_controller` / `get_quilt_smart_module` / `get_comfort_setting`, and on

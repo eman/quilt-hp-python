@@ -1810,7 +1810,7 @@ class IndoorUnitState(_message.Message):
     led_state: Global___LightState.ValueType
     """1.0.33; seen in captures since 2026-05 (device-reported LED state)"""
     inlet_humidity_percent: _builtins.float
-    """1.0.33; not yet seen in captures"""
+    """1.0.33; seen live 2026-10-05"""
     @_builtins.property
     def updated_ts(self) -> _timestamp_pb2.Timestamp: ...
     def __init__(
@@ -2263,11 +2263,11 @@ class IndoorUnit(_message.Message):
     def occupancy(self) -> Global___IndoorUnitOccupancy: ...
     @_builtins.property
     def test_state(self) -> Global___IndoorUnitTestState:
-        """1.0.33; not yet seen in captures"""
+        """1.0.33; seen live 2026-10-05 (INACTIVE)"""
 
     @_builtins.property
     def climate_state(self) -> Global___IndoorUnitClimateState:
-        """1.0.33; not yet seen in captures"""
+        """1.0.33; seen live 2026-10-05, updates every few seconds"""
 
     def __init__(
         self,

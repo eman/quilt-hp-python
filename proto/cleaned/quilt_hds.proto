@@ -585,7 +585,7 @@ message IndoorUnitState {
   IndoorUnitTestMode test_mode = 15;  // 1.0.33; seen in captures since 2026-05
   float coil_temperature_c = 16;  // 1.0.33; seen in captures since 2026-05
   LightState led_state = 17;  // 1.0.33; seen in captures since 2026-05 (device-reported LED state)
-  float inlet_humidity_percent = 18;  // 1.0.33; not yet seen in captures
+  float inlet_humidity_percent = 18;  // 1.0.33; seen live 2026-10-05
 }
 
 message IndoorUnitConditions {
@@ -706,8 +706,8 @@ message IndoorUnit {
   IndoorUnitPerformanceData performance_data = 10;
   IndoorUnitPerformanceMetrics performance_metrics = 11;
   IndoorUnitOccupancy occupancy = 12;
-  IndoorUnitTestState test_state = 13;  // 1.0.33; not yet seen in captures
-  IndoorUnitClimateState climate_state = 14;  // 1.0.33; not yet seen in captures
+  IndoorUnitTestState test_state = 13;  // 1.0.33; seen live 2026-10-05 (INACTIVE)
+  IndoorUnitClimateState climate_state = 14;  // 1.0.33; seen live 2026-10-05, updates every few seconds
 }
 
 // Commissioning / health-check test progress for one IDU.

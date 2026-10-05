@@ -349,14 +349,26 @@ class IndoorUnit:
         return self.climate.inlet_dew_point_c
 
     @property
+    def effective_test_mode(self) -> IndoorUnitTestMode:
+        """The unit's test mode: ``test_state.test_mode`` when reported, else ``state.test_mode``.
+
+        The server reports the mode in both places; either may be absent from a sparse diff.
+        """
+        if (
+            self.test_state is not None
+            and self.test_state.test_mode != IndoorUnitTestMode.UNSPECIFIED
+        ):
+            return self.test_state.test_mode
+        return self.state.test_mode
+
+    @property
     def is_under_test(self) -> bool:
         """True while the unit runs a health check, commissioning or another test.
 
         During a test the unit's behaviour is driven by the test, not by the room's controls.
+        Uses ``effective_test_mode``, so it works when only ``state.test_mode`` is reported.
         """
-        if self.test_state is None:
-            return False
-        return self.test_state.test_mode not in (
+        return self.effective_test_mode not in (
             IndoorUnitTestMode.UNSPECIFIED,
             IndoorUnitTestMode.INACTIVE,
         )
