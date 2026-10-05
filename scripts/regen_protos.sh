@@ -33,7 +33,9 @@ python -m grpc_tools.protoc \
     "$PROTO_SRC/quilt_services.proto" \
     "$PROTO_SRC/quilt_notifier.proto" \
     "$PROTO_SRC/quilt_system.proto" \
-    "$PROTO_SRC/quilt_device_pairing.proto"
+    "$PROTO_SRC/quilt_device_pairing.proto" \
+    "$PROTO_SRC/quilt_device_config.proto" \
+    "$PROTO_SRC/quilt_actions.proto"
 
 # Fix imports in generated files: grpc stubs use absolute imports that won't
 # work inside our package. Rewrite them to relative imports.
@@ -54,6 +56,12 @@ for f in *.py; do
 
     sed -i '' 's/^import quilt_device_pairing_pb2/from . import quilt_device_pairing_pb2/' "$f" 2>/dev/null || \
     sed -i  's/^import quilt_device_pairing_pb2/from . import quilt_device_pairing_pb2/' "$f"
+
+    sed -i '' 's/^import quilt_device_config_pb2/from . import quilt_device_config_pb2/' "$f" 2>/dev/null || \
+    sed -i  's/^import quilt_device_config_pb2/from . import quilt_device_config_pb2/' "$f"
+
+    sed -i '' 's/^import quilt_actions_pb2/from . import quilt_actions_pb2/' "$f" 2>/dev/null || \
+    sed -i  's/^import quilt_actions_pb2/from . import quilt_actions_pb2/' "$f"
 done
 
 # Ensure __init__.py exists

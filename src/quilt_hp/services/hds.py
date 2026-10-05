@@ -8,7 +8,7 @@ from __future__ import annotations
 import logging
 import time
 from collections.abc import Callable, Sequence
-from typing import TYPE_CHECKING, Protocol, cast
+from typing import TYPE_CHECKING, Any, Protocol, cast
 
 from google.protobuf.timestamp_pb2 import Timestamp
 
@@ -19,9 +19,14 @@ from quilt_hp._proto import quilt_hds_pb2 as hds
 from quilt_hp._proto import quilt_hds_pb2_grpc as hds_grpc
 from quilt_hp.exceptions import QuiltNotFoundError
 from quilt_hp.models.comfort import ComfortSetting
+from quilt_hp.models.controller import Controller
 from quilt_hp.models.enums import FanSpeed, HVACMode, LouverMode
 from quilt_hp.models.indoor_unit import IndoorUnit
+from quilt_hp.models.outdoor_unit import OutdoorUnit
+from quilt_hp.models.qsm import QuiltSmartModule
 from quilt_hp.models.schedule import ScheduleDay, ScheduleEvent, ScheduleWeek, ScheduleWeekDay
+from quilt_hp.models.sensor import ControllerRemoteSensor, RemoteSensor
+from quilt_hp.models.software_update import SoftwareUpdateInfo
 from quilt_hp.models.space import Space
 from quilt_hp.models.system import SystemSnapshot
 from quilt_hp.services import grpc_call
@@ -97,6 +102,161 @@ class HomeDatastoreService:
             raise QuiltNotFoundError(f"System {system_id} not found") from exc
         return SystemSnapshot.from_proto(snap)
 
+    async def get_system_version(self, system_id: str) -> int | None:
+        """Fetch only the system's ``metadata.version`` (a ~14-byte response).
+
+        The version is an epoch-nanosecond timestamp that advances whenever controls,
+        settings or configuration are written (including automatic writes such as auto-away
+        switching a comfort setting). Telemetry changes do not advance it. Compare against
+        ``SystemSnapshot.version`` to tell whether a snapshot's configuration is stale.
+        """
+        request = hds.GetHomeDatastoreSystemRequest(system_id=system_id)
+        request.field_mask.paths.append("metadata")
+        async with grpc_call("GetHomeDatastoreSystem"):
+            reply = cast("Any", await self._stub.GetHomeDatastoreSystem(request))
+        return int(reply.metadata.version) or None
+
+    # --- single-object fetches -------------------------------------------------------------
+    # The server implements Get/List for every entity; the Quilt app uses only a few. A Get
+    # returns the object without hardware attributes (model_sku, serial_number, firmware) and,
+    # for spaces, without comfort-setting enrichment — merge it into a snapshot with
+    # ``snapshot.apply_*`` to keep those.
+
+    async def _get_object(self, method: str, object_id: str, build: Callable[[Any], Any]) -> Any:
+        request_cls = getattr(hds, f"{method}Request")
+        logger.debug("RPC %s object_id=%s", method, object_id)
+        async with grpc_call(method):
+            reply = await getattr(self._stub, method)(request_cls(object_id=object_id))
+        return build(reply)
+
+    async def _list_objects(
+        self, method: str, system_id: str, build: Callable[[Any], Any]
+    ) -> list[Any]:
+        request_cls = getattr(hds, f"{method}Request")
+        logger.debug("RPC %s system_id=%s", method, system_id)
+        async with grpc_call(method):
+            reply = await getattr(self._stub, method)(
+                request_cls(filter=f'header.system_id="{system_id}"')
+            )
+        items = getattr(reply, reply.DESCRIPTOR.fields[0].name)
+        return [build(item) for item in items]
+
+    async def get_space(self, space_id: str) -> Space:
+        """Fetch one space."""
+        return cast("Space", await self._get_object("GetSpace", space_id, Space.from_proto))
+
+    async def get_indoor_unit(self, indoor_unit_id: str) -> IndoorUnit:
+        """Fetch one indoor unit (hardware fields are None; see above)."""
+        return cast(
+            "IndoorUnit",
+            await self._get_object("GetIndoorUnit", indoor_unit_id, IndoorUnit.from_proto),
+        )
+
+    async def get_outdoor_unit(self, outdoor_unit_id: str) -> OutdoorUnit:
+        """Fetch one outdoor unit (hardware fields are None; see above)."""
+        return cast(
+            "OutdoorUnit",
+            await self._get_object("GetOutdoorUnit", outdoor_unit_id, OutdoorUnit.from_proto),
+        )
+
+    async def get_controller(self, controller_id: str) -> Controller:
+        """Fetch one controller (Dial); hardware fields are None (see above)."""
+        return cast(
+            "Controller",
+            await self._get_object("GetController", controller_id, Controller.from_proto),
+        )
+
+    async def get_quilt_smart_module(self, qsm_id: str) -> QuiltSmartModule:
+        """Fetch one Quilt Smart Module."""
+        return cast(
+            "QuiltSmartModule",
+            await self._get_object("GetQuiltSmartModule", qsm_id, QuiltSmartModule.from_proto),
+        )
+
+    async def get_remote_sensor(self, sensor_id: str) -> RemoteSensor:
+        """Fetch one remote sensor."""
+        return cast(
+            "RemoteSensor",
+            await self._get_object("GetRemoteSensor", sensor_id, RemoteSensor.from_proto),
+        )
+
+    async def get_controller_remote_sensor(self, sensor_id: str) -> ControllerRemoteSensor:
+        """Fetch one Dial-paired remote sensor."""
+        return cast(
+            "ControllerRemoteSensor",
+            await self._get_object(
+                "GetControllerRemoteSensor", sensor_id, ControllerRemoteSensor.from_proto
+            ),
+        )
+
+    async def get_comfort_setting(self, comfort_setting_id: str) -> ComfortSetting:
+        """Fetch one comfort setting."""
+        return cast(
+            "ComfortSetting",
+            await self._get_object(
+                "GetComfortSetting", comfort_setting_id, ComfortSetting.from_proto
+            ),
+        )
+
+    async def get_schedule_day(self, schedule_day_id: str) -> ScheduleDay:
+        """Fetch one schedule day."""
+        return cast(
+            "ScheduleDay",
+            await self._get_object("GetScheduleDay", schedule_day_id, ScheduleDay.from_proto),
+        )
+
+    async def get_schedule_week(self, schedule_week_id: str) -> ScheduleWeek:
+        """Fetch one schedule week."""
+        return cast(
+            "ScheduleWeek",
+            await self._get_object("GetScheduleWeek", schedule_week_id, ScheduleWeek.from_proto),
+        )
+
+    async def get_software_update_info(self, info_id: str) -> SoftwareUpdateInfo:
+        """Fetch one software-update record."""
+        return cast(
+            "SoftwareUpdateInfo",
+            await self._get_object(
+                "GetSoftwareUpdateInfo", info_id, SoftwareUpdateInfo.from_proto
+            ),
+        )
+
+    async def list_spaces(self, system_id: str) -> list[Space]:
+        """List a system's spaces (including the root space) without fetching a snapshot."""
+        return await self._list_objects("ListSpaces", system_id, Space.from_proto)
+
+    async def list_indoor_units(self, system_id: str) -> list[IndoorUnit]:
+        """List a system's indoor units (hardware fields are None)."""
+        return await self._list_objects("ListIndoorUnits", system_id, IndoorUnit.from_proto)
+
+    async def list_outdoor_units(self, system_id: str) -> list[OutdoorUnit]:
+        """List a system's outdoor units (hardware fields are None)."""
+        return await self._list_objects("ListOutdoorUnits", system_id, OutdoorUnit.from_proto)
+
+    async def list_controllers(self, system_id: str) -> list[Controller]:
+        """List a system's controllers (hardware fields are None)."""
+        return await self._list_objects("ListControllers", system_id, Controller.from_proto)
+
+    async def list_quilt_smart_modules(self, system_id: str) -> list[QuiltSmartModule]:
+        """List a system's Quilt Smart Modules."""
+        return await self._list_objects(
+            "ListQuiltSmartModules", system_id, QuiltSmartModule.from_proto
+        )
+
+    async def list_comfort_settings(self, system_id: str) -> list[ComfortSetting]:
+        """List a system's comfort settings."""
+        return await self._list_objects(
+            "ListComfortSettings", system_id, ComfortSetting.from_proto
+        )
+
+    async def list_schedule_days(self, system_id: str) -> list[ScheduleDay]:
+        """List a system's schedule days."""
+        return await self._list_objects("ListScheduleDays", system_id, ScheduleDay.from_proto)
+
+    async def list_schedule_weeks(self, system_id: str) -> list[ScheduleWeek]:
+        """List a system's schedule weeks."""
+        return await self._list_objects("ListScheduleWeeks", system_id, ScheduleWeek.from_proto)
+
     async def update_space(
         self,
         snapshot_space: Space,
@@ -163,7 +323,7 @@ class HomeDatastoreService:
             "RPC UpdateSpace space_id=%s system_id=%s", snapshot_space.id, snapshot_space.system_id
         )
         async with grpc_call("UpdateSpace"):
-            result = await self._stub.UpdateSpace(hds.UpdateSpaceRequest(diff=diff))
+            result = await self._stub.UpdateSpace(hds.UpdateSpaceRequest(space=diff))
         return Space.from_proto(result)
 
     async def update_space_settings(
@@ -207,7 +367,7 @@ class HomeDatastoreService:
             snapshot_space.system_id,
         )
         async with grpc_call("UpdateSpace settings"):
-            result = await self._stub.UpdateSpace(hds.UpdateSpaceRequest(diff=diff))
+            result = await self._stub.UpdateSpace(hds.UpdateSpaceRequest(space=diff))
         return Space.from_proto(result)
 
     async def update_indoor_unit(
@@ -254,7 +414,9 @@ class HomeDatastoreService:
         )
         logger.debug("RPC UpdateIndoorUnit indoor_unit_id=%s system_id=%s", idu.id, idu.system_id)
         async with grpc_call("UpdateIndoorUnit"):
-            result = await self._stub.UpdateIndoorUnit(hds.UpdateIndoorUnitRequest(diff=diff))
+            result = await self._stub.UpdateIndoorUnit(
+                hds.UpdateIndoorUnitRequest(indoor_unit=diff)
+            )
         return IndoorUnit.from_proto(result)
 
     async def update_indoor_unit_settings(
@@ -306,7 +468,9 @@ class HomeDatastoreService:
             "RPC UpdateIndoorUnit settings indoor_unit_id=%s system_id=%s", idu.id, idu.system_id
         )
         async with grpc_call("UpdateIndoorUnit settings"):
-            result = await self._stub.UpdateIndoorUnit(hds.UpdateIndoorUnitRequest(diff=diff))
+            result = await self._stub.UpdateIndoorUnit(
+                hds.UpdateIndoorUnitRequest(indoor_unit=diff)
+            )
         return IndoorUnit.from_proto(result)
 
     async def update_comfort_setting(
@@ -437,7 +601,7 @@ class HomeDatastoreService:
         logger.debug("RPC DeleteScheduleDay schedule_day_id=%s", schedule_day_id)
         async with grpc_call("DeleteScheduleDay"):
             await self._stub.DeleteScheduleDay(
-                hds.DeleteScheduleDayRequest(schedule_day_id=schedule_day_id)
+                hds.DeleteScheduleDayRequest(object_id=schedule_day_id)
             )
 
     async def update_schedule_day(
@@ -473,11 +637,14 @@ class HomeDatastoreService:
         return ScheduleDay.from_proto(result)
 
     async def delete_schedule_week(self, schedule_week_id: str) -> None:
-        """Delete a schedule week."""
+        """Delete a schedule week.
+
+        The Quilt app never calls ``DeleteScheduleWeek``, but the server implements it.
+        """
         logger.debug("RPC DeleteScheduleWeek schedule_week_id=%s", schedule_week_id)
         async with grpc_call("DeleteScheduleWeek"):
             await self._stub.DeleteScheduleWeek(
-                hds.DeleteScheduleWeekRequest(schedule_week_id=schedule_week_id)
+                hds.DeleteScheduleWeekRequest(object_id=schedule_week_id)
             )
 
     async def update_location_schedule_execution(

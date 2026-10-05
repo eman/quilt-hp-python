@@ -77,7 +77,7 @@ def _make_space_proto(
             updated_ts=object(),  # truthy → state fields are valid
             ambient_temperature_c=ambient_c,
             hvac_state=hvac_state,
-            setpoint_temperature_c=21.0,
+            temperature_setpoint_c=21.0,
             comfort_setting_id="cs-1",
         ),
     )
@@ -339,7 +339,7 @@ def _make_idu_proto(
             led_color_code=0,
             led_color_brightness_percent=0.8,
             led_animation=1,
-            led_state=0,  # LIGHT_STATE_UNSPECIFIED
+            led_state=0,  # LED_STATE_UNSPECIFIED
         ),
         state=_ns(
             hvac_mode=hvac_mode,
@@ -501,7 +501,7 @@ def test_idu_led_state_off_preserves_brightness() -> None:
     proto = _make_idu_proto()
     proto.controls.led_color_code = 0xFF460064
     proto.controls.led_color_brightness_percent = 0.29  # preserved, NOT zeroed
-    proto.controls.led_state = 2  # LIGHT_STATE_OFF
+    proto.controls.led_state = 2  # LED_STATE_OFF
     idu = IndoorUnit.from_proto(proto)
     assert idu.controls.light_on is False
     assert idu.led_on is False
@@ -512,7 +512,7 @@ def test_idu_led_state_on_explicit() -> None:
     proto = _make_idu_proto()
     proto.controls.led_color_code = 0xFF460064
     proto.controls.led_color_brightness_percent = 0.42
-    proto.controls.led_state = 1  # LIGHT_STATE_ON
+    proto.controls.led_state = 1  # LED_STATE_ON
     idu = IndoorUnit.from_proto(proto)
     assert idu.controls.light_on is True
     assert idu.led_on is True
@@ -639,10 +639,10 @@ def test_controller_from_proto() -> None:
         settings=_ns(name="Living Room Dial"),
         state=_ns(
             updated_ts=_ns(seconds=int(__import__("time").time())),
-            ambient_temperature_c=21.9,
-            temperature_f3=34.0,
-            temperature_f4=48.5,
-            temperature_f5=21.0,
+            sht4x_temperature_c=21.9,
+            encoder_temperature_c=34.0,
+            soc_temperature_c=48.5,
+            calculated_ambient_temperature_c=21.0,
         ),
         hosted_wifi_state=_ns(
             ssid="MyNet",
@@ -694,10 +694,10 @@ def test_controller_no_wifi() -> None:
         settings=_ns(name=""),
         state=_ns(
             updated_ts=_ns(seconds=0),
-            ambient_temperature_c=20.0,
-            temperature_f3=33.0,
-            temperature_f4=47.0,
-            temperature_f5=20.0,
+            sht4x_temperature_c=20.0,
+            encoder_temperature_c=33.0,
+            soc_temperature_c=47.0,
+            calculated_ambient_temperature_c=20.0,
         ),
         hosted_wifi_state=_ns(
             ssid="",
@@ -742,10 +742,10 @@ def test_controller_wifi_signal_zero_is_preserved() -> None:
         settings=_ns(name="Dial"),
         state=_ns(
             updated_ts=_ns(seconds=0),
-            ambient_temperature_c=20.0,
-            temperature_f3=33.0,
-            temperature_f4=47.0,
-            temperature_f5=20.0,
+            sht4x_temperature_c=20.0,
+            encoder_temperature_c=33.0,
+            soc_temperature_c=47.0,
+            calculated_ambient_temperature_c=20.0,
         ),
         hosted_wifi_state=_ns(
             ssid="MyNet",
@@ -857,7 +857,7 @@ def test_qsm_local_comms_health_populated() -> None:
         hosted_wifi_state=_ns(ssid="", ipv4_address="", signal_level_dbm=0),
         ap_wifi_state=_ns(ssid="", ipv4_address="", signal_level_dbm=0),
         p2p_wifi_state=_ns(ssid="", ipv4_address="", signal_level_dbm=0),
-        local_comms_status=_ns(
+        local_comms_health=_ns(
             status=1,  # status subfield 2 = HEALTHY
             visible_devices_count=9,
             expected_devices_count=9,
@@ -911,10 +911,10 @@ def test_controller_local_comms_health_populated() -> None:
         settings=_ns(name="Dial"),
         state=_ns(
             updated_ts=_ns(seconds=0),
-            ambient_temperature_c=20.0,
-            temperature_f3=33.0,
-            temperature_f4=47.0,
-            temperature_f5=20.0,
+            sht4x_temperature_c=20.0,
+            encoder_temperature_c=33.0,
+            soc_temperature_c=47.0,
+            calculated_ambient_temperature_c=20.0,
         ),
         hosted_wifi_state=_ns(
             ssid="",
@@ -926,7 +926,7 @@ def test_controller_local_comms_health_populated() -> None:
         ap_wifi_state=_ns(ssid="", ipv4_address="", signal_level_dbm=0),
         p2p_wifi_state=_ns(ssid="", ipv4_address="", signal_level_dbm=0),
         controls=_ns(remote_sensor_control_mode=0),
-        local_comms_status=_ns(
+        local_comms_health=_ns(
             status=3,  # status subfield 2 = OFFLINE
             visible_devices_count=0,
             expected_devices_count=9,
@@ -954,10 +954,10 @@ def test_controller_local_comms_health_defaults_to_unspecified() -> None:
         settings=_ns(name="Dial"),
         state=_ns(
             updated_ts=_ns(seconds=0),
-            ambient_temperature_c=20.0,
-            temperature_f3=33.0,
-            temperature_f4=47.0,
-            temperature_f5=20.0,
+            sht4x_temperature_c=20.0,
+            encoder_temperature_c=33.0,
+            soc_temperature_c=47.0,
+            calculated_ambient_temperature_c=20.0,
         ),
         hosted_wifi_state=_ns(
             ssid="",
@@ -1352,10 +1352,10 @@ def test_system_snapshot_hardware_map_deserializes_model_sku_with_prefixed_ids()
                 settings=_ns(name="Dial"),
                 state=_ns(
                     updated_ts=_ns(seconds=0),
-                    ambient_temperature_c=0.0,
-                    temperature_f3=0.0,
-                    temperature_f4=0.0,
-                    temperature_f5=0.0,
+                    sht4x_temperature_c=0.0,
+                    encoder_temperature_c=0.0,
+                    soc_temperature_c=0.0,
+                    calculated_ambient_temperature_c=0.0,
                 ),
                 hosted_wifi_state=_ns(
                     ssid="",
@@ -1535,10 +1535,10 @@ def test_system_snapshot_hardware_map_deserializes_model_sku_with_colon_and_case
                 settings=_ns(name="Dial"),
                 state=_ns(
                     updated_ts=_ns(seconds=0),
-                    ambient_temperature_c=0.0,
-                    temperature_f3=0.0,
-                    temperature_f4=0.0,
-                    temperature_f5=0.0,
+                    sht4x_temperature_c=0.0,
+                    encoder_temperature_c=0.0,
+                    soc_temperature_c=0.0,
+                    calculated_ambient_temperature_c=0.0,
                 ),
                 hosted_wifi_state=_ns(
                     ssid="",

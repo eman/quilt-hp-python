@@ -5,20 +5,18 @@ quilt_notifier.proto
 NotifierService — bidirectional streaming subscription service.
 Confirmed gRPC path: /core.protos.notifier.NotifierService/Subscribe
 
-Message type reference:
-  SubscribeRequest   (oneof: append=2 | remove=3, each a TopicsMessage)
-  TopicsMessage      (subscriptions=1, repeated Subscription)
-  Subscription       (topic=1, string)
-  SubscribeResponse  (notifier_events=1, control_events=2, system_events=3)
-  NotifierEvent      (topic=1 string, payload=2 google.protobuf.Any)
-  ControlEvent       (topics=1 repeated string, type=2 ControlEventType)
-  HdsNotification    (notification_type=1, payload=2 HomeDatastoreObjectDiff)
-  HomeDatastoreObjectDiff (space=3, indoor_unit=9, ..., see quilt_hds.proto)
-
-NOTE: Only Subscribe is exposed; no Publish RPC exists.
+Message layout:
+SubscribeRequest (oneof: append=2 | remove=3, each a TopicsMessage)
+SubscribeResponse (event=1, a single SubscribeEvent)
+SubscribeEvent (notifier_events=1, control_events=2, system_events=3)
+NotifierEvent (topic=1 string, payload=2 google.protobuf.Any)
+ControlEvent (topics=1 repeated string, type=2 ControlEventType)
+SystemEvent (system_event_type=1)
+NotifierEvent.payload carries a core.protos.home_datastore.HdsNotification (quilt_hds.proto).
 """
 
 from collections import abc as _abc
+from google.protobuf import any_pb2 as _any_pb2
 from google.protobuf import descriptor as _descriptor
 from google.protobuf import message as _message
 from google.protobuf.internal import containers as _containers
@@ -54,11 +52,14 @@ class ControlEventType(_ControlEventType, metaclass=_ControlEventTypeEnumTypeWra
     ---------------------------------------------------------------------------
     Topics follow the pattern: hds/<object_type>/<object_id>
     e.g. "hds/space/98f9121d-...", "hds/indoor_unit/abc123"
-    Object types:
-      space, outdoor_unit_hardware, outdoor_unit, indoor_unit_hardware,
-      indoor_unit, controller_hardware, controller, controller_remote_sensor,
-      remote_sensor, quilt_smart_module, schedule_week, schedule_day,
-      comfort_setting, location, software_update_info
+    Object types
+    space, outdoor_unit_hardware, outdoor_unit, indoor_unit_hardware,
+    indoor_unit, controller_hardware, controller, controller_remote_sensor,
+    remote_sensor, quilt_smart_module, schedule_week, schedule_day,
+    comfort_setting, location, software_update_info,
+    air_handling_unit_hardware, air_handling_unit, ducted_zone,
+    ducted_zone_membership, automation (255+)
+    No demand_response_event topic as of 271, though DR events are HDS tree field 24.
     """
 
 CONTROL_EVENT_TYPE_UNSPECIFIED: ControlEventType.ValueType  # 0
@@ -76,13 +77,13 @@ class _SystemEventType:
 
 class _SystemEventTypeEnumTypeWrapper(_enum_type_wrapper._EnumTypeWrapper[_SystemEventType.ValueType], _builtins.type):
     DESCRIPTOR: _descriptor.EnumDescriptor
-    SYSTEM_EVENT_TYPE_UNKNOWN: _SystemEventType.ValueType  # 0
-    SYSTEM_EVENT_TYPE_SOFTWARE_UPDATE: _SystemEventType.ValueType  # 1
+    SYSTEM_EVENT_TYPE_UNSPECIFIED: _SystemEventType.ValueType  # 0
+    SYSTEM_EVENT_TYPE_SW_UPDATE: _SystemEventType.ValueType  # 1
 
 class SystemEventType(_SystemEventType, metaclass=_SystemEventTypeEnumTypeWrapper): ...
 
-SYSTEM_EVENT_TYPE_UNKNOWN: SystemEventType.ValueType  # 0
-SYSTEM_EVENT_TYPE_SOFTWARE_UPDATE: SystemEventType.ValueType  # 1
+SYSTEM_EVENT_TYPE_UNSPECIFIED: SystemEventType.ValueType  # 0
+SYSTEM_EVENT_TYPE_SW_UPDATE: SystemEventType.ValueType  # 1
 Global___SystemEventType: _TypeAlias = SystemEventType  # noqa: Y015
 
 @_typing.final
@@ -152,33 +153,25 @@ Global___SubscribeRequest: _TypeAlias = SubscribeRequest  # noqa: Y015
 
 @_typing.final
 class NotifierEvent(_message.Message):
-    """Wire format observed from live captures:
-      DATA events:  topic (f1) = raw bytes of C1517Ta{type_url="hds/space/<uuid>", value=outer_any}
-                    outer_any = google.protobuf.Any{type_url="type.googleapis.com/core.protos.hds.HdsNotification",
-                                                    value=HdsNotification bytes}
-                    HdsNotification (C6328uR0): {notification_type=1(varint), payload=2(HomeDatastoreObjectDiff)}
-                    HomeDatastoreObjectDiff: space=3, outdoor_unit=6, indoor_unit=9, etc.
-      HEARTBEATS:   topic (f1) absent (b""); payload (f2) = C1517Ta{type_url="hds/space/<uuid>",
-                                                                      value=b"" or varint control byte}
-    NOTE: topic field is 'bytes' (not string) because data events embed a binary C1517Ta message
-    at f1. Using bytes avoids UTF-8 decode failures in the gRPC Python deserializer.
+    """A data event. topic = "hds/<object_type>/<object_id>"; payload is an Any whose value is
+    a core.protos.home_datastore.Notification (Any type_url
+    "type.googleapis.com/core.protos.home_datastore.Notification", verified live).
     """
 
     DESCRIPTOR: _descriptor.Descriptor
 
     TOPIC_FIELD_NUMBER: _builtins.int
     PAYLOAD_FIELD_NUMBER: _builtins.int
-    topic: _builtins.bytes
-    """raw C1517Ta bytes for data events; empty for heartbeats"""
-    payload: _builtins.bytes
-    """raw C1517Ta bytes for subscription confirmations; empty for data events"""
+    topic: _builtins.str
+    @_builtins.property
+    def payload(self) -> _any_pb2.Any: ...
     def __init__(
         self,
         *,
-        topic: _builtins.bytes = ...,
-        payload: _builtins.bytes = ...,
+        topic: _builtins.str = ...,
+        payload: _any_pb2.Any | None = ...,
     ) -> None: ...
-    _HasFieldArgType: _TypeAlias = _Never  # noqa: Y015
+    _HasFieldArgType: _TypeAlias = _typing.Literal["payload", b"payload"]  # noqa: Y015
     def HasField(self, field_name: _HasFieldArgType) -> _builtins.bool: ...
     _ClearFieldArgType: _TypeAlias = _typing.Literal["payload", b"payload", "topic", b"topic"]  # noqa: Y015
     def ClearField(self, field_name: _ClearFieldArgType) -> None: ...
@@ -188,6 +181,11 @@ Global___NotifierEvent: _TypeAlias = NotifierEvent  # noqa: Y015
 
 @_typing.final
 class ControlEvent(_message.Message):
+    """Subscription bookkeeping. The server answers every `append` with TOPIC_APPENDED for each
+    topic — these are the periodic "heartbeats" older notes describe (our clients re-send the
+    end every 30 s to keep the stream alive).
+    """
+
     DESCRIPTOR: _descriptor.Descriptor
 
     TOPICS_FIELD_NUMBER: _builtins.int
@@ -213,23 +211,23 @@ Global___ControlEvent: _TypeAlias = ControlEvent  # noqa: Y015
 class SystemEvent(_message.Message):
     DESCRIPTOR: _descriptor.Descriptor
 
-    TYPE_FIELD_NUMBER: _builtins.int
-    type: Global___SystemEventType.ValueType
+    SYSTEM_EVENT_TYPE_FIELD_NUMBER: _builtins.int
+    system_event_type: Global___SystemEventType.ValueType
     def __init__(
         self,
         *,
-        type: Global___SystemEventType.ValueType = ...,
+        system_event_type: Global___SystemEventType.ValueType = ...,
     ) -> None: ...
     _HasFieldArgType: _TypeAlias = _Never  # noqa: Y015
     def HasField(self, field_name: _HasFieldArgType) -> _builtins.bool: ...
-    _ClearFieldArgType: _TypeAlias = _typing.Literal["type", b"type"]  # noqa: Y015
+    _ClearFieldArgType: _TypeAlias = _typing.Literal["system_event_type", b"system_event_type"]  # noqa: Y015
     def ClearField(self, field_name: _ClearFieldArgType) -> None: ...
     def WhichOneof(self, oneof_group: _Never) -> None: ...
 
 Global___SystemEvent: _TypeAlias = SystemEvent  # noqa: Y015
 
 @_typing.final
-class SubscribeResponse(_message.Message):
+class SubscribeEvent(_message.Message):
     DESCRIPTOR: _descriptor.Descriptor
 
     NOTIFIER_EVENTS_FIELD_NUMBER: _builtins.int
@@ -251,6 +249,26 @@ class SubscribeResponse(_message.Message):
     _HasFieldArgType: _TypeAlias = _Never  # noqa: Y015
     def HasField(self, field_name: _HasFieldArgType) -> _builtins.bool: ...
     _ClearFieldArgType: _TypeAlias = _typing.Literal["control_events", b"control_events", "notifier_events", b"notifier_events", "system_events", b"system_events"]  # noqa: Y015
+    def ClearField(self, field_name: _ClearFieldArgType) -> None: ...
+    def WhichOneof(self, oneof_group: _Never) -> None: ...
+
+Global___SubscribeEvent: _TypeAlias = SubscribeEvent  # noqa: Y015
+
+@_typing.final
+class SubscribeResponse(_message.Message):
+    DESCRIPTOR: _descriptor.Descriptor
+
+    EVENT_FIELD_NUMBER: _builtins.int
+    @_builtins.property
+    def event(self) -> Global___SubscribeEvent: ...
+    def __init__(
+        self,
+        *,
+        event: Global___SubscribeEvent | None = ...,
+    ) -> None: ...
+    _HasFieldArgType: _TypeAlias = _typing.Literal["event", b"event"]  # noqa: Y015
+    def HasField(self, field_name: _HasFieldArgType) -> _builtins.bool: ...
+    _ClearFieldArgType: _TypeAlias = _typing.Literal["event", b"event"]  # noqa: Y015
     def ClearField(self, field_name: _ClearFieldArgType) -> None: ...
     def WhichOneof(self, oneof_group: _Never) -> None: ...
 

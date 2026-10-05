@@ -159,18 +159,18 @@ class QuiltSmartModule:
                 (rel.firmware_update_info_id or None) if rel is not None else None
             ),
             local_comms_health=LocalCommsHealthStatus(
-                getattr(getattr(proto, "local_comms_status", None), "status", 0)
+                getattr(getattr(proto, "local_comms_health", None), "status", 0)
             ),
             local_comms_visible_devices=getattr(
-                getattr(proto, "local_comms_status", None), "visible_devices_count", None
+                getattr(proto, "local_comms_health", None), "visible_devices_count", None
             ),
             local_comms_expected_devices=getattr(
-                getattr(proto, "local_comms_status", None), "expected_devices_count", None
+                getattr(proto, "local_comms_health", None), "expected_devices_count", None
             ),
             local_comms_reason=LocalCommsHealthReason(
-                getattr(getattr(proto, "local_comms_status", None), "reason", 0)
+                getattr(getattr(proto, "local_comms_health", None), "reason", 0)
             ),
             local_comms_last_session_change=local_comms_last_session_change(
-                getattr(proto, "local_comms_status", None)
+                getattr(proto, "local_comms_health", None)
             ),
         )

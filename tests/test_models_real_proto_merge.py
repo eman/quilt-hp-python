@@ -64,7 +64,7 @@ def _full_space_proto() -> hds.Space:
         state=hds.SpaceState(
             ambient_temperature_c=21.7,
             hvac_state=hds.HVAC_STATE_HEAT,
-            setpoint_temperature_c=21.0,
+            temperature_setpoint_c=21.0,
         ),
     )
 
@@ -157,7 +157,7 @@ def _full_idu_proto() -> hds.IndoorUnit:
             louver_mode=hds.LOUVER_MODE_SWEEP,
             led_color_code=255,
             led_color_brightness_percent=0.8,
-            led_state=hds.LIGHT_STATE_ON,
+            led_state=hds.LED_STATE_ON,
         ),
         state=hds.IndoorUnitState(
             updated_ts=ts,
@@ -181,7 +181,7 @@ def test_apply_idu_presence_only_diff_preserves_everything() -> None:
     diff = _roundtrip(
         hds.IndoorUnit(
             header=hds.EntityMetadata(object_id="idu-1", system_id="sys-1"),
-            presence=hds.IndoorUnitPresenceState(sensor0_presence=1, sensor1_presence=2),
+            presence=hds.IndoorUnitPresenceState(sensor_0_presence=1, sensor_1_presence=2),
         )
     )
     merged = snapshot.apply_indoor_unit(IndoorUnit.from_proto(diff))
@@ -213,10 +213,10 @@ def test_apply_controller_sparse_diff_preserves_temperatures() -> None:
             relationships=hds.ControllerRelationships(space_id="space-1"),
             settings=hds.ControllerSettings(name="Dial"),
             state=hds.ControllerState(
-                ambient_temperature_c=24.0,
-                temperature_f3=35.0,
-                temperature_f4=45.0,
-                temperature_f5=19.5,
+                sht4x_temperature_c=24.0,
+                encoder_temperature_c=35.0,
+                soc_temperature_c=45.0,
+                calculated_ambient_temperature_c=19.5,
             ),
         )
     )

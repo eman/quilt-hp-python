@@ -3,6 +3,7 @@
 import grpc
 import warnings
 
+from google.protobuf import empty_pb2 as google_dot_protobuf_dot_empty__pb2
 from . import quilt_services_pb2 as quilt__services__pb2
 
 GRPC_GENERATED_VERSION = '1.78.0'
@@ -47,7 +48,7 @@ class UserServiceStub(object):
         self.GetUserAttributes = channel.unary_unary(
                 '/core.protos.app.UserService/GetUserAttributes',
                 request_serializer=quilt__services__pb2.GetUserAttributesRequest.SerializeToString,
-                response_deserializer=quilt__services__pb2.UserAttributes.FromString,
+                response_deserializer=quilt__services__pb2.GetUserAttributesResponse.FromString,
                 _registered_method=True)
         self.PatchUserAttributes = channel.unary_unary(
                 '/core.protos.app.UserService/PatchUserAttributes',
@@ -99,7 +100,7 @@ def add_UserServiceServicer_to_server(servicer, server):
             'GetUserAttributes': grpc.unary_unary_rpc_method_handler(
                     servicer.GetUserAttributes,
                     request_deserializer=quilt__services__pb2.GetUserAttributesRequest.FromString,
-                    response_serializer=quilt__services__pb2.UserAttributes.SerializeToString,
+                    response_serializer=quilt__services__pb2.GetUserAttributesResponse.SerializeToString,
             ),
             'PatchUserAttributes': grpc.unary_unary_rpc_method_handler(
                     servicer.PatchUserAttributes,
@@ -187,7 +188,7 @@ class UserService(object):
             target,
             '/core.protos.app.UserService/GetUserAttributes',
             quilt__services__pb2.GetUserAttributesRequest.SerializeToString,
-            quilt__services__pb2.UserAttributes.FromString,
+            quilt__services__pb2.GetUserAttributesResponse.FromString,
             options,
             channel_credentials,
             insecure,
@@ -250,6 +251,31 @@ class SystemInformationServiceStub(object):
                 request_serializer=quilt__services__pb2.GetEnergyMetricsRequest.SerializeToString,
                 response_deserializer=quilt__services__pb2.GetEnergyMetricsResponse.FromString,
                 _registered_method=True)
+        self.GetPartnerDesignationPlan = channel.unary_unary(
+                '/core.protos.app.SystemInformationService/GetPartnerDesignationPlan',
+                request_serializer=quilt__services__pb2.GetPartnerDesignationPlanRequest.SerializeToString,
+                response_deserializer=quilt__services__pb2.GetPartnerDesignationPlanResponse.FromString,
+                _registered_method=True)
+        self.ListSystemCertifiedPartners = channel.unary_unary(
+                '/core.protos.app.SystemInformationService/ListSystemCertifiedPartners',
+                request_serializer=quilt__services__pb2.ListSystemCertifiedPartnersRequest.SerializeToString,
+                response_deserializer=quilt__services__pb2.ListSystemCertifiedPartnersResponse.FromString,
+                _registered_method=True)
+        self.SetSystemPartner = channel.unary_unary(
+                '/core.protos.app.SystemInformationService/SetSystemPartner',
+                request_serializer=quilt__services__pb2.SetSystemPartnerRequest.SerializeToString,
+                response_deserializer=quilt__services__pb2.SetSystemPartnerResponse.FromString,
+                _registered_method=True)
+        self.GetSystemDataSharing = channel.unary_unary(
+                '/core.protos.app.SystemInformationService/GetSystemDataSharing',
+                request_serializer=quilt__services__pb2.GetSystemDataSharingRequest.SerializeToString,
+                response_deserializer=quilt__services__pb2.SystemDataSharing.FromString,
+                _registered_method=True)
+        self.SetSystemDataSharing = channel.unary_unary(
+                '/core.protos.app.SystemInformationService/SetSystemDataSharing',
+                request_serializer=quilt__services__pb2.SetSystemDataSharingRequest.SerializeToString,
+                response_deserializer=quilt__services__pb2.SystemDataSharing.FromString,
+                _registered_method=True)
 
 
 class SystemInformationServiceServicer(object):
@@ -273,6 +299,40 @@ class SystemInformationServiceServicer(object):
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
 
+    def GetPartnerDesignationPlan(self, request, context):
+        """new in 271
+        """
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def ListSystemCertifiedPartners(self, request, context):
+        """new in 271
+        """
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def SetSystemPartner(self, request, context):
+        """new in 271
+        """
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def GetSystemDataSharing(self, request, context):
+        """in app 1.0.31+; first documented here
+        """
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def SetSystemDataSharing(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
 
 def add_SystemInformationServiceServicer_to_server(servicer, server):
     rpc_method_handlers = {
@@ -290,6 +350,31 @@ def add_SystemInformationServiceServicer_to_server(servicer, server):
                     servicer.GetEnergyMetrics,
                     request_deserializer=quilt__services__pb2.GetEnergyMetricsRequest.FromString,
                     response_serializer=quilt__services__pb2.GetEnergyMetricsResponse.SerializeToString,
+            ),
+            'GetPartnerDesignationPlan': grpc.unary_unary_rpc_method_handler(
+                    servicer.GetPartnerDesignationPlan,
+                    request_deserializer=quilt__services__pb2.GetPartnerDesignationPlanRequest.FromString,
+                    response_serializer=quilt__services__pb2.GetPartnerDesignationPlanResponse.SerializeToString,
+            ),
+            'ListSystemCertifiedPartners': grpc.unary_unary_rpc_method_handler(
+                    servicer.ListSystemCertifiedPartners,
+                    request_deserializer=quilt__services__pb2.ListSystemCertifiedPartnersRequest.FromString,
+                    response_serializer=quilt__services__pb2.ListSystemCertifiedPartnersResponse.SerializeToString,
+            ),
+            'SetSystemPartner': grpc.unary_unary_rpc_method_handler(
+                    servicer.SetSystemPartner,
+                    request_deserializer=quilt__services__pb2.SetSystemPartnerRequest.FromString,
+                    response_serializer=quilt__services__pb2.SetSystemPartnerResponse.SerializeToString,
+            ),
+            'GetSystemDataSharing': grpc.unary_unary_rpc_method_handler(
+                    servicer.GetSystemDataSharing,
+                    request_deserializer=quilt__services__pb2.GetSystemDataSharingRequest.FromString,
+                    response_serializer=quilt__services__pb2.SystemDataSharing.SerializeToString,
+            ),
+            'SetSystemDataSharing': grpc.unary_unary_rpc_method_handler(
+                    servicer.SetSystemDataSharing,
+                    request_deserializer=quilt__services__pb2.SetSystemDataSharingRequest.FromString,
+                    response_serializer=quilt__services__pb2.SystemDataSharing.SerializeToString,
             ),
     }
     generic_handler = grpc.method_handlers_generic_handler(
@@ -373,6 +458,141 @@ class SystemInformationService(object):
             '/core.protos.app.SystemInformationService/GetEnergyMetrics',
             quilt__services__pb2.GetEnergyMetricsRequest.SerializeToString,
             quilt__services__pb2.GetEnergyMetricsResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def GetPartnerDesignationPlan(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/core.protos.app.SystemInformationService/GetPartnerDesignationPlan',
+            quilt__services__pb2.GetPartnerDesignationPlanRequest.SerializeToString,
+            quilt__services__pb2.GetPartnerDesignationPlanResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def ListSystemCertifiedPartners(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/core.protos.app.SystemInformationService/ListSystemCertifiedPartners',
+            quilt__services__pb2.ListSystemCertifiedPartnersRequest.SerializeToString,
+            quilt__services__pb2.ListSystemCertifiedPartnersResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def SetSystemPartner(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/core.protos.app.SystemInformationService/SetSystemPartner',
+            quilt__services__pb2.SetSystemPartnerRequest.SerializeToString,
+            quilt__services__pb2.SetSystemPartnerResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def GetSystemDataSharing(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/core.protos.app.SystemInformationService/GetSystemDataSharing',
+            quilt__services__pb2.GetSystemDataSharingRequest.SerializeToString,
+            quilt__services__pb2.SystemDataSharing.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def SetSystemDataSharing(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/core.protos.app.SystemInformationService/SetSystemDataSharing',
+            quilt__services__pb2.SetSystemDataSharingRequest.SerializeToString,
+            quilt__services__pb2.SystemDataSharing.FromString,
             options,
             channel_credentials,
             insecure,
@@ -693,12 +913,12 @@ class PartnerServiceStub(object):
         self.JoinPartnerOrganization = channel.unary_unary(
                 '/core.protos.app.PartnerService/JoinPartnerOrganization',
                 request_serializer=quilt__services__pb2.JoinPartnerOrganizationRequest.SerializeToString,
-                response_deserializer=quilt__services__pb2.JoinPartnerOrganizationResponse.FromString,
+                response_deserializer=quilt__services__pb2.PartnerDetails.FromString,
                 _registered_method=True)
         self.LeavePartnerOrganization = channel.unary_unary(
                 '/core.protos.app.PartnerService/LeavePartnerOrganization',
                 request_serializer=quilt__services__pb2.LeavePartnerOrganizationRequest.SerializeToString,
-                response_deserializer=quilt__services__pb2.LeavePartnerOrganizationResponse.FromString,
+                response_deserializer=google_dot_protobuf_dot_empty__pb2.Empty.FromString,
                 _registered_method=True)
 
 
@@ -718,7 +938,8 @@ class PartnerServiceServicer(object):
         raise NotImplementedError('Method not implemented!')
 
     def JoinPartnerOrganization(self, request, context):
-        """Missing associated documentation comment in .proto file."""
+        """unwrapped (app 1.0.33)
+        """
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
@@ -745,12 +966,12 @@ def add_PartnerServiceServicer_to_server(servicer, server):
             'JoinPartnerOrganization': grpc.unary_unary_rpc_method_handler(
                     servicer.JoinPartnerOrganization,
                     request_deserializer=quilt__services__pb2.JoinPartnerOrganizationRequest.FromString,
-                    response_serializer=quilt__services__pb2.JoinPartnerOrganizationResponse.SerializeToString,
+                    response_serializer=quilt__services__pb2.PartnerDetails.SerializeToString,
             ),
             'LeavePartnerOrganization': grpc.unary_unary_rpc_method_handler(
                     servicer.LeavePartnerOrganization,
                     request_deserializer=quilt__services__pb2.LeavePartnerOrganizationRequest.FromString,
-                    response_serializer=quilt__services__pb2.LeavePartnerOrganizationResponse.SerializeToString,
+                    response_serializer=google_dot_protobuf_dot_empty__pb2.Empty.SerializeToString,
             ),
     }
     generic_handler = grpc.method_handlers_generic_handler(
@@ -833,7 +1054,7 @@ class PartnerService(object):
             target,
             '/core.protos.app.PartnerService/JoinPartnerOrganization',
             quilt__services__pb2.JoinPartnerOrganizationRequest.SerializeToString,
-            quilt__services__pb2.JoinPartnerOrganizationResponse.FromString,
+            quilt__services__pb2.PartnerDetails.FromString,
             options,
             channel_credentials,
             insecure,
@@ -860,7 +1081,7 @@ class PartnerService(object):
             target,
             '/core.protos.app.PartnerService/LeavePartnerOrganization',
             quilt__services__pb2.LeavePartnerOrganizationRequest.SerializeToString,
-            quilt__services__pb2.LeavePartnerOrganizationResponse.FromString,
+            google_dot_protobuf_dot_empty__pb2.Empty.FromString,
             options,
             channel_credentials,
             insecure,
@@ -1130,6 +1351,21 @@ class MobileAppServiceStub(object):
                 request_serializer=quilt__services__pb2.AuthorizeNewDeviceRequest.SerializeToString,
                 response_deserializer=quilt__services__pb2.AuthorizeNewDeviceResponse.FromString,
                 _registered_method=True)
+        self.CreateAndConfigureSystem = channel.unary_unary(
+                '/core.protos.app.MobileAppService/CreateAndConfigureSystem',
+                request_serializer=quilt__services__pb2.CreateAndConfigureSystemRequest.SerializeToString,
+                response_deserializer=quilt__services__pb2.CreateAndConfigureSystemResponse.FromString,
+                _registered_method=True)
+        self.CreateAndConfigureSpace = channel.unary_unary(
+                '/core.protos.app.MobileAppService/CreateAndConfigureSpace',
+                request_serializer=quilt__services__pb2.CreateAndConfigureSpaceRequest.SerializeToString,
+                response_deserializer=quilt__services__pb2.CreateAndConfigureSpaceResponse.FromString,
+                _registered_method=True)
+        self.CreateAndConfigureDuctedZone = channel.unary_unary(
+                '/core.protos.app.MobileAppService/CreateAndConfigureDuctedZone',
+                request_serializer=quilt__services__pb2.CreateAndConfigureDuctedZoneRequest.SerializeToString,
+                response_deserializer=quilt__services__pb2.CreateAndConfigureDuctedZoneResponse.FromString,
+                _registered_method=True)
 
 
 class MobileAppServiceServicer(object):
@@ -1141,6 +1377,25 @@ class MobileAppServiceServicer(object):
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
 
+    def CreateAndConfigureSystem(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def CreateAndConfigureSpace(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def CreateAndConfigureDuctedZone(self, request, context):
+        """new in 271
+        """
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
 
 def add_MobileAppServiceServicer_to_server(servicer, server):
     rpc_method_handlers = {
@@ -1148,6 +1403,21 @@ def add_MobileAppServiceServicer_to_server(servicer, server):
                     servicer.AuthorizeNewDevice,
                     request_deserializer=quilt__services__pb2.AuthorizeNewDeviceRequest.FromString,
                     response_serializer=quilt__services__pb2.AuthorizeNewDeviceResponse.SerializeToString,
+            ),
+            'CreateAndConfigureSystem': grpc.unary_unary_rpc_method_handler(
+                    servicer.CreateAndConfigureSystem,
+                    request_deserializer=quilt__services__pb2.CreateAndConfigureSystemRequest.FromString,
+                    response_serializer=quilt__services__pb2.CreateAndConfigureSystemResponse.SerializeToString,
+            ),
+            'CreateAndConfigureSpace': grpc.unary_unary_rpc_method_handler(
+                    servicer.CreateAndConfigureSpace,
+                    request_deserializer=quilt__services__pb2.CreateAndConfigureSpaceRequest.FromString,
+                    response_serializer=quilt__services__pb2.CreateAndConfigureSpaceResponse.SerializeToString,
+            ),
+            'CreateAndConfigureDuctedZone': grpc.unary_unary_rpc_method_handler(
+                    servicer.CreateAndConfigureDuctedZone,
+                    request_deserializer=quilt__services__pb2.CreateAndConfigureDuctedZoneRequest.FromString,
+                    response_serializer=quilt__services__pb2.CreateAndConfigureDuctedZoneResponse.SerializeToString,
             ),
     }
     generic_handler = grpc.method_handlers_generic_handler(
@@ -1177,6 +1447,389 @@ class MobileAppService(object):
             '/core.protos.app.MobileAppService/AuthorizeNewDevice',
             quilt__services__pb2.AuthorizeNewDeviceRequest.SerializeToString,
             quilt__services__pb2.AuthorizeNewDeviceResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def CreateAndConfigureSystem(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/core.protos.app.MobileAppService/CreateAndConfigureSystem',
+            quilt__services__pb2.CreateAndConfigureSystemRequest.SerializeToString,
+            quilt__services__pb2.CreateAndConfigureSystemResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def CreateAndConfigureSpace(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/core.protos.app.MobileAppService/CreateAndConfigureSpace',
+            quilt__services__pb2.CreateAndConfigureSpaceRequest.SerializeToString,
+            quilt__services__pb2.CreateAndConfigureSpaceResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def CreateAndConfigureDuctedZone(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/core.protos.app.MobileAppService/CreateAndConfigureDuctedZone',
+            quilt__services__pb2.CreateAndConfigureDuctedZoneRequest.SerializeToString,
+            quilt__services__pb2.CreateAndConfigureDuctedZoneResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+
+class DiagnosticServiceStub(object):
+    """Missing associated documentation comment in .proto file."""
+
+    def __init__(self, channel):
+        """Constructor.
+
+        Args:
+            channel: A grpc.Channel.
+        """
+        self.StartDiagnosticRun = channel.unary_unary(
+                '/core.protos.app.DiagnosticService/StartDiagnosticRun',
+                request_serializer=quilt__services__pb2.StartDiagnosticRunRequest.SerializeToString,
+                response_deserializer=quilt__services__pb2.StartDiagnosticRunResponse.FromString,
+                _registered_method=True)
+        self.CancelDiagnosticRun = channel.unary_unary(
+                '/core.protos.app.DiagnosticService/CancelDiagnosticRun',
+                request_serializer=quilt__services__pb2.CancelDiagnosticRunRequest.SerializeToString,
+                response_deserializer=quilt__services__pb2.CancelDiagnosticRunResponse.FromString,
+                _registered_method=True)
+
+
+class DiagnosticServiceServicer(object):
+    """Missing associated documentation comment in .proto file."""
+
+    def StartDiagnosticRun(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def CancelDiagnosticRun(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+
+def add_DiagnosticServiceServicer_to_server(servicer, server):
+    rpc_method_handlers = {
+            'StartDiagnosticRun': grpc.unary_unary_rpc_method_handler(
+                    servicer.StartDiagnosticRun,
+                    request_deserializer=quilt__services__pb2.StartDiagnosticRunRequest.FromString,
+                    response_serializer=quilt__services__pb2.StartDiagnosticRunResponse.SerializeToString,
+            ),
+            'CancelDiagnosticRun': grpc.unary_unary_rpc_method_handler(
+                    servicer.CancelDiagnosticRun,
+                    request_deserializer=quilt__services__pb2.CancelDiagnosticRunRequest.FromString,
+                    response_serializer=quilt__services__pb2.CancelDiagnosticRunResponse.SerializeToString,
+            ),
+    }
+    generic_handler = grpc.method_handlers_generic_handler(
+            'core.protos.app.DiagnosticService', rpc_method_handlers)
+    server.add_generic_rpc_handlers((generic_handler,))
+    server.add_registered_method_handlers('core.protos.app.DiagnosticService', rpc_method_handlers)
+
+
+ # This class is part of an EXPERIMENTAL API.
+class DiagnosticService(object):
+    """Missing associated documentation comment in .proto file."""
+
+    @staticmethod
+    def StartDiagnosticRun(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/core.protos.app.DiagnosticService/StartDiagnosticRun',
+            quilt__services__pb2.StartDiagnosticRunRequest.SerializeToString,
+            quilt__services__pb2.StartDiagnosticRunResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def CancelDiagnosticRun(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/core.protos.app.DiagnosticService/CancelDiagnosticRun',
+            quilt__services__pb2.CancelDiagnosticRunRequest.SerializeToString,
+            quilt__services__pb2.CancelDiagnosticRunResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+
+class UserTaskServiceStub(object):
+    """Missing associated documentation comment in .proto file."""
+
+    def __init__(self, channel):
+        """Constructor.
+
+        Args:
+            channel: A grpc.Channel.
+        """
+        self.CaptureUserAction = channel.unary_unary(
+                '/core.protos.app.UserTaskService/CaptureUserAction',
+                request_serializer=quilt__services__pb2.CaptureUserActionRequest.SerializeToString,
+                response_deserializer=quilt__services__pb2.CaptureUserActionResponse.FromString,
+                _registered_method=True)
+        self.ListUserTasks = channel.unary_unary(
+                '/core.protos.app.UserTaskService/ListUserTasks',
+                request_serializer=quilt__services__pb2.ListUserTasksRequest.SerializeToString,
+                response_deserializer=quilt__services__pb2.ListUserTasksResponse.FromString,
+                _registered_method=True)
+
+
+class UserTaskServiceServicer(object):
+    """Missing associated documentation comment in .proto file."""
+
+    def CaptureUserAction(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def ListUserTasks(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+
+def add_UserTaskServiceServicer_to_server(servicer, server):
+    rpc_method_handlers = {
+            'CaptureUserAction': grpc.unary_unary_rpc_method_handler(
+                    servicer.CaptureUserAction,
+                    request_deserializer=quilt__services__pb2.CaptureUserActionRequest.FromString,
+                    response_serializer=quilt__services__pb2.CaptureUserActionResponse.SerializeToString,
+            ),
+            'ListUserTasks': grpc.unary_unary_rpc_method_handler(
+                    servicer.ListUserTasks,
+                    request_deserializer=quilt__services__pb2.ListUserTasksRequest.FromString,
+                    response_serializer=quilt__services__pb2.ListUserTasksResponse.SerializeToString,
+            ),
+    }
+    generic_handler = grpc.method_handlers_generic_handler(
+            'core.protos.app.UserTaskService', rpc_method_handlers)
+    server.add_generic_rpc_handlers((generic_handler,))
+    server.add_registered_method_handlers('core.protos.app.UserTaskService', rpc_method_handlers)
+
+
+ # This class is part of an EXPERIMENTAL API.
+class UserTaskService(object):
+    """Missing associated documentation comment in .proto file."""
+
+    @staticmethod
+    def CaptureUserAction(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/core.protos.app.UserTaskService/CaptureUserAction',
+            quilt__services__pb2.CaptureUserActionRequest.SerializeToString,
+            quilt__services__pb2.CaptureUserActionResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def ListUserTasks(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/core.protos.app.UserTaskService/ListUserTasks',
+            quilt__services__pb2.ListUserTasksRequest.SerializeToString,
+            quilt__services__pb2.ListUserTasksResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+
+class UserFeedbackServiceStub(object):
+    """Missing associated documentation comment in .proto file."""
+
+    def __init__(self, channel):
+        """Constructor.
+
+        Args:
+            channel: A grpc.Channel.
+        """
+        self.SubmitUserFeedback = channel.unary_unary(
+                '/core.protos.app.UserFeedbackService/SubmitUserFeedback',
+                request_serializer=quilt__services__pb2.SubmitUserFeedbackRequest.SerializeToString,
+                response_deserializer=quilt__services__pb2.SubmitUserFeedbackResponse.FromString,
+                _registered_method=True)
+
+
+class UserFeedbackServiceServicer(object):
+    """Missing associated documentation comment in .proto file."""
+
+    def SubmitUserFeedback(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+
+def add_UserFeedbackServiceServicer_to_server(servicer, server):
+    rpc_method_handlers = {
+            'SubmitUserFeedback': grpc.unary_unary_rpc_method_handler(
+                    servicer.SubmitUserFeedback,
+                    request_deserializer=quilt__services__pb2.SubmitUserFeedbackRequest.FromString,
+                    response_serializer=quilt__services__pb2.SubmitUserFeedbackResponse.SerializeToString,
+            ),
+    }
+    generic_handler = grpc.method_handlers_generic_handler(
+            'core.protos.app.UserFeedbackService', rpc_method_handlers)
+    server.add_generic_rpc_handlers((generic_handler,))
+    server.add_registered_method_handlers('core.protos.app.UserFeedbackService', rpc_method_handlers)
+
+
+ # This class is part of an EXPERIMENTAL API.
+class UserFeedbackService(object):
+    """Missing associated documentation comment in .proto file."""
+
+    @staticmethod
+    def SubmitUserFeedback(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/core.protos.app.UserFeedbackService/SubmitUserFeedback',
+            quilt__services__pb2.SubmitUserFeedbackRequest.SerializeToString,
+            quilt__services__pb2.SubmitUserFeedbackResponse.FromString,
             options,
             channel_credentials,
             insecure,

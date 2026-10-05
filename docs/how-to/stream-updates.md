@@ -30,6 +30,7 @@ async with client.stream(snapshot.stream_topics()) as stream:
     stream.on_remote_sensor_update(snapshot.apply_remote_sensor)
     stream.on_controller_remote_sensor_update(snapshot.apply_controller_remote_sensor)
     stream.on_software_update_info(lambda info: print(f"Update info: {info.id}"))
+    stream.on_delete(snapshot.remove)  # (kind, id) when an object is deleted
     stream.on_error(lambda e: print(f"Fatal error: {e}"))
     await asyncio.sleep(3600)  # run for 1 hour
 ```
@@ -81,6 +82,7 @@ For background on why sparse diffs require merging, see [Snapshot and stream dat
 | `on_remote_sensor_update()` | `RemoteSensor` | Merge standalone sensor diffs with `snapshot.apply_remote_sensor()` |
 | `on_controller_remote_sensor_update()` | `ControllerRemoteSensor` | Merge Dial sensor diffs with `snapshot.apply_controller_remote_sensor()` |
 | `on_software_update_info()` | `SoftwareUpdateInfo` | Observe firmware/software update records |
+| `on_delete()` | `(kind, entity_id)` | The server deleted an object; drop it with `snapshot.remove(kind, entity_id)`. Deletions never reach the update callbacks |
 | `on_error()` | `Exception` | Handle fatal stream failure after reconnects are exhausted |
 
 ---

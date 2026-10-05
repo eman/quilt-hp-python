@@ -66,19 +66,22 @@ class SystemServiceServicer(object):
     """Missing associated documentation comment in .proto file."""
 
     def GetSystem(self, request, context):
-        """Missing associated documentation comment in .proto file."""
+        """server-only; shape verified live
+        """
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
 
     def CreateSystem(self, request, context):
-        """Missing associated documentation comment in .proto file."""
+        """server-only; exists (probe), request shape by convention
+        """
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
 
     def UpdateSystem(self, request, context):
-        """Missing associated documentation comment in .proto file."""
+        """server-only; exists (probe), request shape by convention
+        """
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
@@ -90,7 +93,8 @@ class SystemServiceServicer(object):
         raise NotImplementedError('Method not implemented!')
 
     def ListSystems(self, request, context):
-        """Missing associated documentation comment in .proto file."""
+        """server-only; shape and filter verified live
+        """
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
