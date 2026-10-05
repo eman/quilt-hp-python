@@ -52,7 +52,9 @@ async def test_run_one_stream_marks_connected_and_tracks_last_event(
     stream._parse_event = MagicMock(return_value=StreamEvent(topic="topic", space=object()))
     monkeypatch.setattr("quilt_hp.services.streaming.time.monotonic", lambda: 123.4)
 
-    response = SimpleNamespace(control_events=[], notifier_events=[object()])
+    response = SimpleNamespace(
+        event=SimpleNamespace(control_events=[], notifier_events=[object()])
+    )
 
     async def _iter() -> AsyncIterator[object]:
         yield response

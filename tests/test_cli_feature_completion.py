@@ -10,11 +10,15 @@ from typer.testing import CliRunner
 
 from quilt_hp.cli import main as cli_main
 from quilt_hp.models.enums import (
+    ControllerOrientation,
+    ControllerViewState,
     FanSpeed,
     HVACMode,
     HVACState,
+    IndoorUnitTestMode,
     LocalCommsHealthStatus,
     LouverMode,
+    OccupancyState,
     RemoteSensorControlMode,
 )
 
@@ -45,6 +49,7 @@ class _FakeSnapshot:
                     hvac_state=HVACState.COOL,
                     comfort_setting_id="comfort-1",
                 ),
+                occupancy_state=OccupancyState.DETECTED,
             )
         ]
         self.indoor_units = [
@@ -73,6 +78,10 @@ class _FakeSnapshot:
                 ),
                 led_on=True,
                 effective_occupancy_state=2,
+                dew_point_c=15.9,
+                performance_metrics=SimpleNamespace(odu_usage_fraction=0.5),
+                is_under_test=False,
+                test_state=SimpleNamespace(test_mode=IndoorUnitTestMode.INACTIVE),
                 software_update_info_id="update-software-idu",
             )
         ]
@@ -100,6 +109,15 @@ class _FakeSnapshot:
                 raw_thermistor_c=24.2,
                 remote_sensor_mode=RemoteSensorControlMode.ENABLED,
                 local_comms_health=LocalCommsHealthStatus.HEALTHY,
+                is_online=True,
+                view_state=ControllerViewState.GLANCE,
+                screen_brightness=0.25,
+                radar_target_detected=False,
+                radar_phase_detected=False,
+                ambient_light_lux=105.2,
+                orientation=ControllerOrientation.VERTICAL,
+                humidity_percent=38.5,
+                power_w=0.97,
                 software_update_info_id="update-software-ctrl",
                 firmware_update_info_id="update-firmware-ctrl",
                 serial_number="CTRL123",
@@ -190,6 +208,15 @@ def test_info_json_outputs_machine_readable_snapshot() -> None:
     assert payload["spaces"][0]["id"] == "space-1"
     assert payload["indoor_units"][0]["state"]["ambient_temperature_c"] == 23.0
     assert payload["update_entities"][1]["entity_type"] == "indoor_unit"
+    assert payload["controllers"][0]["view_state"] == "GLANCE"
+    assert payload["controllers"][0]["screen_brightness"] == 0.25
+    assert payload["controllers"][0]["radar_target_detected"] is False
+    assert payload["controllers"][0]["is_online"] is True
+    assert payload["spaces"][0]["occupancy_state"] == "DETECTED"
+    assert payload["indoor_units"][0]["dew_point_c"] == 15.9
+    assert payload["indoor_units"][0]["odu_usage_fraction"] == 0.5
+    assert payload["indoor_units"][0]["under_test"] is False
+    assert payload["indoor_units"][0]["test_mode"] == "INACTIVE"
 
 
 def test_devices_summary_lists_all_entity_classes() -> None:

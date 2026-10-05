@@ -1,0 +1,26 @@
+// quilt_device_config.proto
+// DeviceConfigurationService — plaintext gRPC provisioning API a QSM/Dial exposes on port 50051
+// while in setup mode (169.254.1.1 on its provisioning hotspot).
+// Wire path: /core.protos.common.DeviceConfigurationService/<Method>.
+
+syntax = "proto3";
+
+package core.protos.common;
+
+import "quilt_device_pairing.proto";
+
+option java_package = "com.quilt.proto.common";
+option swift_prefix = "Quilt";
+
+message GetSupportedDeviceConfigVersionRequest {}
+message GetSupportedDeviceConfigVersionResponse {
+  int32 version = 1;
+}
+
+message GetWifiScanResultsRequest {}
+
+service DeviceConfigurationService {
+  rpc GetSupportedDeviceConfigVersion(GetSupportedDeviceConfigVersionRequest) returns (GetSupportedDeviceConfigVersionResponse);
+  rpc GetWifiScanResults(GetWifiScanResultsRequest) returns (quilt.pairing.v1.WifiScanList);
+  rpc SendDeviceConfigRequest(quilt.pairing.v1.DeviceConfigurationRequest) returns (quilt.pairing.v1.DeviceConfigurationResult);
+}

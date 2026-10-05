@@ -20,7 +20,7 @@ def _make_stream(*, debounce_s: float) -> NotifierStream:
 
 
 def _response() -> object:
-    return _ns(control_events=[], notifier_events=[object()])
+    return _ns(event=_ns(control_events=[], notifier_events=[object()]))
 
 
 @pytest.mark.asyncio

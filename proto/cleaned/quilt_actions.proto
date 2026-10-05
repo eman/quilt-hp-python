@@ -1,0 +1,247 @@
+// quilt_actions.proto
+// HomeActionService — unified "submit an action" control API.
+// Wire path: /core.protos.actions.HomeActionService/SubmitAction
+// Fields marked `optional` have explicit presence: omit them to leave a setting unchanged.
+
+syntax = "proto3";
+
+package core.protos.actions;
+
+option java_package = "com.quilt.proto.actions";
+option swift_prefix = "Quilt";
+
+// ---------------------------------------------------------------------------
+// Request / response
+// ---------------------------------------------------------------------------
+
+message SubmitActionRequest {
+  optional string client_request_id = 1;  // client-generated idempotency key
+  optional string system_id = 2;
+  ActionSource source = 3;  // who/what initiated the action
+  Action action = 4;
+}
+
+enum ActionResult {
+  ACTION_RESULT_UNSPECIFIED = 0;
+  ACTION_RESULT_SUCCESS = 1;
+  ACTION_RESULT_FAILED = 2;
+  ACTION_RESULT_PARTIAL_FAILURE = 3;  // multi-target action applied to only some targets
+}
+
+message SubmitActionResponse {
+  optional string action_id = 1;
+  ActionResult result = 2;
+  optional string failure_reason = 3;
+}
+
+// ---------------------------------------------------------------------------
+// Source — provenance of the action
+// ---------------------------------------------------------------------------
+
+enum ClientType {
+  CLIENT_TYPE_UNSPECIFIED = 0;
+  CLIENT_TYPE_IOS = 1;
+  CLIENT_TYPE_ANDROID = 2;
+  CLIENT_TYPE_WEB = 3;
+}
+
+message UserSource {
+  optional string user_id = 1;
+  ClientType client_type = 2;
+  optional string client_id = 3;
+}
+
+// A device-originated action — presumably a Dial knob turn or IDU button press (unconfirmed).
+message PhysicalSource {
+  optional string device_id = 1;
+}
+
+message AutomationSource {
+  optional string automation_id = 1;  // HDS Automation object id (tree field 23)
+}
+
+message PartnerSource {
+  optional string partner_id = 1;
+}
+
+message CloudSource {}
+
+message ActionSource {
+  oneof source {
+    UserSource user = 1;
+    PhysicalSource physical = 2;
+    AutomationSource automation = 3;
+    PartnerSource partner = 4;
+    CloudSource cloud = 5;
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Action + targets
+// ---------------------------------------------------------------------------
+
+message Action {
+  oneof category {
+    ClimateAction climate = 1;
+    LightAction light = 2;
+  }
+}
+
+// What an action applies to. Note the field order differs from the Automation
+// target (quilt_hds.proto AutomationTarget: ducted_zone=1, space=2, indoor_unit=3),
+// and this one adds air_handling_unit and whole-system targets.
+message ActionTarget {
+  oneof kind {
+    string space_id = 1;
+    string ducted_zone_id = 2;
+    string indoor_unit_id = 3;
+    string air_handling_unit_id = 4;
+    string system_id = 5;
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Climate
+// ---------------------------------------------------------------------------
+
+// A separate, simplified mode enum — NOT the HDS HVACMode numbering
+// (e.g. HVAC_MODE_COOL=2 but CLIMATE_MODE_COOL=3). DUAL_SETPOINT replaces AUTO and
+// AWAY is new; there are no FALLBACK_* values.
+enum ClimateMode {
+  CLIMATE_MODE_UNSPECIFIED = 0;
+  CLIMATE_MODE_OFF = 1;
+  CLIMATE_MODE_HEAT = 2;
+  CLIMATE_MODE_COOL = 3;
+  CLIMATE_MODE_DUAL_SETPOINT = 4;
+  CLIMATE_MODE_FAN = 5;
+  CLIMATE_MODE_DRY = 6;
+  CLIMATE_MODE_AWAY = 7;
+}
+
+// Named fan-speed steps instead of the HDS fan_speed_percent float.
+enum FanSpeedLevel {
+  FAN_SPEED_LEVEL_UNSPECIFIED = 0;
+  FAN_SPEED_LEVEL_AUTO = 1;
+  FAN_SPEED_LEVEL_QUIET = 2;
+  FAN_SPEED_LEVEL_LOW = 3;
+  FAN_SPEED_LEVEL_MEDIUM = 4;
+  FAN_SPEED_LEVEL_HIGH = 5;
+  FAN_SPEED_LEVEL_BLAST = 6;
+}
+
+// Named louver positions instead of the HDS louver_fixed_position float.
+enum FanAngleLevel {
+  FAN_ANGLE_LEVEL_UNSPECIFIED = 0;
+  FAN_ANGLE_LEVEL_AUTO = 1;
+  FAN_ANGLE_LEVEL_CEILING = 2;
+  FAN_ANGLE_LEVEL_HIGH = 3;
+  FAN_ANGLE_LEVEL_MIDDLE = 4;
+  FAN_ANGLE_LEVEL_LOW = 5;
+  FAN_ANGLE_LEVEL_FLOOR = 6;
+}
+
+message FanSpeed {
+  FanSpeedLevel level = 1;
+}
+
+message FanAngle {
+  FanAngleLevel level = 1;
+}
+
+message SetModeAction {
+  repeated ActionTarget targets = 1;
+  ClimateMode mode = 2;
+}
+
+message SetTemperaturesAction {
+  repeated ActionTarget targets = 1;
+  optional float heat_setpoint_c = 2;
+  optional float cool_setpoint_c = 3;
+}
+
+message SetFanSpeedAction {
+  repeated ActionTarget targets = 1;
+  FanSpeed fan_speed = 2;
+}
+
+message SetFanAngleAction {
+  repeated ActionTarget targets = 1;
+  FanAngle fan_angle = 2;
+}
+
+message ClimateAction {
+  oneof action {
+    SetModeAction set_mode = 1;
+    SetTemperaturesAction set_temperatures = 2;
+    SetFanSpeedAction set_fan_speed = 3;
+    SetFanAngleAction set_fan_angle = 4;
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Light — the indoor-unit LED ring
+// ---------------------------------------------------------------------------
+
+enum LightPower {
+  LIGHT_POWER_UNSPECIFIED = 0;
+  LIGHT_POWER_ON = 1;
+  LIGHT_POWER_OFF = 2;
+}
+
+enum LightColorPreset {
+  LIGHT_COLOR_PRESET_UNSPECIFIED = 0;
+  LIGHT_COLOR_PRESET_DAYLIGHT = 1;
+  LIGHT_COLOR_PRESET_WARM = 2;
+  LIGHT_COLOR_PRESET_SUNSET = 3;
+  LIGHT_COLOR_PRESET_SKY = 4;
+}
+
+enum LightAnimation {
+  LIGHT_ANIMATION_UNSPECIFIED = 0;
+  LIGHT_ANIMATION_NONE = 1;
+  LIGHT_ANIMATION_SPARKLE_FADE = 2;
+  LIGHT_ANIMATION_TWINKLE_FADE = 3;
+  LIGHT_ANIMATION_DANCE = 4;
+  LIGHT_ANIMATION_CHASE = 5;
+}
+
+// Unpacked RGBW, unlike the packed uint32 led_color_code in IndoorUnitControls.
+message RgbwColor {
+  optional uint32 red = 1;
+  optional uint32 green = 2;
+  optional uint32 blue = 3;
+  optional uint32 white = 4;
+}
+
+message LightColor {
+  oneof value {
+    LightColorPreset preset = 1;
+    RgbwColor custom = 2;
+  }
+}
+
+message LightControls {
+  LightPower power = 1;
+  optional float brightness_percent = 2;
+  LightColor color = 3;
+  LightAnimation animation = 4;
+}
+
+message SetLightAction {
+  repeated ActionTarget targets = 1;
+  LightControls controls = 2;
+}
+
+message LightAction {
+  oneof action {
+    SetLightAction set_light = 1;
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Service
+// ---------------------------------------------------------------------------
+
+service HomeActionService {
+  rpc SubmitAction(SubmitActionRequest) returns (SubmitActionResponse);
+}

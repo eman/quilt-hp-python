@@ -45,7 +45,9 @@ class NotifierServiceServicer(object):
     """Missing associated documentation comment in .proto file."""
 
     def Subscribe(self, request_iterator, context):
-        """Missing associated documentation comment in .proto file."""
+        """Publish was removed from the app in 255 but still exists server-side (existence probe,
+        2026-10-05). Its message shape is unknown and it was deliberately never called.
+        """
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')

@@ -1,55 +1,41 @@
 // quilt_system.proto
-// SystemService lives in package core.protos.system on the wire path.
-//
-// Wire-confirmed RPCs:
-//   - CreateSystem
-//   - DeleteSystem
-//
-// Additional RPCs present in service definition:
-//   - GetSystem
-//   - UpdateSystem
-//   - ListSystems
+// SystemService lives in package core.protos.system on the wire path. Its only RPC is
+// DeleteSystem; systems are created via MobileAppService/CreateAndConfigureSystem.
 
 syntax = "proto3";
 
 package core.protos.system;
 
 import "google/protobuf/empty.proto";
-import "google/protobuf/timestamp.proto";
+import "quilt_hds.proto";
 
 option java_package = "com.quilt.proto.system";
 option swift_prefix = "Quilt";
 
-message CreateSystemRequest {}
-
-message GetSystemRequest {
-  string id = 1;
+// Shape decoded live from GetSystem/ListSystems (2026-10-05). The names of fields 2 and 3 are
+// unknown: both were empty for every system observed; the human-readable system name comes
+// from SystemInformationService/ListSystems instead.
+message SystemField2 {
+  string field_1 = 1;
 }
 
-message UpdateSystemRequest {
-  System system = 1;
-}
-
-message DeleteSystemRequest {
-  string id = 1;
-}
-
-message ListSystemsRequest {}
-
-message ListSystemsResponse {
-  repeated System systems = 1;
-}
-
-// Simplified System model (id + created timestamp).
 message System {
-  string id = 1;
-  google.protobuf.Timestamp created_ts = 2;
+  core.protos.home_datastore.EntityMetadata header = 1;  // object_id = system id, created_ts
+  SystemField2 field_2 = 2;
+  string field_3 = 3;
 }
+
+message GetSystemRequest    { string object_id = 1; }  // verified live
+message CreateSystemRequest { System system = 1; }  // by convention, unverified
+message UpdateSystemRequest { System system = 1; }  // by convention, unverified
+message DeleteSystemRequest { string object_id = 1; }  // was `id`
+message ListSystemsRequest  { reserved 1; string filter = 2; }  // verified live: filter `header.object_id="<uuid>"`
+message ListSystemsResponse { repeated System systems = 1; }  // verified live
 
 service SystemService {
-  rpc GetSystem(GetSystemRequest) returns (System);
-  rpc CreateSystem(CreateSystemRequest) returns (System);
-  rpc UpdateSystem(UpdateSystemRequest) returns (System);
+  rpc GetSystem(GetSystemRequest) returns (System);  // server-only; shape verified live
+  rpc CreateSystem(CreateSystemRequest) returns (System);  // server-only; exists (probe), request shape by convention
+  rpc UpdateSystem(UpdateSystemRequest) returns (System);  // server-only; exists (probe), request shape by convention
   rpc DeleteSystem(DeleteSystemRequest) returns (google.protobuf.Empty);
-  rpc ListSystems(ListSystemsRequest) returns (ListSystemsResponse);
+  rpc ListSystems(ListSystemsRequest) returns (ListSystemsResponse);  // server-only; shape and filter verified live
 }

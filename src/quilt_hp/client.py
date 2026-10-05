@@ -46,10 +46,13 @@ if TYPE_CHECKING:
     import grpc.aio
 
     from quilt_hp.models.comfort import ComfortSetting
+    from quilt_hp.models.controller import Controller
     from quilt_hp.models.diagnostics import SystemDiagnostics
     from quilt_hp.models.energy import SpaceEnergyMetrics
     from quilt_hp.models.enums import FanSpeed, HVACMode, LouverMode
     from quilt_hp.models.indoor_unit import IndoorUnit
+    from quilt_hp.models.outdoor_unit import OutdoorUnit
+    from quilt_hp.models.qsm import QuiltSmartModule
     from quilt_hp.models.schedule import ScheduleDay, ScheduleEvent, ScheduleWeek, ScheduleWeekDay
     from quilt_hp.models.space import Space
     from quilt_hp.models.system import SystemInfo, SystemSnapshot
@@ -316,6 +319,47 @@ class QuiltClient:
                 return snapshot
 
         return await hds.get_system(sid)
+
+    async def get_system_version(self, system_id: str | None = None) -> int | None:
+        """Cheaply fetch the system's configuration version (a ~14-byte response).
+
+        The version advances whenever controls, settings or configuration are written —
+        including automatic writes such as auto-away switching a comfort setting — but not on
+        telemetry. If it differs from ``snapshot.version``, the snapshot's configuration is
+        stale; refetch it (or ``invalidate_snapshot()`` when using the snapshot cache).
+        """
+        sid = await self._resolve_system_id(system_id)
+        return await self._require_hds().get_system_version(sid)
+
+    # --- single-object fetches (no full snapshot) ---
+    # Each returns one object straight from the server. Hardware attributes (model_sku,
+    # serial_number, firmware_version) are None and spaces lack comfort-setting enrichment;
+    # merge into a snapshot with ``snapshot.apply_*`` to keep those, e.g.
+    # ``snapshot.apply_indoor_unit(await client.get_indoor_unit(idu_id))``.
+
+    async def get_space(self, space_id: str) -> Space:
+        """Fetch one space from the server."""
+        return await self._require_hds().get_space(space_id)
+
+    async def get_indoor_unit(self, indoor_unit_id: str) -> IndoorUnit:
+        """Fetch one indoor unit from the server."""
+        return await self._require_hds().get_indoor_unit(indoor_unit_id)
+
+    async def get_outdoor_unit(self, outdoor_unit_id: str) -> OutdoorUnit:
+        """Fetch one outdoor unit from the server."""
+        return await self._require_hds().get_outdoor_unit(outdoor_unit_id)
+
+    async def get_controller(self, controller_id: str) -> Controller:
+        """Fetch one controller (Dial) from the server."""
+        return await self._require_hds().get_controller(controller_id)
+
+    async def get_quilt_smart_module(self, qsm_id: str) -> QuiltSmartModule:
+        """Fetch one Quilt Smart Module from the server."""
+        return await self._require_hds().get_quilt_smart_module(qsm_id)
+
+    async def get_comfort_setting(self, comfort_setting_id: str) -> ComfortSetting:
+        """Fetch one comfort setting from the server."""
+        return await self._require_hds().get_comfort_setting(comfort_setting_id)
 
     def invalidate_snapshot(self) -> None:
         """Discard the cached snapshot so the next call fetches fresh data."""
@@ -676,6 +720,7 @@ class QuiltClient:
             snapshot = await client.get_snapshot()
             s = client.stream(snapshot.stream_topics())
             s.on_space_update(lambda space: snapshot.apply_space(space))
+            s.on_delete(snapshot.remove)  # deletions never reach the update callbacks
             await s.run_forever()
         """
         channel = self._require_channel()

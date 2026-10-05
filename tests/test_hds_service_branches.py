@@ -34,8 +34,8 @@ async def test_hds_success_paths(monkeypatch: pytest.MonkeyPatch) -> None:
         CreateScheduleWeek=AsyncMock(return_value=SimpleNamespace()),
         UpdateScheduleWeek=AsyncMock(return_value=SimpleNamespace()),
         DeleteScheduleDay=AsyncMock(return_value=None),
-        UpdateScheduleDay=AsyncMock(return_value=SimpleNamespace()),
         DeleteScheduleWeek=AsyncMock(return_value=None),
+        UpdateScheduleDay=AsyncMock(return_value=SimpleNamespace()),
         UpdateLocation=AsyncMock(return_value=None),
     )
     monkeypatch.setattr(hds_service.hds_grpc, "HomeDatastoreServiceStub", lambda _ch: stub)
@@ -123,6 +123,8 @@ async def test_hds_success_paths(monkeypatch: pytest.MonkeyPatch) -> None:
     await svc.delete_schedule_day("day-1")
     assert await svc.update_schedule_day("day-1", "sys-1", "space-1", "new", [event]) == "day"
     await svc.delete_schedule_week("week-1")
+    stub.DeleteScheduleWeek.assert_awaited_once()
+    assert stub.DeleteScheduleWeek.await_args.args[0].object_id == "week-1"
     await svc.update_location_schedule_execution("loc-1", "sys-1", paused=True)
     await svc.update_location_schedule_execution("loc-1", "sys-1", paused=False)
 

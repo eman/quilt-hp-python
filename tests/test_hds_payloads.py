@@ -29,7 +29,7 @@ async def _capture_update_space_diff(
 
     async def _update_space(request: hds.UpdateSpaceRequest) -> hds.Space:
         captured["request"] = request
-        return request.diff
+        return request.space
 
     class _Stub:
         def __init__(self) -> None:
@@ -41,7 +41,7 @@ async def _capture_update_space_diff(
 
     service = hds_service.HomeDatastoreService(MagicMock())
     diff = await service.update_space(space, **kwargs)
-    return captured["request"].diff if isinstance(diff, hds.Space) else diff
+    return captured["request"].space if isinstance(diff, hds.Space) else diff
 
 
 @pytest.mark.parametrize(
