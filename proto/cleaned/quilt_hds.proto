@@ -1,6 +1,6 @@
 // quilt_hds.proto
 // Home Datastore (HDS) messages — objects managed by the gRPC API, plus the notifier
-// payloads (HdsNotification / HomeDatastoreObjectDiff).
+// payloads (Notification / HomeDatastoreObjectDiff).
 // Field numbers and wire types confirmed against the Quilt app and live captures.
 
 syntax = "proto3";
@@ -18,8 +18,8 @@ option java_outer_classname = "QuiltHdsProto";
 // Enums
 // ---------------------------------------------------------------------------
 
-// Confirmed by app proto Java enum QJ (implements ProtocolMessageEnum).
-// COOL=2, HEAT=3 confirmed. No DRY mode in the proto (was iOS app-only artifact).
+// Confirmed against the app.
+// COOL=2, HEAT=3 confirmed. No DRY mode in the proto (was iOS iOS-app-only artifact).
 enum HVACMode {
   HVAC_MODE_UNSPECIFIED = 0;
   HVAC_MODE_STANDBY = 1;
@@ -32,7 +32,7 @@ enum HVACMode {
   HVAC_MODE_DRY = 8;  // iOS app 1.0.26 / user-confirmed: DRY dehumidification mode
 }
 
-// Confirmed by app proto Java enum SJ (implements ProtocolMessageEnum).
+// Confirmed against the app.
 // DRY states added in iOS app 1.0.26 alongside HVAC_MODE_DRY.
 enum HVACState {
   HVAC_STATE_UNSPECIFIED = 0;
@@ -53,7 +53,7 @@ enum HVACState {
 
 // Local communications health for QSM and Controller mesh nodes.
 // Added in iOS app 1.0.26 alongside the local-control over-the-air update.
-// confirmed against the app values (app 1.0.29).
+// Values confirmed against the app (app 1.0.29).
 enum LocalCommsHealthStatus {
   LOCAL_COMMS_HEALTH_STATUS_UNSPECIFIED = 0;
   LOCAL_COMMS_HEALTH_STATUS_HEALTHY = 1;
@@ -63,7 +63,7 @@ enum LocalCommsHealthStatus {
 }
 
 // Diagnostic reason accompanying LocalCommsHealthStatus.
-// confirmed against the app (app 1.0.29). The local mesh is
+// Confirmed against the app (app 1.0.29). The local mesh is
 // Eclipse Zenoh-based (note ZENOH_SESSION_DOWN), not NATS.
 enum LocalCommsHealthReason {
   LOCAL_COMMS_HEALTH_REASON_UNSPECIFIED = 0;
@@ -101,7 +101,7 @@ enum OccupancyMode {
 
 // Freeze-protection setting on SpaceSettings (field 9).
 // UNSPECIFIED is treated as ENABLED by the app (freeze protection on by default).
-// iOS app: SafetyHeatingMode — confirmed against the app field 9 (app 1.0.29).
+// iOS app: SafetyHeatingMode — field 9, confirmed against the app (app 1.0.29).
 enum SafetyHeatingMode {
   SAFETY_HEATING_MODE_UNSPECIFIED = 0;
   SAFETY_HEATING_MODE_DISABLED = 1;
@@ -324,7 +324,7 @@ enum Presence {
   PRESENCE_DETECTED = 2;
 }
 
-// Which outdoor-unit terminal an IDU is wired to (IndoorUnitSettings f9). New in 271.
+// Which outdoor-unit terminal an IDU is wired to (IndoorUnitSettings f9). New in 1.0.33.
 enum AssignedOutdoorUnitTerminalPort {
   ASSIGNED_OUTDOOR_UNIT_TERMINAL_PORT_UNSPECIFIED = 0;
   ASSIGNED_OUTDOOR_UNIT_TERMINAL_PORT_ONE = 1;
@@ -332,7 +332,7 @@ enum AssignedOutdoorUnitTerminalPort {
   ASSIGNED_OUTDOOR_UNIT_TERMINAL_PORT_THREE = 3;
 }
 
-// Utility demand-response event phase. New in 271.
+// Utility demand-response event phase. New in 1.0.33.
 enum DemandResponseEventPhase {
   DEMAND_RESPONSE_EVENT_PHASE_UNSPECIFIED = 0;
   DEMAND_RESPONSE_EVENT_PHASE_IDLE = 1;
@@ -341,7 +341,7 @@ enum DemandResponseEventPhase {
   DEMAND_RESPONSE_EVENT_PHASE_RECOVER = 4;  // returning to normal setpoints
 }
 
-// Ducted-zone damper wiring port on the air handling unit. New in 271.
+// Ducted-zone damper wiring port on the air handling unit. New in 1.0.33.
 enum DamperPort {
   DAMPER_PORT_UNSPECIFIED = 0;
   DAMPER_PORT_ONE = 1;
@@ -419,7 +419,7 @@ message Location {
 // ---------------------------------------------------------------------------
 
 // Space relationships. f1 was customer_account_id in an old iOS JSON dump; it is absent from
-// 1.0.33 and from every capture (2026-05..07), so it is reserved.
+// app 1.0.33 and from every capture (2026-05..07), so it is reserved.
 message SpaceRelationships {
   reserved 1; reserved "customer_account_id";
   string parent_space_id = 2;  // empty for root space; JSON: "parentSpaceId"
@@ -429,9 +429,9 @@ message SpaceRelationships {
 // Wire-confirmed SpaceSettings fields (from field_3.f3):
 // f1=name, f2=description, f3=updated_ts, f4=timezone, f5=OccupancyMode,
 // f6=HvacControllerType, f7=occupied_timeout_s(180.0), f8=unoccupied_timeout_s(1200.0)
-// confirmed against the app: fields 1–8 exactly.
+// Confirmed against the app: fields 1–8 exactly.
 // f9=SafetyHeatingMode (freeze protection): iOS app-confirmed in SpaceSettings.safetyHeating
-// confirmed against the app field 9 (app 1.0.29).
+// Field 9 confirmed against the app (app 1.0.29).
 message SpaceSettings {
   string name = 1;  // wire-confirmed: f1
   string description = 2;  // wire-confirmed: f2
@@ -445,7 +445,7 @@ message SpaceSettings {
 }
 
 // Wire-confirmed from UpdateSpace binary (hex decode):
-// f1=hvac_mode(varint; COOL=2, HEAT=3 per HVACEnums.kt ordinals),
+// f1=hvac_mode(varint; COOL=2, HEAT=3 per ordinals)
 // f2=temperature_setpoint_c(float),
 // f3=updated_ts(Timestamp), f4=cooling_setpoint_c(float/22.777°C),
 // f5=heating_setpoint_c(float/20.555°C), f6=absent,
@@ -458,7 +458,7 @@ message SpaceControls {
   google.protobuf.Timestamp updated_ts = 3;  // wire-confirmed: f3
   float cooling_temperature_setpoint_c = 4;  // wire-confirmed: f4 (cooling at 4, not heating!)
   float heating_temperature_setpoint_c = 5;  // wire-confirmed: f5 (heating at 5, not cooling!)
-  string comfort_setting_id = 6;  // proto
+  string comfort_setting_id = 6;  // app proto
   BoostMode boost_mode = 7;  // wire-confirmed: f7 (varint, 0=UNSPECIFIED)
   ComfortSettingOverride comfort_setting_override = 8;  // wire-confirmed: f8 (varint, 2=UNTIL_NEXT_SCHEDULE)
   string comfort_setting_id_string = 9;  // wire-confirmed: f9 (UUID string)
@@ -468,13 +468,13 @@ message SpaceControls {
 // f1=updated_ts, f2=setpoint_c(float), f3=ambient_temperature_c(21.7°C), f4=HVACState, f5=comfort_setting_id
 message SpaceState {
   google.protobuf.Timestamp updated_ts = 1;  // wire-confirmed: f1
-  float temperature_setpoint_c = 2;  // wire-confirmed: f2 (app names; was setpoint_temperature_c)
+  float temperature_setpoint_c = 2;  // wire-confirmed: f2 (app name; was setpoint_temperature_c)
   float ambient_temperature_c = 3;  // wire-confirmed: f3 (observed 21.7°C)
   HVACState hvac_state = 4;  // wire-confirmed: f4
   string comfort_setting_id = 5;  // wire-confirmed: f5
 }
 
-// Live demand-response status for a space. New in 271.
+// Live demand-response status for a space. New in 1.0.33.
 // The offsets are what the event is currently applying to this space's setpoints.
 message SpaceDemandResponseState {
   google.protobuf.Timestamp updated_ts = 1;
@@ -484,7 +484,7 @@ message SpaceDemandResponseState {
 }
 
 // Space-level occupancy (the derived auto-away result for the whole room). confirmed against the app
-// in 255 and 271 at Space f76; uses the same IndoorUnitOccupancy.
+// in 1.0.31 and 1.0.33 at Space f76; uses the same enum class as IndoorUnitOccupancy.
 message SpaceOccupancy {
   google.protobuf.Timestamp updated_ts = 1;
   OccupancyState occupancy_state = 2;
@@ -492,15 +492,15 @@ message SpaceOccupancy {
 
 // Wire-confirmed Space field positions (from HomeDatastoreSystem field_3 items):
 // f1=EntityMetadata(header), f2=relationships, f3=settings, f4=controls, f5=state
-// confirmed against the app: f6=demand_response_state (new in 271), f76=occupancy.
+// Confirmed against the app: f6=demand_response_state (new in 1.0.33), f76=occupancy.
 message Space {
   EntityMetadata header = 1;  // wire-confirmed: f1
   SpaceRelationships relationships = 2;  // wire-confirmed: f2
   SpaceSettings settings = 3;  // wire-confirmed: f3 (name, timezone, timeouts)
   SpaceControls controls = 4;  // wire-confirmed: f4 (hvac_mode, setpoints)
   SpaceState state = 5;  // wire-confirmed: f5
-  SpaceDemandResponseState demand_response_state = 6;
-  SpaceOccupancy occupancy = 76;  // 1.0.31+: INCLUDE_OCCUPANCY=76 in the Space field mask too
+  SpaceDemandResponseState demand_response_state = 6;  // app 1.0.33: new
+  SpaceOccupancy occupancy = 76;  // app 1.0.31+: INCLUDE_OCCUPANCY=76 in the Space field mask too
 }
 
 // ---------------------------------------------------------------------------
@@ -508,7 +508,7 @@ message Space {
 // ---------------------------------------------------------------------------
 
 // spaceId=2, outdoorUnitId=3, hardwareId=4, quiltSmartModuleId=5, updatedTs=6.
-// (customer_account_id, old iOS JSON) is absent from app 1.0.33 and all captures.
+// f1 (customer_account_id, old iOS JSON) is absent from app 1.0.33 and all captures.
 message IndoorUnitRelationships {
   reserved 1; reserved "customer_account_id";
   string space_id = 2;
@@ -524,7 +524,7 @@ message IndoorUnitRelationships {
 // presenceFenceLeftM=5, presenceFenceRightM=6, presenceFenceForwardM=7,
 // radarSensorDistanceFromFloorM=8.
 // NOTE: updated_ts at f4 (not f1 as previously assumed).
-// 1.0.33: f9=assigned_outdoor_unit_terminal_port (new; absent in 255).
+// app 1.0.33: f9=assigned_outdoor_unit_terminal_port (new; absent in 1.0.31).
 message IndoorUnitSettings {
   string name = 1;
   string description = 2;
@@ -534,39 +534,39 @@ message IndoorUnitSettings {
   float presence_fence_right_m = 6;
   float presence_fence_forward_m = 7;
   float radar_sensor_distance_from_floor_m = 8;
-  AssignedOutdoorUnitTerminalPort assigned_outdoor_unit_terminal_port = 9;
+  AssignedOutdoorUnitTerminalPort assigned_outdoor_unit_terminal_port = 9;  // app 1.0.33: new
 }
 
 // Wire-confirmed flat field layout from binary decode of IndoorUnit.f4 (40 bytes):
-// f2=absent; f3=ledColorCode(varint/uint32), f4=ledColorBrightnessPercent(float)
+// f1,f2=absent; f3=ledColorCode(varint/uint32), f4=ledColorBrightnessPercent(float),
 // f5=fanSpeedMode(varint), f6=fanSpeedPercent(float), f7=updatedTs(Timestamp),
-// f9=absent; f10=louverMode(varint), f11=louverFixedPosition(float)
+// f8,f9=absent; f10=louverMode(varint), f11=louverFixedPosition(float),
 // f12=lightAnimation(varint), f13=lightState(varint).
 // NOTE: These are FLAT fields, NOT nested sub-messages.
 message IndoorUnitControls {
-  // f2 absent in the app
+  // f1, f2 absent in the app
   uint32 led_color_code = 3;  // RGBW packed uint32
   float led_color_brightness_percent = 4;  // stored brightness 0.0–1.0; preserved when led_state=OFF
   FanSpeedMode fan_speed_mode = 5;
   float fan_speed_percent = 6;  // 0.0–1.0
   google.protobuf.Timestamp updated_ts = 7;
-  // f9: uuid-string field confirmed at f9 in captures; purpose TBD
+  // f8, f9: uuid-string field confirmed at f9 in captures; purpose TBD
   IndoorUnitLouverMode louver_mode = 10;
   float louver_fixed_position = 11;  // position fraction 0.20–1.00, used when louver_mode=FIXED; 0.0 = not applicable
-  LightAnimation led_animation = 12;  // confirmed the app
+  LightAnimation led_animation = 12;  // confirmed against the app
   LightState led_state = 13;  // wire-confirmed f13: UNSPECIFIED=0,ON=1,OFF=2
                                            // sent when mobile_led_scheduling_enabled Statsig gate is on;
                                            // brightness is PRESERVED (not zeroed) when state=OFF
 }
 
-// Confirmed against the app field layout
+// Field layout confirmed against the app
 // 1=updated_ts, 2=temperature_setpoint_c, 3=ambient_temperature_c, 4=hvac_state,
 // 5=fan_speed_setpoint_rpm, 6=fan_speed_rpm, 7=light_brightness_percent,
 // 8=presence_detection_level, 9=inlet_temperature_c, 10=outlet_temperature_c,
 // 11=ambient_humidity_percent, 12=hvac_mode, 13=calculated_ambient_temperature_c,
 // 14=louver_angle_up_down_degrees
 // 15=test_mode, 16=coil_temperature_c, 17=led_state, 18=inlet_humidity_percent (app 1.0.33).
-// led_state here is the device-reported state; IndoorUnitControls.led_state is the command.
+// led_state here is the device-reported state; IndoorUnitControls.led_state (f13) is the command.
 message IndoorUnitState {
   google.protobuf.Timestamp updated_ts = 1;
   float temperature_setpoint_c = 2;
@@ -582,10 +582,10 @@ message IndoorUnitState {
   HVACMode hvac_mode = 12;
   float calculated_ambient_temperature_c = 13;
   float louver_angle_up_down_degrees = 14;
-  IndoorUnitTestMode test_mode = 15;  // 1.0.33; seen in captures since 2026-05
-  float coil_temperature_c = 16;  // 1.0.33; seen in captures since 2026-05
-  LightState led_state = 17;  // 1.0.33; seen in captures since 2026-05 (device-reported LED state)
-  float inlet_humidity_percent = 18;  // 1.0.33; seen live 2026-10-05
+  IndoorUnitTestMode test_mode = 15;  // app 1.0.33; seen in captures since 2026-05
+  float coil_temperature_c = 16;  // app 1.0.33; seen in captures since 2026-05
+  LightState led_state = 17;  // app 1.0.33; seen in captures since 2026-05 (device-reported LED state)
+  float inlet_humidity_percent = 18;  // app 1.0.33; seen live 2026-10-05
 }
 
 message IndoorUnitConditions {
@@ -601,13 +601,13 @@ message IndoorUnitConditions {
   CoilPreheatState coil_preheat = 10;
   ModeConflictAvoidanceState mode_conflict_avoidance = 11;
   OutdoorUnitCommunicationErrorState outdoor_unit_communication_error = 12;
-  CompressorMinimumRunTimeState compressor_minimum_run_time = 13;  // confirmed against the app 1.0.29
+  CompressorMinimumRunTimeState compressor_minimum_run_time = 13;  // Confirmed against the app 1.0.29
 }
 
 message IndoorUnitPresenceState {
   google.protobuf.Timestamp updated_ts = 1;
-  Presence sensor_0_presence = 2;  // names (was sensor0_presence)
-  Presence sensor_1_presence = 3;  // names (was sensor1_presence)
+  Presence sensor_0_presence = 2;  // app name (was sensor0_presence)
+  Presence sensor_1_presence = 3;  // app name (was sensor1_presence)
 }
 
 message IndoorUnitCommands {
@@ -634,7 +634,7 @@ message IndoorUnitHardware {
   IndoorUnitHardwareAttributes attributes = 2;
 }
 
-// confirmed against the app: HVAC controller inputs — what the controller sends to the IDU.
+// Confirmed against the app: HVAC controller inputs — what the controller sends to the IDU.
 message IndoorUnitHvacInputs {
   google.protobuf.Timestamp updated_ts = 1;
   float external_ambient_temperature_c = 2;  // ambient temp used by controller
@@ -645,7 +645,7 @@ message IndoorUnitHvacInputs {
   HVACState hvac_state = 7;
 }
 
-// confirmed against the app: raw IDU performance measurements.
+// Confirmed against the app: raw IDU performance measurements.
 message IndoorUnitPerformanceData {
   google.protobuf.Timestamp updated_ts = 1;
   float measurement_interval_s = 2;
@@ -661,10 +661,10 @@ message IndoorUnitPerformanceData {
   HVACState hvac_state = 12;
 }
 
-// confirmed against the app: computed energy/power metrics over a measurement window.
+// Confirmed against the app: computed energy/power metrics over a measurement window.
 message IndoorUnitPerformanceMetrics {
   google.protobuf.Timestamp updated_ts = 1;  // field 1 inferred
-  float odu_usage_fraction = 3;  // 1.0.33; share of the ODU attributed to this IDU; seen in captures
+  float odu_usage_fraction = 3;  // app 1.0.33; share of the ODU attributed to this IDU; seen in captures
   float measurement_duration_s = 11;  // window length in seconds
   float energy_total_j = 4;  // total energy this window
   float capacity_w = 5;  // HVAC capacity (watts)
@@ -677,7 +677,7 @@ message IndoorUnitPerformanceMetrics {
   float led_energy_j = 13;
 }
 
-// confirmed against the app: occupancy detection result for this IDU/space.
+// Confirmed against the app: occupancy detection result for this IDU/space.
 // OccupancyState: UNSPECIFIED=0, UNDETECTED=1, DETECTED=2.
 // Value names confirmed against the app. Shared by IndoorUnit f12 and Space f76.
 enum OccupancyState {
@@ -706,8 +706,8 @@ message IndoorUnit {
   IndoorUnitPerformanceData performance_data = 10;
   IndoorUnitPerformanceMetrics performance_metrics = 11;
   IndoorUnitOccupancy occupancy = 12;
-  IndoorUnitTestState test_state = 13;  // 1.0.33; seen live 2026-10-05 (INACTIVE)
-  IndoorUnitClimateState climate_state = 14;  // 1.0.33; seen live 2026-10-05, updates every few seconds
+  IndoorUnitTestState test_state = 13;  // app 1.0.33; seen live 2026-10-05 (INACTIVE)
+  IndoorUnitClimateState climate_state = 14;  // app 1.0.33; seen live 2026-10-05, updates every few seconds
 }
 
 // Commissioning / health-check test progress for one IDU.
@@ -729,7 +729,7 @@ message IndoorUnitClimateState {
 // Outdoor Unit
 // ---------------------------------------------------------------------------
 
-// (customer_account_id, old iOS JSON) is absent from app 1.0.33 and all captures.
+// f1 (customer_account_id, old iOS JSON) is absent from app 1.0.33 and all captures.
 message OutdoorUnitRelationships {
   reserved 1; reserved "customer_account_id";
   string space_id = 2;
@@ -750,7 +750,7 @@ message OutdoorUnitState {
   HVACState hvac_state = 2;
 }
 
-// confirmed against the app — compressor telemetry from the outdoor unit.
+// Confirmed against the app — compressor telemetry from the outdoor unit.
 // Populated during active operation; empty/zero in standby.
 message OutdoorUnitPerformanceData {
   google.protobuf.Timestamp updated_ts = 1;
@@ -771,7 +771,7 @@ message OutdoorUnitHardwareAttributes {
   google.protobuf.Timestamp production_ts = 3;
   string firmware_version = 4;
   google.protobuf.Timestamp updated_ts = 5;
-  NumberOfPorts num_ports = 6;  // 1.0.33; seen in captures
+  NumberOfPorts num_ports = 6;  // app 1.0.33; seen in captures
 }
 
 message OutdoorUnitHardware {
@@ -780,7 +780,7 @@ message OutdoorUnitHardware {
 }
 
 // Wire-confirmed field layout: header=1, relationships=2, settings=3, state=4.
-// confirmed against the app: performance_data=5.
+// Confirmed against the app: performance_data=5.
 message OutdoorUnit {
   EntityMetadata header = 1;
   OutdoorUnitRelationships relationships = 2;
@@ -802,7 +802,7 @@ message ControllerRelationships {
   google.protobuf.Timestamp updated_ts = 4;
   string software_update_info_id = 5;
   string firmware_update_info_id = 6;
-  string air_handling_unit_id = 7;  // 1.0.33: ducted installs — the AHU this Dial controls
+  string air_handling_unit_id = 7;  // app 1.0.33: ducted installs — the AHU this Dial controls
 }
 
 // name=1, description=2, updatedTs=3.
@@ -814,7 +814,7 @@ message ControllerSettings {
 
 // Dial sensor + display telemetry. Field names/numbers confirmed against the app; every field
 // 2–22 is present in live captures (2026-05..07). There is NO field 1: the real updated_ts is
-// (an earlier revision put updated_ts at f1, which the server never sends).
+// f15 (an earlier revision put updated_ts at f1, which the server never sends).
 message ControllerState {
   reserved 1;
   float sht4x_temperature_c = 2;  // Sensirion SHT4x temp (~24–29°C; self-heating bias). Was ambient_temperature_c
@@ -859,7 +859,7 @@ enum WifiConnectionState {
   WIFI_STATE_WPA_COMPLETED      = 10;
 }
 
-// confirmed against the app field layout. Used in QSM and Controller.
+// Field layout confirmed against the app. Used in QSM (f4/f5/f6) and Controller (f5/f6/f7).
 message WifiState {
   WifiConnectionState wifi_state = 1;  // connection phase (DISCONNECTED→WPA_COMPLETED)
   string ssid = 2;  // "Tigger" — shared Quilt AP
@@ -889,7 +889,7 @@ message ControllerHardware {
   ControllerHardwareAttributes attributes = 2;  // wire-confirmed: f2 (replaces ControllerHardwareSpecs)
 }
 
-// confirmed against the app field layout
+// Field layout confirmed against the app
 // header=1, relationships=2, settings=3, state=4,
 // hosted_wifi_state=5, ap_wifi_state=6, p2p_wifi_state=7, controls=8.
 message Controller {
@@ -901,22 +901,22 @@ message Controller {
   WifiState ap_wifi_state = 6;  // the upstream AP the controller connects to
   WifiState p2p_wifi_state = 7;  // peer-to-peer WiFi (usually empty)
   ControllerControls controls = 8;
-  LocalCommsStatus local_comms_health = 9;  // local mesh status for this Dial (app names; was local_comms_status)
+  LocalCommsStatus local_comms_health = 9;  // local mesh status for this Dial (app name; was local_comms_status)
 }
 
 // ---------------------------------------------------------------------------
 // Remote Sensor (BLE temperature/humidity sensor)
 // ---------------------------------------------------------------------------
 
-// confirmed against the app.
-// confirmed against the app.
+// Confirmed against the app.
+// Confirmed against the app.
 // Shared by both RemoteSensor and ControllerRemoteSensor.
 message RemoteSensorAttributes {
   string mac = 1;
   google.protobuf.Timestamp updated_ts = 2;
 }
 
-// confirmed against the app: ambient_temp=1, humidity=2, updated_ts=3, battery=4, signal=5.
+// Confirmed against the app: ambient_temp=1, humidity=2, updated_ts=3, battery=4, signal=5.
 // Shared by both RemoteSensor and ControllerRemoteSensor.
 message RemoteSensorState {
   float ambient_temperature_c = 1;
@@ -926,29 +926,29 @@ message RemoteSensorState {
   int32 signal_level_dbm = 5;
 }
 
-// confirmed against the app: indoor_unit_id=1, updated_ts=2.
+// Confirmed against the app: indoor_unit_id=1, updated_ts=2.
 // Used by standalone RemoteSensor (field 12 in HomeDatastoreSystem).
 message RemoteSensorRelationships {
   string indoor_unit_id = 1;
   google.protobuf.Timestamp updated_ts = 2;
-  string space_id = 3;  // 1.0.33
+  string space_id = 3;  // app 1.0.33
 }
 
-// confirmed against the app: controller_id=1, updated_ts=2.
+// Confirmed against the app: controller_id=1, updated_ts=2.
 // Used by ControllerRemoteSensor (field 16 in HomeDatastoreSystem).
 message ControllerRemoteSensorRelationships {
   string controller_id = 1;
   google.protobuf.Timestamp updated_ts = 2;
 }
 
-// confirmed against the app: updated_ts=1, control_mode=2.
+// Confirmed against the app: updated_ts=1, control_mode=2.
 // Shared by both RemoteSensor and ControllerRemoteSensor.
 message RemoteSensorControls {
   google.protobuf.Timestamp updated_ts = 1;
   RemoteSensorControlMode control_mode = 2;
 }
 
-// confirmed against the app: header=1, attributes=2, state=3, relationships=4, controls=5.
+// Confirmed against the app: header=1, attributes=2, state=3, relationships=4, controls=5.
 // Standalone remote sensor linked to an IndoorUnit (field 12 in HomeDatastoreSystem).
 // Not present in installations without paired remote sensors.
 message RemoteSensor {
@@ -959,7 +959,7 @@ message RemoteSensor {
   RemoteSensorControls controls = 5;
 }
 
-// confirmed against the app: header=1, attributes=2, state=3, relationships=4, controls=5.
+// Confirmed against the app: header=1, attributes=2, state=3, relationships=4, controls=5.
 // Sensor capability of a Controller (Dial) used for zone temperature control.
 // Linked to a Controller via controller_id. Field 16 in HomeDatastoreSystem.
 // Not present unless remote sensor control mode is configured on a Dial.
@@ -1011,7 +1011,7 @@ message ComfortSetting {
 // ---------------------------------------------------------------------------
 
 // ScheduleEvent: fan_speed is also FLAT here (fanSpeedMode + fanSpeedPercent), not nested.
-// confirmed against the app. Earlier revisions had f3–f5 wrong (color/brightness/animation).
+// Confirmed against the app. Earlier revisions had f3–f5 wrong (color/brightness/animation).
 message LedScheduleEvent {
   google.protobuf.Timestamp updated_ts = 1;
   int32 start_s = 2;  // seconds from midnight
@@ -1047,7 +1047,7 @@ message ScheduleDayRelationships {
   string space_id = 2;
 }
 
-// confirmed against the app.
+// Confirmed against the app.
 // (Earlier proto.json source had these swapped — app takes precedence.)
 message ScheduleDay {
   EntityMetadata header = 1;
@@ -1068,7 +1068,7 @@ message ScheduleWeekRelationships {
   string space_id = 2;
 }
 
-// confirmed against the app.
+// Confirmed against the app.
 // (Earlier proto.json source had relationships=2, days=3 — app takes precedence.)
 message ScheduleWeek {
   EntityMetadata header = 1;
@@ -1091,13 +1091,13 @@ message QuiltSmartModuleRelationships {
   string firmware_update_info_id = 3;
 }
 
-// confirmed against the app.
+// Confirmed against the app.
 message QuiltSmartModuleControls {
   int32 led_color_code = 1;
   google.protobuf.Timestamp updated_ts = 2;
 }
 
-// confirmed against the app: 9 fields, presence/ALS/accelerometer sensor data.
+// Confirmed against the app: 9 fields, presence/ALS/accelerometer sensor data.
 message QuiltSmartModuleState {
   float phase_detected_raw = 1;  // presence sensor: phase (float, fixed32)
   float target_detected_raw = 2;  // presence sensor: target (float, fixed32)
@@ -1110,7 +1110,7 @@ message QuiltSmartModuleState {
   google.protobuf.Timestamp updated_ts = 9;
 }
 
-// confirmed against the app
+// Confirmed against the app
 // header=1, controls=2, state=3, hosted_wifi_state=4, ap_wifi_state=5, p2p_wifi_state=6, relationships=7.
 message QuiltSmartModule {
   EntityMetadata header = 1;
@@ -1120,14 +1120,14 @@ message QuiltSmartModule {
   WifiState ap_wifi_state = 5;
   WifiState p2p_wifi_state = 6;  // (usually empty)
   QuiltSmartModuleRelationships relationships = 7;
-  LocalCommsStatus local_comms_health = 8;  // local mesh status for this QSM (app names; was local_comms_status)
+  LocalCommsStatus local_comms_health = 8;  // local mesh status for this QSM (app name; was local_comms_status)
 }
 
 // ---------------------------------------------------------------------------
 // Software / Firmware Update
 // ---------------------------------------------------------------------------
 
-// confirmed against the app: SoftwareUpdateInfoAttributes fields.
+// Confirmed against the app: SoftwareUpdateInfoAttributes fields.
 message SoftwareUpdateInfoAttributes {
   google.protobuf.Timestamp updated_ts = 1;
   SoftwareUpdateState  state = 2;
@@ -1139,7 +1139,7 @@ message SoftwareUpdateInfoAttributes {
   SoftwareUpdateProgressUnit progress_unit = 8;
 }
 
-// confirmed against the app.
+// Confirmed against the app.
 message SoftwareUpdateInfo {
   EntityMetadata header = 1;  // was named "metadata" — fix to "header"
   SoftwareUpdateInfoAttributes attributes = 2;
@@ -1147,7 +1147,7 @@ message SoftwareUpdateInfo {
 
 // ---------------------------------------------------------------------------
 // Air Handling Unit (ducted systems) — tree fields 19 and 21
-// confirmed against the app from 1.0.33 (schema present since 242).
+// Confirmed against the app from 1.0.33 (schema present since 1.0.29).
 // ---------------------------------------------------------------------------
 
 message AirHandlingUnitRelationships {
@@ -1173,8 +1173,8 @@ message AirHandlingUnitHardwareAttributes {
   string model_sku = 2;
   string serial_number = 3;
   string firmware_version = 4;  // Quilt firmware
-  string oem_mcu_firmware_version = 5;  // OEM control-board MCU firmware (new in 255)
-  google.protobuf.Timestamp production_ts = 6;  // new in 271
+  string oem_mcu_firmware_version = 5;  // OEM control-board MCU firmware (new in 1.0.31)
+  google.protobuf.Timestamp production_ts = 6;  // new in 1.0.33
 }
 
 message AirHandlingUnitHardware {
@@ -1185,7 +1185,7 @@ message AirHandlingUnitHardware {
 // ---------------------------------------------------------------------------
 // Ducted Zone — tree fields 20 and 22
 // A zone of an air-handler-driven duct system; spaces join it via DuctedZoneMembership.
-// Damper messages (f7–f9) are new in 271.
+// Damper messages (f7–f9) are new in 1.0.33.
 // ---------------------------------------------------------------------------
 
 message DuctedZoneRelationships {
@@ -1216,17 +1216,17 @@ message DuctedZoneOperationalState {
   HVACState hvac_state = 2;
 }
 
-message DamperCommandedState {
+message DamperCommandedState {  // new in 1.0.33
   google.protobuf.Timestamp updated_ts = 1;
   uint32 commanded_open_percent = 2;
 }
 
-message DamperPosition {
+message DamperPosition {  // new in 1.0.33
   google.protobuf.Timestamp updated_ts = 1;
   uint32 estimated_open_percent = 2;  // estimated, i.e. no position feedback sensor
 }
 
-message DamperConfig {
+message DamperConfig {  // new in 1.0.33
   google.protobuf.Timestamp updated_ts = 1;
   DamperPort damper_port = 2;
 }
@@ -1238,9 +1238,9 @@ message DuctedZone {
   DuctedZoneControls controls = 4;
   DuctedZoneClimate climate = 5;
   DuctedZoneOperationalState operational_state = 6;
-  DamperCommandedState damper_commanded_state = 7;  // new in 271
-  DamperPosition damper_position = 8;  // new in 271
-  DamperConfig damper_config = 9;  // new in 271
+  DamperCommandedState damper_commanded_state = 7;  // new in 1.0.33
+  DamperPosition damper_position = 8;  // new in 1.0.33
+  DamperConfig damper_config = 9;  // new in 1.0.33
 }
 
 message DuctedZoneMembershipRelationships {
@@ -1261,8 +1261,8 @@ message DuctedZoneMembership {
 }
 
 // ---------------------------------------------------------------------------
-// Automation — tree field 23 (RPCs new in 255; gated by mobile_automation_schedules_enabled)
-// Layout unchanged 255 -> 271.
+// Automation — tree field 23 (RPCs new in 1.0.31; gated by mobile_automation_schedules_enabled)
+// Layout unchanged 1.0.31 -> 1.0.33.
 // ---------------------------------------------------------------------------
 
 message TimeOfDayTrigger {
@@ -1338,9 +1338,9 @@ message Automation {
 }
 
 // ---------------------------------------------------------------------------
-// Demand Response Event — tree field 24 (new in 271)
+// Demand Response Event — tree field 24 (new in 1.0.33)
 // A utility demand-response event: precondition -> curtail -> recover. Per-space live
-// status is Space.demand_response_state.
+// status is Space.demand_response_state (f6).
 // ---------------------------------------------------------------------------
 
 message DemandResponseSourceInfo {
@@ -1402,13 +1402,13 @@ message HomeDatastoreSystem {
   repeated ControllerRemoteSensor controller_remote_sensors = 16;  // empty without sensor mode configured
   repeated Location locations = 17;  // confirmed: 1 item
   repeated SoftwareUpdateInfo software_update_infos = 18;  // confirmed: 28 items (SUI+FUI for all devices)
-  repeated AirHandlingUnit air_handling_units = 19;  // 1.0.33; ducted systems only
-  repeated DuctedZone ducted_zones = 20;  // 1.0.33
-  repeated AirHandlingUnitHardware air_handling_unit_hardware = 21;  // 1.0.33
-  repeated DuctedZoneMembership ducted_zone_memberships = 22;  // 1.0.33
-  repeated Automation automations = 23;  // 1.0.33 (RPCs since 255)
-  repeated DemandResponseEvent demand_response_events = 24;
-  HomeDatastoreSystemMetadata metadata = 100000;  // 1.0.33; in every capture
+  repeated AirHandlingUnit air_handling_units = 19;  // app 1.0.33; ducted systems only
+  repeated DuctedZone ducted_zones = 20;  // app 1.0.33
+  repeated AirHandlingUnitHardware air_handling_unit_hardware = 21;  // app 1.0.33
+  repeated DuctedZoneMembership ducted_zone_memberships = 22;  // app 1.0.33
+  repeated Automation automations = 23;  // app 1.0.33 (RPCs since 1.0.31)
+  repeated DemandResponseEvent demand_response_events = 24;  // app 1.0.33: new
+  HomeDatastoreSystemMetadata metadata = 100000;  // app 1.0.33; in every capture
 }
 
 message HomeDatastoreSystemMetadata {
@@ -1419,7 +1419,7 @@ message HomeDatastoreSystemMetadata {
 // Notifier payloads
 // NotifierService delivers each change as NotifierEvent{topic, payload: Any}. The live Any
 // type_url is "type.googleapis.com/core.protos.home_datastore.Notification" (verified
-// 2026-10-05), so the real message name is Notification and `any.Unpack(Notification)` works.
+// 2026-10-05), so the real message name is Notification and `any.Unpack(Notification())` works.
 // (Older notes said "core.protos.hds.Notification"; that was wrong.)
 // ---------------------------------------------------------------------------
 
@@ -1677,78 +1677,78 @@ message DeleteAirHandlingUnitHardwareRequest { string object_id = 1; }
 message ListAirHandlingUnitHardwareRequest  { reserved 1; string filter = 2; }
 message ListAirHandlingUnitHardwareResponse { repeated AirHandlingUnitHardware air_handling_unit_hardware = 1; }
 
-// HomeDatastoreService is generic CRUD over every HDS entity. The app (271) calls 30 of these;
+// HomeDatastoreService is generic CRUD over every HDS entity. The app (1.0.33) calls 30 of these
 // the server implements all 105 (existence confirmed live 2026-10-05: an unknown method answers
 // UNIMPLEMENTED, an implemented one fails to parse a malformed body). Tags: `app` = in the app's
 // stub registry; `server-only` = not used by the app. Ducted zones are normally created through
 // core.protos.app.MobileAppService/CreateAndConfigureDuctedZone, spaces/systems through
 // CreateAndConfigureSpace/System.
 service HomeDatastoreService {
-  rpc GetHomeDatastoreSystem(GetHomeDatastoreSystemRequest) returns (HomeDatastoreSystem);
+  rpc GetHomeDatastoreSystem(GetHomeDatastoreSystemRequest) returns (HomeDatastoreSystem);  // called by the Quilt app
 
-  rpc GetSpace(GetSpaceRequest) returns (Space);
+  rpc GetSpace(GetSpaceRequest) returns (Space);  // called by the Quilt app
   rpc CreateSpace(CreateSpaceRequest) returns (Space);  // server-only; exists (probe), request shape by convention
-  rpc UpdateSpace(UpdateSpaceRequest) returns (Space);
-  rpc DeleteSpace(DeleteSpaceRequest) returns (google.protobuf.Empty);
+  rpc UpdateSpace(UpdateSpaceRequest) returns (Space);  // called by the Quilt app
+  rpc DeleteSpace(DeleteSpaceRequest) returns (google.protobuf.Empty);  // called by the Quilt app
   rpc ListSpaces(ListSpacesRequest) returns (ListSpacesResponse);  // server-only; shape verified live
 
   rpc GetIndoorUnit(GetIndoorUnitRequest) returns (IndoorUnit);  // server-only; shape verified live
   rpc CreateIndoorUnit(CreateIndoorUnitRequest) returns (IndoorUnit);  // server-only; exists (probe), request shape by convention
-  rpc UpdateIndoorUnit(UpdateIndoorUnitRequest) returns (IndoorUnit);
-  rpc DeleteIndoorUnit(DeleteIndoorUnitRequest) returns (google.protobuf.Empty);
+  rpc UpdateIndoorUnit(UpdateIndoorUnitRequest) returns (IndoorUnit);  // called by the Quilt app
+  rpc DeleteIndoorUnit(DeleteIndoorUnitRequest) returns (google.protobuf.Empty);  // called by the Quilt app
   rpc ListIndoorUnits(ListIndoorUnitsRequest) returns (ListIndoorUnitsResponse);  // server-only; shape verified live
 
   rpc GetOutdoorUnit(GetOutdoorUnitRequest) returns (OutdoorUnit);  // server-only; shape verified live
   rpc CreateOutdoorUnit(CreateOutdoorUnitRequest) returns (OutdoorUnit);  // server-only; exists (probe), request shape by convention
   rpc UpdateOutdoorUnit(UpdateOutdoorUnitRequest) returns (OutdoorUnit);  // server-only; exists (probe), request shape by convention
-  rpc DeleteOutdoorUnit(DeleteOutdoorUnitRequest) returns (google.protobuf.Empty);
+  rpc DeleteOutdoorUnit(DeleteOutdoorUnitRequest) returns (google.protobuf.Empty);  // called by the Quilt app
   rpc ListOutdoorUnits(ListOutdoorUnitsRequest) returns (ListOutdoorUnitsResponse);  // server-only; shape verified live
 
   rpc GetController(GetControllerRequest) returns (Controller);  // server-only; shape verified live
   rpc CreateController(CreateControllerRequest) returns (Controller);  // server-only; exists (probe), request shape by convention
-  rpc UpdateController(UpdateControllerRequest) returns (Controller);
-  rpc DeleteController(DeleteControllerRequest) returns (google.protobuf.Empty);
+  rpc UpdateController(UpdateControllerRequest) returns (Controller);  // called by the Quilt app
+  rpc DeleteController(DeleteControllerRequest) returns (google.protobuf.Empty);  // called by the Quilt app
   rpc ListControllers(ListControllersRequest) returns (ListControllersResponse);  // server-only; shape verified live
 
-  rpc GetQuiltSmartModule(GetQuiltSmartModuleRequest) returns (QuiltSmartModule);
+  rpc GetQuiltSmartModule(GetQuiltSmartModuleRequest) returns (QuiltSmartModule);  // called by the Quilt app
   rpc CreateQuiltSmartModule(CreateQuiltSmartModuleRequest) returns (QuiltSmartModule);  // server-only; exists (probe), request shape by convention
   rpc UpdateQuiltSmartModule(UpdateQuiltSmartModuleRequest) returns (QuiltSmartModule);  // server-only; exists (probe), request shape by convention
   rpc DeleteQuiltSmartModule(DeleteQuiltSmartModuleRequest) returns (google.protobuf.Empty);  // server-only; exists (probe), request shape by convention
   rpc ListQuiltSmartModules(ListQuiltSmartModulesRequest) returns (ListQuiltSmartModulesResponse);  // server-only; shape verified live
 
   rpc GetRemoteSensor(GetRemoteSensorRequest) returns (RemoteSensor);  // server-only; exists (probe), request shape by convention
-  rpc CreateRemoteSensor(CreateRemoteSensorRequest) returns (RemoteSensor);
-  rpc UpdateRemoteSensor(UpdateRemoteSensorRequest) returns (RemoteSensor);
-  rpc DeleteRemoteSensor(DeleteRemoteSensorRequest) returns (google.protobuf.Empty);
+  rpc CreateRemoteSensor(CreateRemoteSensorRequest) returns (RemoteSensor);  // called by the Quilt app
+  rpc UpdateRemoteSensor(UpdateRemoteSensorRequest) returns (RemoteSensor);  // called by the Quilt app
+  rpc DeleteRemoteSensor(DeleteRemoteSensorRequest) returns (google.protobuf.Empty);  // called by the Quilt app
   rpc ListRemoteSensors(ListRemoteSensorsRequest) returns (ListRemoteSensorsResponse);  // server-only; shape verified live
 
   rpc GetControllerRemoteSensor(GetControllerRemoteSensorRequest) returns (ControllerRemoteSensor);  // server-only; exists (probe), request shape by convention
   rpc CreateControllerRemoteSensor(CreateControllerRemoteSensorRequest) returns (ControllerRemoteSensor);  // server-only; exists (probe), request shape by convention
-  rpc UpdateControllerRemoteSensor(UpdateControllerRemoteSensorRequest) returns (ControllerRemoteSensor);
-  rpc DeleteControllerRemoteSensor(DeleteControllerRemoteSensorRequest) returns (google.protobuf.Empty);
+  rpc UpdateControllerRemoteSensor(UpdateControllerRemoteSensorRequest) returns (ControllerRemoteSensor);  // called by the Quilt app
+  rpc DeleteControllerRemoteSensor(DeleteControllerRemoteSensorRequest) returns (google.protobuf.Empty);  // called by the Quilt app
   rpc ListControllerRemoteSensors(ListControllerRemoteSensorsRequest) returns (ListControllerRemoteSensorsResponse);  // server-only; shape verified live
 
   rpc GetComfortSetting(GetComfortSettingRequest) returns (ComfortSetting);  // server-only; shape verified live
   rpc CreateComfortSetting(CreateComfortSettingRequest) returns (ComfortSetting);  // server-only; exists (probe), request shape by convention
-  rpc UpdateComfortSetting(UpdateComfortSettingRequest) returns (ComfortSetting);
+  rpc UpdateComfortSetting(UpdateComfortSettingRequest) returns (ComfortSetting);  // called by the Quilt app
   rpc DeleteComfortSetting(DeleteComfortSettingRequest) returns (google.protobuf.Empty);  // server-only; object_id verified live
-  rpc ListComfortSettings(ListComfortSettingsRequest) returns (ListComfortSettingsResponse);
+  rpc ListComfortSettings(ListComfortSettingsRequest) returns (ListComfortSettingsResponse);  // called by the Quilt app
 
   rpc GetScheduleDay(GetScheduleDayRequest) returns (ScheduleDay);  // server-only; shape verified live
-  rpc CreateScheduleDay(CreateScheduleDayRequest) returns (ScheduleDay);
-  rpc UpdateScheduleDay(UpdateScheduleDayRequest) returns (ScheduleDay);
-  rpc DeleteScheduleDay(DeleteScheduleDayRequest) returns (google.protobuf.Empty);
+  rpc CreateScheduleDay(CreateScheduleDayRequest) returns (ScheduleDay);  // called by the Quilt app
+  rpc UpdateScheduleDay(UpdateScheduleDayRequest) returns (ScheduleDay);  // called by the Quilt app
+  rpc DeleteScheduleDay(DeleteScheduleDayRequest) returns (google.protobuf.Empty);  // called by the Quilt app
   rpc ListScheduleDays(ListScheduleDaysRequest) returns (ListScheduleDaysResponse);  // server-only; shape verified live
 
   rpc GetScheduleWeek(GetScheduleWeekRequest) returns (ScheduleWeek);  // server-only; shape verified live
-  rpc CreateScheduleWeek(CreateScheduleWeekRequest) returns (ScheduleWeek);
-  rpc UpdateScheduleWeek(UpdateScheduleWeekRequest) returns (ScheduleWeek);
+  rpc CreateScheduleWeek(CreateScheduleWeekRequest) returns (ScheduleWeek);  // called by the Quilt app
+  rpc UpdateScheduleWeek(UpdateScheduleWeekRequest) returns (ScheduleWeek);  // called by the Quilt app
   rpc DeleteScheduleWeek(DeleteScheduleWeekRequest) returns (google.protobuf.Empty);  // server-only; object_id verified live
   rpc ListScheduleWeeks(ListScheduleWeeksRequest) returns (ListScheduleWeeksResponse);  // server-only; shape verified live
 
   rpc GetLocation(GetLocationRequest) returns (Location);  // server-only; shape verified live
   rpc CreateLocation(CreateLocationRequest) returns (Location);  // server-only; exists (probe), request shape by convention
-  rpc UpdateLocation(UpdateLocationRequest) returns (Location);
+  rpc UpdateLocation(UpdateLocationRequest) returns (Location);  // called by the Quilt app
   rpc DeleteLocation(DeleteLocationRequest) returns (google.protobuf.Empty);  // server-only; object_id verified live
   rpc ListLocations(ListLocationsRequest) returns (ListLocationsResponse);  // server-only; shape verified live
 
@@ -1758,16 +1758,16 @@ service HomeDatastoreService {
   rpc DeleteSoftwareUpdateInfo(DeleteSoftwareUpdateInfoRequest) returns (google.protobuf.Empty);  // server-only; exists (probe), request shape by convention
   rpc ListSoftwareUpdateInfos(ListSoftwareUpdateInfosRequest) returns (ListSoftwareUpdateInfosResponse);  // server-only; shape verified live
 
-  rpc GetAirHandlingUnit(GetAirHandlingUnitRequest) returns (AirHandlingUnit);
+  rpc GetAirHandlingUnit(GetAirHandlingUnitRequest) returns (AirHandlingUnit);  // called by the Quilt app
   rpc CreateAirHandlingUnit(CreateAirHandlingUnitRequest) returns (AirHandlingUnit);  // server-only; exists (probe), request shape by convention
-  rpc UpdateAirHandlingUnit(UpdateAirHandlingUnitRequest) returns (AirHandlingUnit);
+  rpc UpdateAirHandlingUnit(UpdateAirHandlingUnitRequest) returns (AirHandlingUnit);  // called by the Quilt app
   rpc DeleteAirHandlingUnit(DeleteAirHandlingUnitRequest) returns (google.protobuf.Empty);  // server-only; exists (probe), request shape by convention
   rpc ListAirHandlingUnits(ListAirHandlingUnitsRequest) returns (ListAirHandlingUnitsResponse);  // server-only; shape verified live
 
-  rpc GetDuctedZone(GetDuctedZoneRequest) returns (DuctedZone);
+  rpc GetDuctedZone(GetDuctedZoneRequest) returns (DuctedZone);  // called by the Quilt app
   rpc CreateDuctedZone(CreateDuctedZoneRequest) returns (DuctedZone);  // server-only; exists (probe), request shape by convention
-  rpc UpdateDuctedZone(UpdateDuctedZoneRequest) returns (DuctedZone);
-  rpc DeleteDuctedZone(DeleteDuctedZoneRequest) returns (google.protobuf.Empty);
+  rpc UpdateDuctedZone(UpdateDuctedZoneRequest) returns (DuctedZone);  // called by the Quilt app
+  rpc DeleteDuctedZone(DeleteDuctedZoneRequest) returns (google.protobuf.Empty);  // called by the Quilt app
   rpc ListDuctedZones(ListDuctedZonesRequest) returns (ListDuctedZonesResponse);  // server-only; shape verified live
 
   rpc GetDuctedZoneMembership(GetDuctedZoneMembershipRequest) returns (DuctedZoneMembership);  // server-only; exists (probe), request shape by convention
@@ -1777,9 +1777,9 @@ service HomeDatastoreService {
   rpc ListDuctedZoneMemberships(ListDuctedZoneMembershipsRequest) returns (ListDuctedZoneMembershipsResponse);  // server-only; shape verified live
 
   rpc GetAutomation(GetAutomationRequest) returns (Automation);  // server-only; exists (probe), request shape by convention
-  rpc CreateAutomation(CreateAutomationRequest) returns (Automation);
-  rpc UpdateAutomation(UpdateAutomationRequest) returns (Automation);
-  rpc DeleteAutomation(DeleteAutomationRequest) returns (google.protobuf.Empty);
+  rpc CreateAutomation(CreateAutomationRequest) returns (Automation);  // called by the Quilt app
+  rpc UpdateAutomation(UpdateAutomationRequest) returns (Automation);  // called by the Quilt app
+  rpc DeleteAutomation(DeleteAutomationRequest) returns (google.protobuf.Empty);  // called by the Quilt app
   rpc ListAutomations(ListAutomationsRequest) returns (ListAutomationsResponse);  // server-only; shape verified live
 
   rpc GetDemandResponseEvent(GetDemandResponseEventRequest) returns (DemandResponseEvent);  // server-only; exists (probe), request shape by convention
@@ -1788,7 +1788,7 @@ service HomeDatastoreService {
   rpc DeleteDemandResponseEvent(DeleteDemandResponseEventRequest) returns (google.protobuf.Empty);  // server-only; exists (probe), request shape by convention
   rpc ListDemandResponseEvents(ListDemandResponseEventsRequest) returns (ListDemandResponseEventsResponse);  // server-only; shape verified live
 
-  rpc GetIndoorUnitHardware(GetIndoorUnitHardwareRequest) returns (IndoorUnitHardware);
+  rpc GetIndoorUnitHardware(GetIndoorUnitHardwareRequest) returns (IndoorUnitHardware);  // called by the Quilt app
   rpc CreateIndoorUnitHardware(CreateIndoorUnitHardwareRequest) returns (IndoorUnitHardware);  // server-only; exists (probe), request shape by convention
   rpc UpdateIndoorUnitHardware(UpdateIndoorUnitHardwareRequest) returns (IndoorUnitHardware);  // server-only; exists (probe), request shape by convention
   rpc DeleteIndoorUnitHardware(DeleteIndoorUnitHardwareRequest) returns (google.protobuf.Empty);  // server-only; exists (probe), request shape by convention
@@ -1800,7 +1800,7 @@ service HomeDatastoreService {
   rpc DeleteOutdoorUnitHardware(DeleteOutdoorUnitHardwareRequest) returns (google.protobuf.Empty);  // server-only; exists (probe), request shape by convention
   rpc ListOutdoorUnitHardware(ListOutdoorUnitHardwareRequest) returns (ListOutdoorUnitHardwareResponse);  // server-only; shape verified live
 
-  rpc GetControllerHardware(GetControllerHardwareRequest) returns (ControllerHardware);
+  rpc GetControllerHardware(GetControllerHardwareRequest) returns (ControllerHardware);  // called by the Quilt app
   rpc CreateControllerHardware(CreateControllerHardwareRequest) returns (ControllerHardware);  // server-only; exists (probe), request shape by convention
   rpc UpdateControllerHardware(UpdateControllerHardwareRequest) returns (ControllerHardware);  // server-only; exists (probe), request shape by convention
   rpc DeleteControllerHardware(DeleteControllerHardwareRequest) returns (google.protobuf.Empty);  // server-only; exists (probe), request shape by convention
@@ -1814,7 +1814,7 @@ service HomeDatastoreService {
 }
 
 // ---------------------------------------------------------------------------
-// CommandService — package core.protos.home_datastore (new in 255; unchanged in 271)
+// CommandService — package core.protos.home_datastore (new in 1.0.31; unchanged in 1.0.33)
 // Wire path: /core.protos.home_datastore.CommandService/RequestFastUpdates
 // ---------------------------------------------------------------------------
 

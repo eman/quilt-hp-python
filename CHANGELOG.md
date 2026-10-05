@@ -51,12 +51,14 @@
 - **Indoor-unit test state:** `IndoorUnit.test_state` (`IndoorUnitTestState` with the new
   `IndoorUnitTestMode` / `IndoorUnitTestCoordination` / `IndoorUnitTestPhase` enums),
   `IndoorUnitState.test_mode`, and the `IndoorUnit.effective_test_mode` / `is_under_test`
-  properties (health check, commissioning), which fall back to `state.test_mode` when
-  `test_state` is absent. `quilt diagnostics` shows dew point, outdoor-unit share and any active test;
+  properties (health check, commissioning), which use whichever of `test_state` and
+  `state.test_mode` was updated more recently. `quilt diagnostics` shows dew point, outdoor-unit share and any active test;
   `quilt info --output json` includes all four.
 - **Single-object fetches:** `QuiltClient.get_space` / `get_indoor_unit` / `get_outdoor_unit` /
-  `get_controller` / `get_quilt_smart_module` / `get_comfort_setting`, and on
-  `HomeDatastoreService` the remaining `get_*` plus per-system `list_*` (filtered server-side).
+  `get_controller` / `get_quilt_smart_module` / `get_comfort_setting` / `get_remote_sensor` /
+  `get_controller_remote_sensor` / `get_schedule_day` / `get_schedule_week` /
+  `get_software_update_info`, and per-system `list_*` on `HomeDatastoreService` (filtered
+  server-side).
   They use Get/List RPCs the Quilt app never calls but the server implements; results lack
   hardware attributes, so merge them into a snapshot with `apply_*`.
 - **Configuration version:** `SystemSnapshot.version` / `version_at` and
@@ -74,8 +76,10 @@
   dataclass now matches the code.
 - Deleted objects are no longer delivered as updates: `NotifierStream` ignored the notification
   type, so a DELETED event reached `on_*_update` callbacks and `snapshot.apply_*` re-added the
-  object. Deletions now go only to `on_delete`, and cancel any pending debounced update for the
-  object. The TUI drops deleted objects from its snapshot.
+  object. Deletions (DELETED, and CHILD_DELETED, which carries the removed child on its parent's
+  topic) now go only to `on_delete`, and cancel any pending debounced update for the object.
+  `SystemSnapshot.remove` also ignores later `apply_*` calls for the removed object, so an update
+  callback already in flight cannot re-add it. The TUI drops deleted objects from its snapshot.
 - `Controller.is_online` now works: it read `ControllerState.updated_ts` from field 1, which the
   server never sends, so it always returned True. The timestamp is field 15. A Dial that has
   stopped reporting for 5 minutes now reads offline.
@@ -115,6 +119,11 @@ unchanged except where noted.
 | `system.System` | `{ id = 1; created_ts = 2 }` | `{ EntityMetadata header = 1; ... }` (**wire**) |
 | `DeviceType` (pairing) | CONTROLLER=5, ... | `DEVICE_TYPE_CONTROLLER=6`, renumbered from 4 up (**wire**) |
 | `WifiScan`/`WifiConfiguration.security_type`; `DeviceConfigurationRequest.request_timestamp`/`device_configuration` | | `key_mgmt`; `request_ts` / `device_config` |
+| `Address` | `address_line_1` / `address_line_2`, `region_code` | `address_line1` / `address_line2`, `state_province_region` |
+| `Address` | `latitude`/`longitude` double; `geocode_source = 10`, `geocode_override = 11` | `float` (**wire**); `geocode_override = 10`, `raw_geocoded_response = 11`, `geocode_source = 12` (**wire**) |
+| `GeocodeSource` enum | `GeocodeSource`, `GEOCODE_SOURCE_*` | `GeocodeService`, `GEOCODE_SERVICE_*` |
+| `SetAddressResponse` | `bool success = 1` | empty message (success is a non-error status) |
+| `SystemEvent` (notifier) | `type` | `system_event_type` |
 | `core.protos.app.SystemService` | declared | removed: the server answers UNIMPLEMENTED (use `core.protos.system.SystemService`) |
 
 ## [0.5.7] - 2026-07-20

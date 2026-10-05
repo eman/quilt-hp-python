@@ -490,7 +490,11 @@ class NotifierStream:
         await self._queue_debounced_dispatch(entity_type, entity, callbacks, error_message)
 
     async def _dispatch_parsed_event(self, parsed: StreamEvent) -> None:
-        if parsed.notification_type == NotificationType.DELETED:
+        # DELETED carries the deleted object itself; CHILD_DELETED arrives on the parent's topic
+        # and carries the deleted child (e.g. an indoor unit removed from a space). Either way the
+        # payload is the object to drop. CREATED / CHILD_CREATED carry the new object and are
+        # delivered as updates.
+        if parsed.notification_type in (NotificationType.DELETED, NotificationType.CHILD_DELETED):
             await self._dispatch_delete(parsed)
             return
         if parsed.space is not None:

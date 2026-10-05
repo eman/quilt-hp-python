@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass, replace
+from dataclasses import dataclass, field, replace
 from datetime import UTC, datetime
 from typing import Any, cast
 
@@ -113,6 +113,9 @@ class SystemSnapshot:
     locations: list[Location]
     timezone: str | None
     version: int | None = None
+    _removed: set[tuple[str, str]] = field(
+        default_factory=set, init=False, repr=False, compare=False
+    )
     """``HomeDatastoreSystem.metadata.version``: epoch nanoseconds of the last write to controls,
     settings or configuration (including automatic writes such as auto-away switching a comfort
     setting). Telemetry does not advance it. See ``QuiltClient.get_system_version()``.
@@ -205,16 +208,27 @@ class SystemSnapshot:
         space.active_comfort_setting_type = None
         return space
 
+    def _is_removed(self, kind: str, entity_id: str) -> bool:
+        return (kind, entity_id) in getattr(self, "_removed", ())
+
     def remove(self, kind: str, entity_id: str) -> bool:
         """Drop a deleted object (see ``NotifierStream.on_delete``); True if it was present.
 
         ``kind`` is a ``StreamEvent`` attribute name: ``"space"``, ``"indoor_unit"``,
         ``"outdoor_unit"``, ``"controller"``, ``"qsm"``, ``"remote_sensor"``,
-        ``"controller_remote_sensor"`` or ``"software_update_info"``.
+        ``"controller_remote_sensor"`` or ``"software_update_info"``. Later ``apply_*`` calls for
+        the removed object are ignored (they return the diff without re-adding it).
         """
         attr = _SNAPSHOT_LISTS.get(kind)
         if attr is None:
             raise ValueError(f"unknown entity kind {kind!r}")
+        # Tombstone: an update that was already in flight when the delete arrived (e.g. an async
+        # callback that awaited before calling apply_*) must not re-add the object.
+        removed = getattr(self, "_removed", None)
+        if removed is None:  # snapshot built without __init__ (e.g. SystemSnapshot.__new__)
+            removed = set()
+            self._removed = removed
+        removed.add((kind, entity_id))
         items = getattr(self, attr)
         kept = [item for item in items if item.id != entity_id]
         setattr(self, attr, kept)
@@ -233,6 +247,8 @@ class SystemSnapshot:
         ``state.ambient_temperature_c=None``. Without merging, those defaults
         would overwrite real data.
         """
+        if self._is_removed("space", space.id):
+            return space
         self.enrich_space(space)
         for i, s in enumerate(self.spaces):
             if s.id == space.id:
@@ -291,6 +307,8 @@ class SystemSnapshot:
         is only populated at initial snapshot load from ``indoor_unit_hardware``
         and is never present in stream diffs, so preserve it.
         """
+        if self._is_removed("indoor_unit", idu.id):
+            return idu
         for i, u in enumerate(self.indoor_units):
             if u.id == idu.id:
                 updates: dict[str, Any] = {}
@@ -372,6 +390,8 @@ class SystemSnapshot:
         lack hardware info (no hw_map available at parse time). Preserve any
         existing non-default values so partial updates don't erase them.
         """
+        if self._is_removed("outdoor_unit", odu.id):
+            return odu
         for i, u in enumerate(self.outdoor_units):
             if u.id == odu.id:
                 updates: dict[str, Any] = {}
@@ -413,6 +433,8 @@ class SystemSnapshot:
         Hardware info (serial, model_sku, firmware_version) is only populated at
         initial snapshot load and is never in stream diffs; always preserve it.
         """
+        if self._is_removed("controller", ctrl.id):
+            return ctrl
         for i, c in enumerate(self.controllers):
             if c.id == ctrl.id:
                 updates: dict[str, Any] = {}
@@ -485,6 +507,8 @@ class SystemSnapshot:
         Stream diffs are sparse — a controls diff omits state (sensors) and wifi
         state sub-messages.  Preserve existing non-None values.
         """
+        if self._is_removed("qsm", qsm.id):
+            return qsm
         for i, q in enumerate(self.quilt_smart_modules):
             if q.id == qsm.id:
                 updates: dict[str, Any] = {}
@@ -525,6 +549,8 @@ class SystemSnapshot:
         omits state, zeroing all sensor readings. Preserve existing non-None
         values.
         """
+        if self._is_removed("remote_sensor", rs.id):
+            return rs
         for i, r in enumerate(self.remote_sensors):
             if r.id == rs.id:
                 updates: dict[str, Any] = {}
@@ -559,6 +585,8 @@ class SystemSnapshot:
         self, crs: ControllerRemoteSensor
     ) -> ControllerRemoteSensor:
         """Patch a stream-updated ControllerRemoteSensor into the snapshot."""
+        if self._is_removed("controller_remote_sensor", crs.id):
+            return crs
         for i, r in enumerate(self.controller_remote_sensors):
             if r.id == crs.id:
                 updates: dict[str, Any] = {}
@@ -593,6 +621,8 @@ class SystemSnapshot:
         legitimate state ("no update pending"), so there is no absence
         sentinel to preserve against.
         """
+        if self._is_removed("software_update_info", sui.id):
+            return sui
         for i, existing in enumerate(self.software_update_infos):
             if existing.id == sui.id:
                 self.software_update_infos[i] = sui

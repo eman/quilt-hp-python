@@ -22,7 +22,7 @@ service = HomeDatastoreService(channel)
 |--------|-------------|
 | `get_snapshot(system_id)` | Fetches a complete `SystemSnapshot` for the given system. |
 | `update_space(space_proto)` | Sends an `UpdateSpace` request with the given space proto. Used by `QuiltClient.set_space()`. |
-| `list_comfort_settings(location_id)` | Lists comfort setting protos for a location. |
+| `list_comfort_settings(system_id)` | Lists a system's comfort settings (server-side filter on `header.system_id`). |
 | `update_comfort_setting(cs_proto)` | Updates a comfort setting proto. |
 | `create_schedule_day(...)` | Creates a new schedule day program. |
 | `update_schedule_day(...)` | Updates an existing schedule day. |
@@ -348,8 +348,8 @@ class IndoorUnitState:
     outlet_temperature_c: float
     calculated_ambient_temperature_c: float
     louver_angle_up_down_degrees: float
-    test_mode: IndoorUnitTestMode  # mirrors test_state.test_mode
     updated_at: datetime | None
+    test_mode: IndoorUnitTestMode  # see IndoorUnit.effective_test_mode
 ```
 
 `IndoorUnit.is_online` is computed locally from `state.updated_at`
@@ -398,8 +398,9 @@ class IndoorUnitTestState:
 
 `idu.dew_point_c` is the inlet dew point, or `None` when the climate reading is absent or flagged
 invalid; the unit updates it every few seconds. `idu.effective_test_mode` is
-`test_state.test_mode` when reported, otherwise `state.test_mode` (the server reports the mode in
-both places). `idu.is_under_test` is `True` while that mode is anything but `INACTIVE` (health
+the mode from whichever of `test_state` and `state` was updated more recently (the server reports
+it in both, and a snapshot merged from sparse diffs can hold a stale copy of either); a source
+reporting `UNSPECIFIED` is ignored. `idu.is_under_test` is `True` while that mode is anything but `INACTIVE` (health
 check, commissioning or another test), during which the unit's behaviour is driven by the test
 rather than the room's controls.
 

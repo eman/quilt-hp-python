@@ -300,21 +300,21 @@ class SystemInformationServiceServicer(object):
         raise NotImplementedError('Method not implemented!')
 
     def GetPartnerDesignationPlan(self, request, context):
-        """new in 271
+        """new in 1.0.33
         """
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
 
     def ListSystemCertifiedPartners(self, request, context):
-        """new in 271
+        """new in 1.0.33
         """
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
 
     def SetSystemPartner(self, request, context):
-        """new in 271
+        """new in 1.0.33
         """
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
         context.set_details('Method not implemented!')
@@ -1390,7 +1390,7 @@ class MobileAppServiceServicer(object):
         raise NotImplementedError('Method not implemented!')
 
     def CreateAndConfigureDuctedZone(self, request, context):
-        """new in 271
+        """new in 1.0.33
         """
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
         context.set_details('Method not implemented!')

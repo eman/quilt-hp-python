@@ -54,6 +54,8 @@ if TYPE_CHECKING:
     from quilt_hp.models.outdoor_unit import OutdoorUnit
     from quilt_hp.models.qsm import QuiltSmartModule
     from quilt_hp.models.schedule import ScheduleDay, ScheduleEvent, ScheduleWeek, ScheduleWeekDay
+    from quilt_hp.models.sensor import ControllerRemoteSensor, RemoteSensor
+    from quilt_hp.models.software_update import SoftwareUpdateInfo
     from quilt_hp.models.space import Space
     from quilt_hp.models.system import SystemInfo, SystemSnapshot
 
@@ -360,6 +362,26 @@ class QuiltClient:
     async def get_comfort_setting(self, comfort_setting_id: str) -> ComfortSetting:
         """Fetch one comfort setting from the server."""
         return await self._require_hds().get_comfort_setting(comfort_setting_id)
+
+    async def get_remote_sensor(self, sensor_id: str) -> RemoteSensor:
+        """Fetch one remote sensor from the server."""
+        return await self._require_hds().get_remote_sensor(sensor_id)
+
+    async def get_controller_remote_sensor(self, sensor_id: str) -> ControllerRemoteSensor:
+        """Fetch one Dial-paired remote sensor from the server."""
+        return await self._require_hds().get_controller_remote_sensor(sensor_id)
+
+    async def get_schedule_day(self, schedule_day_id: str) -> ScheduleDay:
+        """Fetch one schedule day from the server."""
+        return await self._require_hds().get_schedule_day(schedule_day_id)
+
+    async def get_schedule_week(self, schedule_week_id: str) -> ScheduleWeek:
+        """Fetch one schedule week from the server."""
+        return await self._require_hds().get_schedule_week(schedule_week_id)
+
+    async def get_software_update_info(self, info_id: str) -> SoftwareUpdateInfo:
+        """Fetch one software-update record from the server."""
+        return await self._require_hds().get_software_update_info(info_id)
 
     def invalidate_snapshot(self) -> None:
         """Discard the cached snapshot so the next call fetches fresh data."""

@@ -27,7 +27,7 @@ if _version_not_supported:
 
 
 class HomeDatastoreServiceStub(object):
-    """HomeDatastoreService is generic CRUD over every HDS entity. The app (271) calls 30 of these;
+    """HomeDatastoreService is generic CRUD over every HDS entity. The app (1.0.33) calls 30 of these
     the server implements all 105 (existence confirmed live 2026-10-05: an unknown method answers
     UNIMPLEMENTED, an implemented one fails to parse a malformed body). Tags: `app` = in the app's
     stub registry; `server-only` = not used by the app. Ducted zones are normally created through
@@ -574,7 +574,7 @@ class HomeDatastoreServiceStub(object):
 
 
 class HomeDatastoreServiceServicer(object):
-    """HomeDatastoreService is generic CRUD over every HDS entity. The app (271) calls 30 of these;
+    """HomeDatastoreService is generic CRUD over every HDS entity. The app (1.0.33) calls 30 of these
     the server implements all 105 (existence confirmed live 2026-10-05: an unknown method answers
     UNIMPLEMENTED, an implemented one fails to parse a malformed body). Tags: `app` = in the app's
     stub registry; `server-only` = not used by the app. Ducted zones are normally created through
@@ -583,13 +583,15 @@ class HomeDatastoreServiceServicer(object):
     """
 
     def GetHomeDatastoreSystem(self, request, context):
-        """Missing associated documentation comment in .proto file."""
+        """called by the Quilt app
+        """
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
 
     def GetSpace(self, request, context):
-        """Missing associated documentation comment in .proto file."""
+        """called by the Quilt app
+        """
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
@@ -602,13 +604,15 @@ class HomeDatastoreServiceServicer(object):
         raise NotImplementedError('Method not implemented!')
 
     def UpdateSpace(self, request, context):
-        """Missing associated documentation comment in .proto file."""
+        """called by the Quilt app
+        """
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
 
     def DeleteSpace(self, request, context):
-        """Missing associated documentation comment in .proto file."""
+        """called by the Quilt app
+        """
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
@@ -635,13 +639,15 @@ class HomeDatastoreServiceServicer(object):
         raise NotImplementedError('Method not implemented!')
 
     def UpdateIndoorUnit(self, request, context):
-        """Missing associated documentation comment in .proto file."""
+        """called by the Quilt app
+        """
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
 
     def DeleteIndoorUnit(self, request, context):
-        """Missing associated documentation comment in .proto file."""
+        """called by the Quilt app
+        """
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
@@ -675,7 +681,8 @@ class HomeDatastoreServiceServicer(object):
         raise NotImplementedError('Method not implemented!')
 
     def DeleteOutdoorUnit(self, request, context):
-        """Missing associated documentation comment in .proto file."""
+        """called by the Quilt app
+        """
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
@@ -702,13 +709,15 @@ class HomeDatastoreServiceServicer(object):
         raise NotImplementedError('Method not implemented!')
 
     def UpdateController(self, request, context):
-        """Missing associated documentation comment in .proto file."""
+        """called by the Quilt app
+        """
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
 
     def DeleteController(self, request, context):
-        """Missing associated documentation comment in .proto file."""
+        """called by the Quilt app
+        """
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
@@ -721,7 +730,8 @@ class HomeDatastoreServiceServicer(object):
         raise NotImplementedError('Method not implemented!')
 
     def GetQuiltSmartModule(self, request, context):
-        """Missing associated documentation comment in .proto file."""
+        """called by the Quilt app
+        """
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
@@ -762,19 +772,22 @@ class HomeDatastoreServiceServicer(object):
         raise NotImplementedError('Method not implemented!')
 
     def CreateRemoteSensor(self, request, context):
-        """Missing associated documentation comment in .proto file."""
+        """called by the Quilt app
+        """
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
 
     def UpdateRemoteSensor(self, request, context):
-        """Missing associated documentation comment in .proto file."""
+        """called by the Quilt app
+        """
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
 
     def DeleteRemoteSensor(self, request, context):
-        """Missing associated documentation comment in .proto file."""
+        """called by the Quilt app
+        """
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
@@ -801,13 +814,15 @@ class HomeDatastoreServiceServicer(object):
         raise NotImplementedError('Method not implemented!')
 
     def UpdateControllerRemoteSensor(self, request, context):
-        """Missing associated documentation comment in .proto file."""
+        """called by the Quilt app
+        """
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
 
     def DeleteControllerRemoteSensor(self, request, context):
-        """Missing associated documentation comment in .proto file."""
+        """called by the Quilt app
+        """
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
@@ -834,7 +849,8 @@ class HomeDatastoreServiceServicer(object):
         raise NotImplementedError('Method not implemented!')
 
     def UpdateComfortSetting(self, request, context):
-        """Missing associated documentation comment in .proto file."""
+        """called by the Quilt app
+        """
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
@@ -847,7 +863,8 @@ class HomeDatastoreServiceServicer(object):
         raise NotImplementedError('Method not implemented!')
 
     def ListComfortSettings(self, request, context):
-        """Missing associated documentation comment in .proto file."""
+        """called by the Quilt app
+        """
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
@@ -860,19 +877,22 @@ class HomeDatastoreServiceServicer(object):
         raise NotImplementedError('Method not implemented!')
 
     def CreateScheduleDay(self, request, context):
-        """Missing associated documentation comment in .proto file."""
+        """called by the Quilt app
+        """
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
 
     def UpdateScheduleDay(self, request, context):
-        """Missing associated documentation comment in .proto file."""
+        """called by the Quilt app
+        """
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
 
     def DeleteScheduleDay(self, request, context):
-        """Missing associated documentation comment in .proto file."""
+        """called by the Quilt app
+        """
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
@@ -892,13 +912,15 @@ class HomeDatastoreServiceServicer(object):
         raise NotImplementedError('Method not implemented!')
 
     def CreateScheduleWeek(self, request, context):
-        """Missing associated documentation comment in .proto file."""
+        """called by the Quilt app
+        """
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
 
     def UpdateScheduleWeek(self, request, context):
-        """Missing associated documentation comment in .proto file."""
+        """called by the Quilt app
+        """
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
@@ -932,7 +954,8 @@ class HomeDatastoreServiceServicer(object):
         raise NotImplementedError('Method not implemented!')
 
     def UpdateLocation(self, request, context):
-        """Missing associated documentation comment in .proto file."""
+        """called by the Quilt app
+        """
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
@@ -987,7 +1010,8 @@ class HomeDatastoreServiceServicer(object):
         raise NotImplementedError('Method not implemented!')
 
     def GetAirHandlingUnit(self, request, context):
-        """Missing associated documentation comment in .proto file."""
+        """called by the Quilt app
+        """
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
@@ -1000,7 +1024,8 @@ class HomeDatastoreServiceServicer(object):
         raise NotImplementedError('Method not implemented!')
 
     def UpdateAirHandlingUnit(self, request, context):
-        """Missing associated documentation comment in .proto file."""
+        """called by the Quilt app
+        """
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
@@ -1020,7 +1045,8 @@ class HomeDatastoreServiceServicer(object):
         raise NotImplementedError('Method not implemented!')
 
     def GetDuctedZone(self, request, context):
-        """Missing associated documentation comment in .proto file."""
+        """called by the Quilt app
+        """
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
@@ -1033,13 +1059,15 @@ class HomeDatastoreServiceServicer(object):
         raise NotImplementedError('Method not implemented!')
 
     def UpdateDuctedZone(self, request, context):
-        """Missing associated documentation comment in .proto file."""
+        """called by the Quilt app
+        """
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
 
     def DeleteDuctedZone(self, request, context):
-        """Missing associated documentation comment in .proto file."""
+        """called by the Quilt app
+        """
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
@@ -1094,19 +1122,22 @@ class HomeDatastoreServiceServicer(object):
         raise NotImplementedError('Method not implemented!')
 
     def CreateAutomation(self, request, context):
-        """Missing associated documentation comment in .proto file."""
+        """called by the Quilt app
+        """
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
 
     def UpdateAutomation(self, request, context):
-        """Missing associated documentation comment in .proto file."""
+        """called by the Quilt app
+        """
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
 
     def DeleteAutomation(self, request, context):
-        """Missing associated documentation comment in .proto file."""
+        """called by the Quilt app
+        """
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
@@ -1154,7 +1185,8 @@ class HomeDatastoreServiceServicer(object):
         raise NotImplementedError('Method not implemented!')
 
     def GetIndoorUnitHardware(self, request, context):
-        """Missing associated documentation comment in .proto file."""
+        """called by the Quilt app
+        """
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
@@ -1223,7 +1255,8 @@ class HomeDatastoreServiceServicer(object):
         raise NotImplementedError('Method not implemented!')
 
     def GetControllerHardware(self, request, context):
-        """Missing associated documentation comment in .proto file."""
+        """called by the Quilt app
+        """
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
@@ -1833,7 +1866,7 @@ def add_HomeDatastoreServiceServicer_to_server(servicer, server):
 
  # This class is part of an EXPERIMENTAL API.
 class HomeDatastoreService(object):
-    """HomeDatastoreService is generic CRUD over every HDS entity. The app (271) calls 30 of these;
+    """HomeDatastoreService is generic CRUD over every HDS entity. The app (1.0.33) calls 30 of these
     the server implements all 105 (existence confirmed live 2026-10-05: an unknown method answers
     UNIMPLEMENTED, an implemented one fails to parse a malformed body). Tags: `app` = in the app's
     stub registry; `server-only` = not used by the app. Ducted zones are normally created through

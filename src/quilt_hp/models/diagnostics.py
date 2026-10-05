@@ -48,7 +48,7 @@ class IndoorUnitDiagnostics:
     hvac_power_w: float | None
     #: Dew point at the air inlet (``IndoorUnit.dew_point_c``); None if unknown.
     inlet_dew_point_c: float | None = None
-    #: Share of the outdoor unit attributed to this indoor unit; None if absent.
+    #: Share of the outdoor unit attributed to this indoor unit; None if absent or 0.
     odu_usage_fraction: float | None = None
     #: True while the unit runs a health check / commissioning test.
     under_test: bool = False
@@ -78,7 +78,8 @@ class IndoorUnitDiagnostics:
             inlet_humidity_pct=pd.inlet_humidity_pct if pd is not None else None,
             hvac_power_w=pm.hvac_power_w if pm is not None else None,
             inlet_dew_point_c=idu.dew_point_c,
-            odu_usage_fraction=pm.odu_usage_fraction if pm is not None else None,
+            # 0.0 is the proto3 default: the server did not report a share.
+            odu_usage_fraction=(pm.odu_usage_fraction or None) if pm is not None else None,
             under_test=idu.is_under_test,
             test=(
                 {

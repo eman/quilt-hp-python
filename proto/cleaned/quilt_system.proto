@@ -37,6 +37,6 @@ service SystemService {
   rpc GetSystem(GetSystemRequest) returns (System);  // server-only; shape verified live
   rpc CreateSystem(CreateSystemRequest) returns (System);  // server-only; exists (probe), request shape by convention
   rpc UpdateSystem(UpdateSystemRequest) returns (System);  // server-only; exists (probe), request shape by convention
-  rpc DeleteSystem(DeleteSystemRequest) returns (google.protobuf.Empty);
+  rpc DeleteSystem(DeleteSystemRequest) returns (google.protobuf.Empty);  // called by the Quilt app
   rpc ListSystems(ListSystemsRequest) returns (ListSystemsResponse);  // server-only; shape and filter verified live
 }

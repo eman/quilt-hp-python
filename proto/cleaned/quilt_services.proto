@@ -25,7 +25,7 @@ enum AccessRoleToSystem {
   ACCESS_ROLE_TO_SYSTEM_MEMBER = 2;
 }
 
-// iOS app-only/UserAttributes model. Not found in the current app, but used
+// iOS-app-only/UserAttributes model. Not found in the current app, but used
 // by iOS source and confirmed via live captures.
 enum DeclaredUserType {
   DECLARED_USER_TYPE_UNSPECIFIED = 0;
@@ -64,7 +64,7 @@ message UpdateLoggedInUserResponse {
 }
 
 message GetUserAttributesRequest {}
-// GetUserAttributes wraps UserAttributes.
+// GetUserAttributes wraps UserAttributes (wire bytes 0a 02 08 01 in captures).
 // Earlier revisions returned UserAttributes directly, which mis-decodes the response.
 message GetUserAttributesResponse {
   UserAttributes user_attributes = 1;
@@ -85,7 +85,7 @@ service UserService {
 // System Information Service (GRPCSystemInformationClientService)
 // ---------------------------------------------------------------------------
 
-// Address: confirmed against the app in 255 and 271. Earlier revisions of this file used the
+// Address: confirmed against the app in 1.0.31 and 1.0.33. Earlier revisions of this file used the
 // iOS app model, which had the wrong layout from field 8 on (double lat/long
 // geocode_source=10, geocode_override=11). Also embedded in PartnerOrganizationPublicProfile.
 enum GeocodeService {
@@ -112,7 +112,7 @@ message SystemInformation {
   string id = 1;
   string name = 2;
   string tz_identifier = 3;
-  Address address = 4;  // confirmed against the app in 271
+  Address address = 4;  // Confirmed against the app in 1.0.33
 }
 
 message ListSystemInformationRequest {}
@@ -161,20 +161,20 @@ message GetEnergyMetricsResponse {
 }
 
 // ---------------------------------------------------------------------------
-// Partner designation + data sharing (new in 271)
+// Partner designation + data sharing (new in 1.0.33)
 // Assigns a certified installer ("partner") to a home and manages the homeowner's
 // consent to share system data with them. SetSystemPartner is a compare-and-set:
 // the client sends the state it expects plus the state it wants; a stale `expected`
-// yields RESULT_PRECONDITION_MISMATCH. Message names are ours; classes are 271.
+// yields RESULT_PRECONDITION_MISMATCH. Message names are ours.
 // ---------------------------------------------------------------------------
 
-enum DataSharingSetting {  // gja (existed in 255)
+enum DataSharingSetting {  // gja (existed in 1.0.31)
   DATA_SHARING_SETTING_UNSPECIFIED = 0;
   DATA_SHARING_SETTING_ON = 1;
   DATA_SHARING_SETTING_OFF = 2;
 }
 
-enum SystemDataSharingState {  // bla (existed in 255)
+enum SystemDataSharingState {  // bla (existed in 1.0.31)
   SYSTEM_DATA_SHARING_STATE_UNSPECIFIED = 0;
   SYSTEM_DATA_SHARING_STATE_NO_PARTNER = 1;
   SYSTEM_DATA_SHARING_STATE_PENDING = 2;
@@ -210,11 +210,11 @@ message DataSharingStatus {  // ija
   google.protobuf.Timestamp active_after = 2;
 }
 
-message SystemDataSharing {  // ala (fields 1-3 existed in 255)
+message SystemDataSharing {  // ala (fields 1-3 existed in 1.0.31)
   PartnerDetails partner = 1;
   DataSharingSetting setting = 2;
   DataSharingStatus status = 3;
-  PartnerOrganizationPublicProfile partner_organization_public_profile = 4;  // new in 271
+  PartnerOrganizationPublicProfile partner_organization_public_profile = 4;  // new in 1.0.33
 }
 
 message DesiredPartnerDesignation {  // hka
@@ -276,9 +276,9 @@ service SystemInformationService {
   rpc ListSystems(ListSystemInformationRequest) returns (ListSystemInformationResponse);
   rpc SetAddress(SetAddressRequest) returns (SetAddressResponse);
   rpc GetEnergyMetrics(GetEnergyMetricsRequest) returns (GetEnergyMetricsResponse);
-  rpc GetPartnerDesignationPlan(GetPartnerDesignationPlanRequest) returns (GetPartnerDesignationPlanResponse);  // new in 271
-  rpc ListSystemCertifiedPartners(ListSystemCertifiedPartnersRequest) returns (ListSystemCertifiedPartnersResponse);  // new in 271
-  rpc SetSystemPartner(SetSystemPartnerRequest) returns (SetSystemPartnerResponse);  // new in 271
+  rpc GetPartnerDesignationPlan(GetPartnerDesignationPlanRequest) returns (GetPartnerDesignationPlanResponse);  // new in 1.0.33
+  rpc ListSystemCertifiedPartners(ListSystemCertifiedPartnersRequest) returns (ListSystemCertifiedPartnersResponse);  // new in 1.0.33
+  rpc SetSystemPartner(SetSystemPartnerRequest) returns (SetSystemPartnerResponse);  // new in 1.0.33
   rpc GetSystemDataSharing(GetSystemDataSharingRequest) returns (SystemDataSharing);  // in app 1.0.31+; first documented here
   rpc SetSystemDataSharing(SetSystemDataSharingRequest) returns (SystemDataSharing);
 }
@@ -290,7 +290,7 @@ service SystemInformationService {
 message InviterInformation {
   string first_name = 1;
   string last_name = 2;
-  string email = 3;  // confirmed against the app in 255 and 271
+  string email = 3;  // Confirmed against the app in 1.0.31 and 1.0.33
 }
 
 message Invitation {
@@ -299,7 +299,7 @@ message Invitation {
   InviterInformation invited_by = 3;
   string system_name = 4;
   AccessRoleToSystem access_role = 5;
-  string system_id = 6;  // server-only: sent by the server (ListSystemUsers, 2026-10-05) but absent from app 271
+  string system_id = 6;  // server-only: sent by the server (ListSystemUsers, 2026-10-05) but absent from app 1.0.33
 }
 
 message ListPendingInvitationsRequest {}
@@ -312,7 +312,7 @@ message CreateInvitationRequest {
   string system_id = 2;
   AccessRoleToSystem access_role = 3;
 }
-enum CreateInvitationResult {
+enum CreateInvitationResult {  // new in 1.0.33
   CREATE_INVITATION_RESULT_UNSPECIFIED = 0;
   CREATE_INVITATION_RESULT_CREATED = 1;
   CREATE_INVITATION_RESULT_ALREADY_INVITED = 2;
@@ -321,7 +321,7 @@ enum CreateInvitationResult {
 
 message CreateInvitationResponse {
   Invitation invitation = 1;
-  CreateInvitationResult result = 2;  // new in 271
+  CreateInvitationResult result = 2;  // new in 1.0.33
 }
 
 message AcceptInvitationRequest {
@@ -355,7 +355,7 @@ service InvitationService {
 
 // ---------------------------------------------------------------------------
 // Partner Service (GRPCPartnerClientService)
-// All four RPCs are in the app stub registry (255, 271); message layouts
+// All four RPCs are in the app stub registry (1.0.31, 1.0.33); message layouts
 // re-checked against app 1.0.33.
 // ---------------------------------------------------------------------------
 
@@ -379,7 +379,7 @@ message InviteSystemOwnerRequest {
 }
 message InviteSystemOwnerResponse {
   Invitation invitation = 1;
-  CreateInvitationResult result = 2;  // 1.0.33
+  CreateInvitationResult result = 2;  // app 1.0.33
 }
 
 message GetLoggedInUserPartnerDetailsRequest {}
@@ -467,7 +467,7 @@ message AuthorizeNewDeviceRequest {
 }
 message AuthorizeNewDeviceResponse {}
 
-// New in 271: creates a ducted zone bound to an air handling unit in one call
+// New in 1.0.33: creates a ducted zone bound to an air handling unit in one call
 // (Statsig gate mobile_ducted_pairing_enabled).
 message CreateAndConfigureDuctedZoneRequest {
   string request_id = 1;  // client-generated idempotency key
@@ -504,7 +504,7 @@ service MobileAppService {
   rpc AuthorizeNewDevice(AuthorizeNewDeviceRequest) returns (AuthorizeNewDeviceResponse);
   rpc CreateAndConfigureSystem(CreateAndConfigureSystemRequest) returns (CreateAndConfigureSystemResponse);
   rpc CreateAndConfigureSpace(CreateAndConfigureSpaceRequest) returns (CreateAndConfigureSpaceResponse);
-  rpc CreateAndConfigureDuctedZone(CreateAndConfigureDuctedZoneRequest) returns (CreateAndConfigureDuctedZoneResponse);  // new in 271
+  rpc CreateAndConfigureDuctedZone(CreateAndConfigureDuctedZoneRequest) returns (CreateAndConfigureDuctedZoneResponse);  // new in 1.0.33
 }
 
 // ---------------------------------------------------------------------------
@@ -512,7 +512,7 @@ service MobileAppService {
 // called by consumer code; results are not returned to the client (see README).
 // ---------------------------------------------------------------------------
 
-enum DiagnosticType {  // (new in 271)
+enum DiagnosticType {  // (new in 1.0.33)
   DIAGNOSTIC_TYPE_UNSPECIFIED = 0;
   DIAGNOSTIC_TYPE_INDOOR_UNIT = 1;
   DIAGNOSTIC_TYPE_OUTDOOR_UNIT = 2;
@@ -521,14 +521,14 @@ enum DiagnosticType {  // (new in 271)
 message StartDiagnosticRunRequest {
   string system_id = 1;
   string target_serial_number = 2;
-  DiagnosticType diagnostic_type = 3;  // new in 271
+  DiagnosticType diagnostic_type = 3;  // new in 1.0.33
 }
 message StartDiagnosticRunResponse {}
 
 message CancelDiagnosticRunRequest {
   string system_id = 1;
   string target_serial_number = 2;
-  DiagnosticType diagnostic_type = 3;  // new in 271
+  DiagnosticType diagnostic_type = 3;  // new in 1.0.33
 }
 message CancelDiagnosticRunResponse {}
 
@@ -539,7 +539,7 @@ service DiagnosticService {
 
 // ---------------------------------------------------------------------------
 // User Task Service — onboarding task list + client telemetry. Named
-// UserActionsAppService in 255; renamed in 271 with the same methods.
+// UserActionsAppService in 1.0.31; renamed in 1.0.33 with the same methods.
 // ---------------------------------------------------------------------------
 
 enum UserTaskKind {  // neb
@@ -591,7 +591,7 @@ service UserTaskService {
 // User Feedback Service — in-app "shake to send feedback" (app 1.0.33; not documented before).
 // ---------------------------------------------------------------------------
 
-message FeedbackAppInfo {
+message FeedbackAppInfo {  // f27
   string version_name = 1;
   string build_id = 2;
 }

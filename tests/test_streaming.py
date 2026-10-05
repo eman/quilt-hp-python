@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import grpc
@@ -11,6 +12,7 @@ from google.protobuf import any_pb2
 
 from quilt_hp._proto import quilt_hds_pb2 as hds
 from quilt_hp._proto import quilt_notifier_pb2 as notifier
+from quilt_hp.models import ControllerViewState, NotificationType
 from quilt_hp.services.streaming import (
     NotifierStream,
     _dispatch,
@@ -152,13 +154,29 @@ def test_parse_event_unmodelled_entity_keeps_raw_bytes() -> None:
     assert result.raw_bytes == note.SerializeToString()
 
 
-def test_subscribe_response_wire_layout_matches_legacy_bytes() -> None:
-    """The event batch sits one level below SubscribeResponse (field 1 -> field 1)."""
-    evt = _notifier_event("hds/space/space-1")
-    resp = notifier.SubscribeResponse(event=notifier.SubscribeEvent(notifier_events=[evt]))
-    inner = evt.SerializeToString()
-    batch = b"\x0a" + bytes([len(inner)]) + inner
-    assert resp.SerializeToString() == b"\x0a" + bytes([len(batch)]) + batch
+def test_parses_real_server_frame() -> None:
+    """Decode a SubscribeResponse captured from the live notifier stream (2026-10-05).
+
+    The frame is the raw gRPC message for a Dial UPDATED notification. Every string in it
+    (ids, name, Wi-Fi details) was replaced by a same-length placeholder, so the wire
+    layout is exactly what the server sent.
+    """
+    raw = (Path(__file__).parent / "fixtures" / "subscribe_response_controller.bin").read_bytes()
+    resp = notifier.SubscribeResponse.FromString(raw)
+    assert len(resp.event.notifier_events) == 1
+    evt = resp.event.notifier_events[0]
+    assert evt.payload.type_url == "type.googleapis.com/core.protos.home_datastore.Notification"
+
+    parsed = _make_stream()._parse_event(evt)
+
+    assert parsed is not None
+    assert parsed.topic == "hds/controller/00000000-0000-4000-8000-000000000001"
+    assert parsed.notification_type is NotificationType.UPDATED
+    assert parsed.controller is not None
+    assert parsed.controller.id == "00000000-0000-4000-8000-000000000001"
+    assert parsed.controller.view_state is ControllerViewState.GLANCE
+    assert parsed.controller.screen_brightness == pytest.approx(0.5)
+    assert parsed.controller.state_updated_at is not None
 
 
 # ─── subscribe / unsubscribe ─────────────────────────────────────────────────
@@ -424,3 +442,61 @@ def test_snapshot_remove_drops_object() -> None:
     assert snap.remove("space", "space-1") is False
     with pytest.raises(ValueError, match="unknown entity kind"):
         snap.remove("gizmo", "x")
+
+
+@pytest.mark.asyncio
+async def test_child_deleted_goes_to_delete_callbacks() -> None:
+    """CHILD_DELETED arrives on the parent's topic and carries the deleted child."""
+    stream = _make_stream()
+    updates: list[object] = []
+    deletes: list[tuple[str, str]] = []
+    stream.on_indoor_unit_update(updates.append)
+    stream.on_delete(lambda kind, entity_id: deletes.append((kind, entity_id)))
+    note = hds.Notification(
+        notification_type=hds.NOTIFICATION_TYPE_CHILD_DELETED,
+        payload=hds.HomeDatastoreObjectDiff(
+            indoor_unit=hds.IndoorUnit(header=hds.EntityMetadata(object_id="idu-1"))
+        ),
+    )
+
+    parsed = stream._parse_event(_notifier_event("hds/space/space-1", note))
+    assert parsed is not None
+    await stream._dispatch_parsed_event(parsed)
+
+    assert deletes == [("indoor_unit", "idu-1")]
+    assert updates == []
+
+
+@pytest.mark.asyncio
+async def test_in_flight_update_cannot_resurrect_deleted_object() -> None:
+    """An async update callback that awaits before applying must not re-add a deleted object."""
+    from quilt_hp.models import SystemSnapshot
+
+    system = hds.HomeDatastoreSystem()
+    space = system.spaces.add()
+    space.header.object_id = "space-1"
+    space.settings.name = "Den"
+    snap = SystemSnapshot.from_proto(system)
+    with patch("quilt_hp.services.streaming.notifier_grpc.NotifierServiceStub"):
+        stream = NotifierStream.create(MagicMock(), ["hds/space/space-1"], debounce_s=0.01)
+
+    async def on_update(updated: object) -> None:
+        await asyncio.sleep(0.03)  # e.g. awaiting I/O before merging
+        snap.apply_space(updated)  # type: ignore[arg-type]
+
+    stream.on_space_update(on_update)
+    stream.on_delete(snap.remove)
+    update = stream._parse_event(
+        _notifier_event("hds/space/space-1", _space_note(hds.NOTIFICATION_TYPE_UPDATED))
+    )
+    delete = stream._parse_event(
+        _notifier_event("hds/space/space-1", _space_note(hds.NOTIFICATION_TYPE_DELETED))
+    )
+    assert update is not None and delete is not None
+
+    await stream._dispatch_parsed_event(update)
+    await asyncio.sleep(0.02)  # debounce fired; the update callback is mid-await
+    await stream._dispatch_parsed_event(delete)
+    await asyncio.sleep(0.05)
+
+    assert snap.spaces == []

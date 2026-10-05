@@ -12,7 +12,7 @@ from google.protobuf import descriptor as _descriptor
 from google.protobuf import message as _message
 from google.protobuf.internal import containers as _containers
 import builtins as _builtins
-import quilt_hds_pb2 as _quilt_hds_pb2
+from . import quilt_hds_pb2 as _quilt_hds_pb2
 import sys
 import typing as _typing
 
