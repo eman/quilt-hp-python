@@ -1,42 +1,26 @@
-"""Textual TUI for Quilt HVAC — feature-complete, keyboard-only.
-
-Screen flow:
-  LoadingScreen ──→ DashboardScreen ──→
-    RoomScreen (Status|Performance|Schedule tabs)
-                          └──────────→ SystemScreen
-"""
+"""Room screen: Status, Performance, Schedule and Energy tabs for one room."""
 
 from __future__ import annotations
 
-import asyncio
 import contextlib
 import datetime
 import logging
-from dataclasses import replace
 from typing import TYPE_CHECKING, ClassVar
 
-from rich.text import Text
 from textual import on, work
-from textual.app import App, ComposeResult
 from textual.binding import Binding
 from textual.containers import (
-    Container,
     Horizontal,
     ScrollableContainer,
     Vertical,
 )
 from textual.css.query import NoMatches
-from textual.reactive import reactive
-from textual.screen import ModalScreen, Screen
+from textual.screen import Screen
 from textual.widgets import (
     DataTable,
     Footer,
     Header,
-    Input,
     Label,
-    ListItem,
-    ListView,
-    LoadingIndicator,
     Rule,
     Static,
     TabbedContent,
@@ -48,881 +32,56 @@ from quilt_hp.cli.constants import (
     DEFAULT_HEAT_SETPOINT_C,
     clamp_setpoint_c,
 )
-from quilt_hp.cli.settings import SettingsStore
-from quilt_hp.cli.store import FileStore
+from quilt_hp.cli.tui.base import SnapshotHost
+from quilt_hp.cli.tui.format import (
+    _FAN_CYCLE,
+    _LOUVER_CYCLE,
+    _MODE_CYCLE,
+    _MODE_STYLE,
+    _STATE_STYLE,
+    _WEEKDAY_NAMES,
+    _cycle_next,
+    _fmt_detected,
+    _fmt_display,
+    _fmt_local_comms,
+    _fmt_state,
+    _fmt_timeout,
+    _led_color_str,
+    _sku_or_none,
+    _tc,
+)
+from quilt_hp.cli.tui.shared import _odu_for_space, _set_schedule_paused
+from quilt_hp.cli.tui.widgets import _KVStatic
 from quilt_hp.client import QuiltClient
-from quilt_hp.exceptions import QuiltAuthError
 from quilt_hp.models.controller import Controller
 from quilt_hp.models.enums import (
-    ControllerViewState,
     FanSpeed,
     HVACMode,
     HVACState,
     LedAnimation,
-    LightPreset,
-    LocalCommsHealthStatus,
     LouverMode,
     OccupancyMode,
     OccupancyState,
 )
 from quilt_hp.models.indoor_unit import IndoorUnit
 from quilt_hp.models.outdoor_unit import OutdoorUnit
-from quilt_hp.models.qsm import QuiltSmartModule
-from quilt_hp.models.sensor import RemoteSensor, RemoteSensorControlMode
+from quilt_hp.models.qsm import QuiltSmartModule, WifiInfo
 
 if TYPE_CHECKING:
+    from rich.text import Text
+    from textual.app import ComposeResult
+
+    from quilt_hp.models.comfort import ComfortSetting
+    from quilt_hp.models.enums import MetricBucketStatus
+    from quilt_hp.models.schedule import ScheduleDay
     from quilt_hp.models.space import Space
     from quilt_hp.models.system import SystemSnapshot
-    from quilt_hp.services.streaming import NotifierStream
+
 
 logger = logging.getLogger(__name__)
 
-# ──────────────────────────────────────────────────────────────────
-# Persistent settings (delegates to quilt_hp.cli.settings)
-# ──────────────────────────────────────────────────────────────────
 
-# Persistent stores (tokens separate from non-secret settings)
-_token_store = FileStore()
-_settings_store = SettingsStore()
-
-
-# ──────────────────────────────────────────────────────────────────
-# Helpers
-# ──────────────────────────────────────────────────────────────────
-
-_MODE_STYLE: dict[HVACMode, str] = {
-    HVACMode.HEAT: "bold red",
-    HVACMode.COOL: "bold cyan",
-    HVACMode.AUTO: "bold yellow",
-    HVACMode.FAN: "bold green",
-    HVACMode.DRY: "bold blue",
-    HVACMode.STANDBY: "dim",
-    HVACMode.FALLBACK_AUTO: "bold yellow",
-    HVACMode.FALLBACK_OFF: "dim",
-    HVACMode.UNSPECIFIED: "dim",
-}
-
-_STATE_STYLE: dict[HVACState, str] = {
-    HVACState.HEAT: "red",
-    HVACState.COOL: "cyan",
-    HVACState.DRIFT: "yellow",
-    HVACState.FAN: "green",
-    HVACState.DRY: "blue",
-    HVACState.COOL_DEFERRED: "cyan",
-    HVACState.HEAT_DEFERRED: "red",
-    HVACState.FAN_DEFERRED: "green",
-    HVACState.DRY_DEFERRED: "blue",
-    HVACState.COOL_PREPARING: "cyan",
-    HVACState.HEAT_PREPARING: "red",
-    HVACState.DRY_PREPARING: "blue",
-    HVACState.STANDBY: "dim",
-    HVACState.UNSPECIFIED: "dim",
-}
-
-_MODE_LABELS: dict[HVACMode, str] = {
-    HVACMode.HEAT: "HEAT",
-    HVACMode.COOL: "COOL",
-    HVACMode.AUTO: "AUTO",
-    HVACMode.FAN: " FAN",
-    HVACMode.DRY: " DRY",
-    HVACMode.STANDBY: "STBY",
-    HVACMode.FALLBACK_AUTO: "FAUTO",
-    HVACMode.FALLBACK_OFF: "FOFF",
-    HVACMode.UNSPECIFIED: " -- ",
-}
-
-_STATE_SYMBOLS: dict[HVACState, str] = {
-    HVACState.HEAT: "◉ Heating",
-    HVACState.COOL: "◉ Cooling",
-    HVACState.DRIFT: "~ Drift",
-    HVACState.FAN: "~ Fan",
-    HVACState.DRY: "◉ Drying",
-    HVACState.COOL_DEFERRED: "○ Cool (deferred)",
-    HVACState.HEAT_DEFERRED: "○ Heat (deferred)",
-    HVACState.FAN_DEFERRED: "○ Fan (deferred)",
-    HVACState.DRY_DEFERRED: "○ Dry (deferred)",
-    HVACState.COOL_PREPARING: "⋯ Preparing to Cool",
-    HVACState.HEAT_PREPARING: "⋯ Preparing to Heat",
-    HVACState.DRY_PREPARING: "⋯ Preparing to Dry",
-    HVACState.STANDBY: "◌ Standby",
-    HVACState.UNSPECIFIED: "--",
-}
-
-_FAN_CYCLE = [
-    FanSpeed.AUTO,
-    FanSpeed.QUIET,
-    FanSpeed.LOW,
-    FanSpeed.MEDIUM,
-    FanSpeed.HIGH,
-    FanSpeed.BLAST,
-]
-_MODE_CYCLE = [
-    HVACMode.HEAT,
-    HVACMode.COOL,
-    HVACMode.AUTO,
-    HVACMode.FAN,
-    HVACMode.DRY,
-    HVACMode.STANDBY,
-]
-_LOUVER_CYCLE = [
-    LouverMode.SWEEP,
-    LouverMode.AUTO,
-    LouverMode.FIXED,
-    LouverMode.CLOSED,
-]
-
-_WEEKDAY_NAMES = [
-    "Monday",
-    "Tuesday",
-    "Wednesday",
-    "Thursday",
-    "Friday",
-    "Saturday",
-    "Sunday",
-]
-
-
-def _tc(val_c: float | None, use_f: bool) -> str:
-    """Format a temperature value in °C or °F."""
-    if val_c is None:
-        return "--"
-    if use_f:
-        return f"{val_c * 9 / 5 + 32:.1f}°F"
-    return f"{val_c:.1f}°C"
-
-
-def _fmt_display(ctrl: Controller) -> tuple[str, str]:
-    """Dial screen: view state plus brightness, e.g. ``GLANCE 25%``."""
-    if ctrl.view_state == ControllerViewState.UNSPECIFIED:
-        return "--", ""
-    label = ctrl.view_state.name.title()
-    if ctrl.screen_brightness:
-        label += f" {ctrl.screen_brightness:.0%}"
-    style = {
-        ControllerViewState.SLEEP: "dim",
-        ControllerViewState.GLANCE: "cyan",
-        ControllerViewState.ACTIVE: "bold green",
-    }.get(ctrl.view_state, "")
-    return label, style
-
-
-def _fmt_detected(value: bool | None) -> tuple[str, str]:
-    """Presence from a radar: detected / clear / unknown."""
-    if value is None:
-        return "--", ""
-    return ("● detected", "bold green") if value else ("○ clear", "dim")
-
-
-def _fmt_timeout(seconds: float) -> str:
-    """Format timeout as readable text (for example, '20 min')."""
-    if seconds <= 0:
-        return "0 s"
-    total_m = int(seconds) // 60
-    rem_s = int(seconds) % 60
-    if total_m == 0:
-        return f"{rem_s} s"
-    if rem_s == 0:
-        return f"{total_m} min"
-    return f"{total_m} min {rem_s} s"
-
-
-def _tu(use_f: bool) -> str:
-    return "°F" if use_f else "°C"
-
-
-def _led_color_str(color_code: int) -> str:
-    """Return a human-readable LED color label from a packed RGBW uint32.
-
-    Matches against known LightPreset values first; falls back to hex notation.
-    """
-    if color_code == 0:
-        return "Black"
-    try:
-        return LightPreset(color_code).name.capitalize()
-    except ValueError:
-        r = (color_code >> 24) & 0xFF
-        g = (color_code >> 16) & 0xFF
-        b = (color_code >> 8) & 0xFF
-        w = color_code & 0xFF
-        return f"#{r:02X}{g:02X}{b:02X}w{w:02X}"
-
-
-def _sku_or_none(model_sku: str | None) -> str | None:
-    """Return a displayable SKU value or None for empty/placeholder values."""
-    if not model_sku:
-        return None
-    sku = model_sku.strip()
-    return sku if sku and sku != "N/A" else None
-
-
-def _id_tokens(value: str | None) -> set[str]:
-    """Return raw and normalized ID tokens for tolerant ID comparisons."""
-    if not value:
-        return set()
-    raw = value.strip()
-    if not raw:
-        return set()
-    return {raw, raw.rsplit("/", 1)[-1]}
-
-
-def _occ_glyph(occ: OccupancyState | int | None) -> str:
-    if occ is None:
-        return "?"
-    state = OccupancyState(occ) if isinstance(occ, int) else occ
-    if state == OccupancyState.DETECTED:
-        return "[green]●[/green]"
-    if state == OccupancyState.UNDETECTED:
-        return "[dim]○[/dim]"
-    return "[dim]?[/dim]"
-
-
-_LOCAL_COMMS_STYLE: dict[LocalCommsHealthStatus, str] = {
-    LocalCommsHealthStatus.HEALTHY: "green",
-    LocalCommsHealthStatus.STARTING_UP: "green",  # transient — treat as healthy
-    LocalCommsHealthStatus.DEGRADED: "bold yellow",
-    LocalCommsHealthStatus.OFFLINE: "bold red",
-    LocalCommsHealthStatus.UNSPECIFIED: "dim",
-}
-_LOCAL_COMMS_LABELS: dict[LocalCommsHealthStatus, str] = {
-    LocalCommsHealthStatus.HEALTHY: "● Healthy",
-    LocalCommsHealthStatus.STARTING_UP: "⋯ Starting",
-    LocalCommsHealthStatus.DEGRADED: "⚠ Degraded",
-    LocalCommsHealthStatus.OFFLINE: "✗ Offline",
-    LocalCommsHealthStatus.UNSPECIFIED: "--",
-}
-
-
-def _fmt_local_comms(health: LocalCommsHealthStatus) -> tuple[str, str]:
-    """Return (label, style) for a LocalCommsHealthStatus value."""
-    return (
-        _LOCAL_COMMS_LABELS.get(health, health.name),
-        _LOCAL_COMMS_STYLE.get(health, ""),
-    )
-
-
-def _fmt_mode(mode: HVACMode) -> Text:
-    label = _MODE_LABELS.get(mode, mode.name)
-    style = _MODE_STYLE.get(mode, "")
-    return Text(label, style=style)
-
-
-def _space_mode_badge(space: Space) -> Text:
-    """Mode badge using Space.is_away / Space.is_off from the core model."""
-    if space.is_away:
-        return Text("AWAY", style="yellow dim")
-    if space.is_off:
-        return Text(" OFF", style="dim")
-    return _fmt_mode(space.controls.hvac_mode)
-
-
-def _fmt_state(state: HVACState) -> Text:
-    label = _STATE_SYMBOLS.get(state, state.name)
-    style = _STATE_STYLE.get(state, "")
-    return Text(label, style=style)
-
-
-def _cycle_next(current: object, cycle: list) -> object:
-    try:
-        return cycle[(cycle.index(current) + 1) % len(cycle)]
-    except ValueError:
-        return cycle[0]
-
-
-def _odu_for_space(
-    snapshot: SystemSnapshot, space_id: str, idu: IndoorUnit | None
-) -> OutdoorUnit | None:
-    """Resolve a room's ODU from the IDU link first, then by room relationship."""
-    if idu:
-        odu = snapshot.odu_for_idu(idu)
-        if odu is not None:
-            return odu
-    space_ids = _id_tokens(space_id)
-    return next(
-        (u for u in snapshot.outdoor_units if _id_tokens(u.space_id) & space_ids),
-        None,
-    )
-
-
-def _patch_schedule_paused(snapshot: SystemSnapshot, paused: bool) -> None:
-    """Patch the cached snapshot's primary location with a new paused state."""
-    loc = snapshot.primary_location
-    if loc is None:
-        return
-    idx = snapshot.locations.index(loc)
-    snapshot.locations[idx] = replace(loc, schedule_paused=paused)
-
-
-async def _set_schedule_paused(
-    client: QuiltClient, snapshot: SystemSnapshot, paused: bool
-) -> None:
-    """Toggle schedule execution server-side and patch the local cache."""
-    await client.set_schedule_execution(paused)
-    _patch_schedule_paused(snapshot, paused)
-
-
-# ──────────────────────────────────────────────────────────────────
-# CSS
-# ──────────────────────────────────────────────────────────────────
-
-_APP_CSS = """
-Screen {
-    background: $surface;
-}
-
-/* Loading */
-#loading-container {
-    align: center middle;
-    height: 100%;
-}
-#loading-label {
-    margin-top: 2;
-    text-align: center;
-    color: $text-muted;
-}
-
-/* Boot error */
-#boot-error-container {
-    align: center middle;
-    height: 100%;
-}
-#boot-error-title {
-    text-style: bold;
-    color: $error;
-    text-align: center;
-}
-#boot-error-message {
-    margin-top: 1;
-    text-align: center;
-}
-#boot-error-hint {
-    margin-top: 2;
-    text-align: center;
-    color: $text-muted;
-}
-
-/* OTP modal */
-OtpScreen {
-    align: center middle;
-}
-#otp-dialog {
-    width: 60;
-    height: auto;
-    border: round $primary;
-    padding: 1 2;
-    background: $surface;
-}
-#otp-label {
-    margin-bottom: 1;
-}
-
-/* Dashboard */
-#dashboard-list {
-    height: 1fr;
-    border: round $primary-darken-2;
-    margin: 1 2;
-}
-#dashboard-statusbar {
-    height: 1;
-    padding: 0 2;
-    background: $primary-darken-3;
-    color: $text-muted;
-    dock: bottom;
-}
-
-/* Room panels */
-.panel {
-    border: round $primary-darken-2;
-    border-title-color: $accent;
-    border-title-align: left;
-    margin: 0 1;
-    padding: 1 2;
-    height: auto;
-}
-.section-label {
-    text-style: bold;
-    color: $accent;
-    margin-top: 1;
-}
-.kv-key {
-    color: $text-muted;
-    width: 22;
-}
-.kv-val {
-    color: $text;
-}
-.section-rule {
-    margin: 1 0;
-}
-#room-tabs {
-    height: 1fr;
-}
-#tab-status {
-    overflow-y: auto;
-}
-#tab-perf {
-    padding: 0;
-}
-#tab-schedule {
-    padding: 0;
-}
-.sched-row {
-    height: 1fr;
-}
-.sched-days-panel {
-    width: 22;
-    height: 1fr;
-    border: round $primary-darken-2;
-    border-title-color: $accent;
-    border-title-align: left;
-    margin: 0 0 0 1;
-    padding: 0 1;
-}
-.sched-events-panel {
-    width: 1fr;
-    height: 1fr;
-    border: round $primary-darken-2;
-    border-title-color: $accent;
-    border-title-align: left;
-    margin: 0 1 0 0;
-    padding: 0 1;
-}
-#sched-status {
-    height: 1;
-    padding: 0 2;
-    background: $surface-darken-1;
-    color: $text-muted;
-}
-#tab-energy {
-    overflow-y: auto;
-}
-.energy-summary {
-    height: auto;
-    padding: 1 2;
-    margin: 0 1;
-    border: round $primary-darken-2;
-    border-title-color: $accent;
-    border-title-align: left;
-}
-.energy-chart {
-    height: auto;
-    padding: 1 2;
-    margin: 0 1;
-    border: round $primary-darken-2;
-    border-title-color: $accent;
-    border-title-align: left;
-}
-#energy-status {
-    padding: 0 2;
-    color: $text-muted;
-}
-.controls-sensors-row {
-    height: auto;
-}
-.controls-panel {
-    width: 1fr;
-}
-.sensors-panel {
-    width: 1fr;
-}
-.dial-panel {
-    width: 1fr;
-    height: auto;
-}
-.qsm-panel {
-    width: 1fr;
-    height: auto;
-}
-.perf-row {
-    height: 1fr;
-}
-.perf-left {
-    width: 1fr;
-    height: 1fr;
-}
-.perf-right {
-    width: 1fr;
-    height: 1fr;
-}
-
-/* System screen */
-#system-container {
-    overflow-y: auto;
-    padding: 1 2;
-}
-.odu-panel {
-    border: round $primary-darken-2;
-    border-title-color: $accent;
-    border-title-align: left;
-    padding: 1 2;
-    margin-bottom: 1;
-    height: auto;
-}
-#odu-row {
-    height: auto;
-    margin-bottom: 1;
-}
-#odu-row .odu-panel {
-    width: 1fr;
-    margin-bottom: 0;
-    margin-right: 1;
-}
-"""
-
-
-# ──────────────────────────────────────────────────────────────────
-# LoadingScreen
-# ──────────────────────────────────────────────────────────────────
-
-
-class LoadingScreen(Screen):
-    """Spinner shown while logging in and fetching the initial snapshot."""
-
-    def compose(self) -> ComposeResult:
-        with Container(id="loading-container"):
-            yield LoadingIndicator()
-            yield Label("Connecting to Quilt Cloud…", id="loading-label")
-
-    def set_status(self, msg: str) -> None:
-        with contextlib.suppress(NoMatches):
-            self.query_one("#loading-label", Label).update(msg)
-
-
-class BootErrorScreen(Screen):
-    """Shown when startup fails — no perpetual spinner."""
-
-    def __init__(self, message: str, hint: str | None = None) -> None:
-        super().__init__()
-        self._message = message
-        self._hint = hint or "Check your connection and try again."
-
-    def compose(self) -> ComposeResult:
-        with Container(id="boot-error-container"):
-            yield Label("✗ Failed to start", id="boot-error-title")
-            yield Label(self._message, id="boot-error-message")
-            yield Label(f"{self._hint}\nPress q to quit.", id="boot-error-hint")
-
-
-class OtpScreen(ModalScreen[str]):
-    """Modal prompting for the one-time passcode emailed during login."""
-
-    def __init__(self, email: str) -> None:
-        super().__init__()
-        self._email = email
-
-    def compose(self) -> ComposeResult:
-        with Vertical(id="otp-dialog"):
-            yield Label(
-                f"✉ A one-time code was sent to {self._email}.\nEnter it below:",
-                id="otp-label",
-            )
-            yield Input(placeholder="123456", id="otp-input")
-
-    def on_mount(self) -> None:
-        self.query_one("#otp-input", Input).focus()
-
-    @on(Input.Submitted, "#otp-input")
-    def _submit(self, event: Input.Submitted) -> None:
-        code = event.value.strip()
-        if code:
-            self.dismiss(code)
-
-
-# ──────────────────────────────────────────────────────────────────
-# DashboardScreen
-# ──────────────────────────────────────────────────────────────────
-
-
-class RoomListItem(ListItem):
-    """A ListView row representing one room."""
-
-    def __init__(self, space: Space, idu: IndoorUnit | None = None, use_f: bool = False) -> None:
-        super().__init__()
-        self._space_id = space.id
-        self._space_name = space.name
-        self._idu = idu
-        self._use_f = use_f
-        self.update_space(space, idu, use_f)
-
-    @property
-    def space_id(self) -> str:
-        return self._space_id
-
-    def _build_row(self, space: Space, idu: IndoorUnit | None, use_f: bool) -> Text:
-        c = space.controls
-        s = space.state
-        mode = _space_mode_badge(space) if c else Text("--", style="dim")
-        state = _fmt_state(s.hvac_state) if s else Text("--", style="dim")
-        ambient = _tc(s.ambient_temperature_c, use_f) if s else "--"
-        setpt = c.display_setpoint_str(use_f) if c else "--"
-        occ_state = (
-            OccupancyState(idu.effective_occupancy_state)
-            if idu
-            and idu.effective_occupancy_state is not None
-            and space.settings.occupancy_mode == OccupancyMode.ENABLED
-            else None
-        )
-        occ = Text.from_markup(_occ_glyph(occ_state))
-        name_w = 20
-        name_part = self._space_name[:name_w].ljust(name_w)
-        return Text.assemble(
-            Text(name_part, style="bold"),
-            "  ",
-            mode,
-            "  ",
-            occ,
-            " ",
-            Text(f"{ambient:>8}", style="green"),
-            Text(" → "),
-            Text(f"{setpt:<12}", style="yellow"),
-            Text("  "),
-            state,
-        )
-
-    def update_space(
-        self, space: Space, idu: IndoorUnit | None = None, use_f: bool = False
-    ) -> None:
-        self._space = space
-        self._use_f = use_f
-        if idu is not None:
-            self._idu = idu
-        with contextlib.suppress(NoMatches):
-            self.query_one(Static).update(self._build_row(space, self._idu, use_f))
-
-    def compose(self) -> ComposeResult:
-        yield Static(
-            self._build_row(self._space, self._idu, self._use_f),
-            id=f"room-row-{self._space_id}",
-        )
-
-
-class DashboardScreen(Screen):
-    """Main screen — scrollable room list with live updates."""
-
-    BINDINGS: ClassVar = [
-        Binding("s", "system", "System"),
-        Binding("r", "refresh", "Refresh"),
-        Binding("u", "toggle_units", "°C/°F"),
-        Binding("enter", "select_room", "Room Detail"),
-    ]
-
-    def __init__(
-        self,
-        snapshot: SystemSnapshot,
-        client: QuiltClient,
-    ) -> None:
-        super().__init__()
-        self._snapshot = snapshot  # fallback when not attached to a QuiltApp
-        self._client = client
-        self._items: dict[str, RoomListItem] = {}  # space_id → ListItem
-
-    @property
-    def snapshot(self) -> SystemSnapshot:
-        """The app-owned snapshot, falling back to the constructor value."""
-        with contextlib.suppress(Exception):
-            app = self.app
-            if isinstance(app, QuiltApp) and app.snapshot is not None:
-                return app.snapshot
-        return self._snapshot
-
-    @property
-    def use_f(self) -> bool:
-        """App-level °C/°F preference (falls back to °C when unmounted)."""
-        with contextlib.suppress(Exception):
-            app = self.app
-            if isinstance(app, QuiltApp):
-                return app.use_f
-        return False
-
-    def compose(self) -> ComposeResult:
-        yield Header(show_clock=True)
-        yield ListView(id="dashboard-list")
-        yield Static("", id="dashboard-statusbar")
-        yield Footer()
-
-    def _idu_for(self, space_id: str) -> IndoorUnit | None:
-        return next(
-            (u for u in self.snapshot.indoor_units if u.space_id == space_id),
-            None,
-        )
-
-    def _odu_for(self, space_id: str, idu: IndoorUnit | None) -> OutdoorUnit | None:
-        """Resolve room ODU from IDU link first, then by room relationship."""
-        return _odu_for_space(self.snapshot, space_id, idu)
-
-    def on_mount(self) -> None:
-        lv = self.query_one(ListView)
-        for space in self.snapshot.rooms:
-            item = RoomListItem(space, self._idu_for(space.id), self.use_f)
-            self._items[space.id] = item
-            lv.append(item)
-        self._refresh_statusbar()
-        self.set_interval(60, self._auto_refresh)
-
-    def on_screen_resume(self) -> None:
-        """Re-render rows from the merged snapshot when returning to this screen."""
-        self.refresh_units()
-
-    def refresh_units(self) -> None:
-        """Re-render all room rows and the statusbar from the current snapshot."""
-        snap = self.snapshot
-        use_f = self.use_f
-        for space_id, item in self._items.items():
-            space = next((s for s in snap.rooms if s.id == space_id), None)
-            if space:
-                item.update_space(space, self._idu_for(space_id), use_f)
-                item.refresh()
-        self._refresh_statusbar()
-
-    async def _apply_snapshot(self, snap: SystemSnapshot) -> None:
-        """Adopt a fresh snapshot and rebuild the room list in-place."""
-        self._snapshot = snap
-        app = self.app
-        if isinstance(app, QuiltApp):
-            app.update_snapshot(snap)
-        lv = self.query_one(ListView)
-        # Preserve the highlighted room across the rebuild.
-        highlighted = lv.highlighted_child
-        selected_id = highlighted.space_id if isinstance(highlighted, RoomListItem) else None
-        old_index = lv.index
-        self._items.clear()
-        await lv.clear()
-        for space in snap.rooms:
-            item = RoomListItem(space, self._idu_for(space.id), self.use_f)
-            self._items[space.id] = item
-            lv.append(item)
-        if self._items:
-            ids = list(self._items)
-            if selected_id in self._items:
-                lv.index = ids.index(selected_id)
-            elif old_index is not None:
-                lv.index = min(old_index, len(ids) - 1)
-        self._refresh_statusbar()
-
-    @work
-    async def _auto_refresh(self) -> None:
-        """Periodic silent re-sync with server state (called every 60 s)."""
-        try:
-            snap = await self._client.get_snapshot()
-            await self._apply_snapshot(snap)
-        except Exception as exc:
-            logger.warning("Dashboard auto-refresh failed: %s", exc)
-
-    @work
-    async def action_refresh(self) -> None:
-        try:
-            snap = await self._client.get_snapshot()
-            await self._apply_snapshot(snap)
-            self.notify("Refreshed", timeout=2)
-        except Exception as exc:
-            self.notify(f"Refresh failed: {exc}", severity="error")
-
-    def _refresh_statusbar(self) -> None:
-        snap = self.snapshot
-        tz = snap.timezone or "?"
-        loc = snap.primary_location
-        sched = "⏸ PAUSED" if (loc and loc.schedule_paused) else "▶ RUNNING"
-        odu_state = "--"
-        if snap.outdoor_units:
-            odu = snap.outdoor_units[0]
-            odu_state = HVACState(odu.hvac_state).name if odu.hvac_state else "--"
-        with contextlib.suppress(NoMatches):
-            self.query_one("#dashboard-statusbar", Static).update(
-                f" System: {tz}  ·  Schedule: {sched}  ·  ODU: {odu_state}"
-            )
-
-    def update_space(self, space: Space) -> None:
-        """Called from stream callbacks to update this room row."""
-        item = self._items.get(space.id)
-        if item:
-            idu = self._idu_for(space.id)
-            item.update_space(space, idu, self.use_f)
-            item.refresh()
-
-    def update_idu(self, idu: IndoorUnit) -> None:
-        """Called from stream callbacks — refresh the row for the IDU's room."""
-        space = next((s for s in self.snapshot.rooms if s.id == idu.space_id), None)
-        if space is None:
-            return
-        item = self._items.get(space.id)
-        if item:
-            item.update_space(space, idu, self.use_f)
-            item.refresh()
-
-    def update_odu(self, _odu: OutdoorUnit) -> None:
-        """Called when an ODU stream event arrives — refresh the statusbar.
-
-        The updated ODU is already merged into the snapshot, which the
-        statusbar reads directly.
-        """
-        self._refresh_statusbar()
-
-    def action_toggle_units(self) -> None:
-        app = self.app
-        if isinstance(app, QuiltApp):
-            app.use_f = not app.use_f
-
-    def action_system(self) -> None:
-        self.app.push_screen(SystemScreen(self.snapshot, self._client, use_f=self.use_f))
-
-    def action_select_room(self) -> None:
-        lv = self.query_one(ListView)
-        if lv.highlighted_child is None:
-            return
-        item = lv.highlighted_child
-        if isinstance(item, RoomListItem):
-            self._open_room(item.space_id)
-
-    @on(ListView.Selected)
-    def on_room_selected(self, event: ListView.Selected) -> None:
-        if isinstance(event.item, RoomListItem):
-            self._open_room(event.item.space_id)
-
-    def _open_room(self, space_id: str) -> None:
-        snap = self.snapshot
-        space = next((s for s in snap.rooms if s.id == space_id), None)
-        if space is None:
-            return
-        idu = next(
-            (u for u in snap.indoor_units if u.space_id == space_id),
-            None,
-        )
-        ctrl = next(
-            (c for c in snap.controllers if c.space_id == space_id),
-            None,
-        )
-        odu = self._odu_for(space_id, idu)
-        qsm = snap.qsm_for_idu(idu) if idu else None
-        self.app.push_screen(
-            RoomScreen(
-                space=space,
-                idu=idu,
-                controller=ctrl,
-                odu=odu,
-                qsm=qsm,
-                snapshot=snap,
-                client=self._client,
-                use_f=self.use_f,
-            )
-        )
-
-
-# ──────────────────────────────────────────────────────────────────
-# RoomScreen
-# ──────────────────────────────────────────────────────────────────
-
-
-class _KVStatic(Static):
-    """A key: value line as Rich markup."""
-
-    def set_kv(self, key: str, value: str, val_style: str = "") -> None:
-        if val_style:
-            val = Text(value, style=val_style)
-        else:
-            val = Text.from_markup(value)
-        self.update(Text.assemble(Text(f"{key:<22}", style="dim"), val))
-
-
-class RoomScreen(Screen):
+class RoomScreen(Screen[None]):
     """Room detail screen with Status / Performance / Schedule tabs."""
 
     BINDINGS: ClassVar = [
@@ -980,7 +139,7 @@ class RoomScreen(Screen):
         """The app-owned snapshot, falling back to the constructor value."""
         with contextlib.suppress(Exception):
             app = self.app
-            if isinstance(app, QuiltApp) and app.snapshot is not None:
+            if isinstance(app, SnapshotHost) and app.snapshot is not None:
                 return app.snapshot
         return self._snapshot
 
@@ -989,7 +148,7 @@ class RoomScreen(Screen):
         """App-level °C/°F preference (falls back to the constructor value)."""
         with contextlib.suppress(Exception):
             app = self.app
-            if isinstance(app, QuiltApp):
+            if isinstance(app, SnapshotHost):
                 return app.use_f
         return self._use_f
 
@@ -1557,7 +716,7 @@ class RoomScreen(Screen):
             self._kv("sen-test", "Test", "none" if idu else "--", "dim")
 
         # Dial / Controller
-        def _wifi_str(w: object | None) -> str:
+        def _wifi_str(w: WifiInfo | None) -> str:
             if not w:
                 return "--"
             parts = []
@@ -1718,21 +877,21 @@ class RoomScreen(Screen):
             self._kv("qsm-wifi-ap", "WiFi (AP)", _wifi_str(qsm.ap_wifi))
             self._kv("qsm-wifi-p2p", "WiFi (P2P)", _wifi_str(qsm.p2p_wifi))
             if qsm.sensors:
-                s = qsm.sensors
+                sensors = qsm.sensors
                 self._kv(
                     "qsm-presence",
                     "Presence",
-                    f"phase {s.phase_detected_raw:.3f}  target {s.target_detected_raw:.3f}",
+                    f"phase {sensors.phase_detected_raw:.3f}  target {sensors.target_detected_raw:.3f}",
                 )
                 self._kv(
                     "qsm-als",
                     "Light (ALS)",
-                    f"illum {s.als_illuminance_raw}  IR {s.als_ir_raw}  both {s.als_both_raw}",
+                    f"illum {sensors.als_illuminance_raw}  IR {sensors.als_ir_raw}  both {sensors.als_both_raw}",
                 )
                 self._kv(
                     "qsm-accel",
                     "Accel X/Y/Z",
-                    f"{s.accel_x_raw}  /  {s.accel_y_raw}  /  {s.accel_z_raw}",
+                    f"{sensors.accel_x_raw}  /  {sensors.accel_y_raw}  /  {sensors.accel_z_raw}",
                 )
             else:
                 for nid, lbl in [
@@ -1989,32 +1148,32 @@ class RoomScreen(Screen):
             self._kv("p-odu-serial", "Serial", odu.serial_number or "--")
             self._kv("p-odu-fw", "Firmware", odu.firmware_version or "--")
             if odu.performance_data:
-                pd = odu.performance_data
+                odu_pd = odu.performance_data
                 self._kv(
                     "p-odu-freq",
                     "Compressor Freq",
-                    f"{pd.compressor_frequency_hz:.1f} Hz",
+                    f"{odu_pd.compressor_frequency_hz:.1f} Hz",
                 )
                 self._kv(
                     "p-odu-coil",
                     "ODU Coil Temp",
-                    _tc(pd.coil_temperature_c, use_f),
+                    _tc(odu_pd.coil_temperature_c, use_f),
                 )
                 self._kv(
                     "p-odu-exhaust",
                     "Exhaust Temp",
-                    _tc(pd.exhaust_temperature_c, use_f),
+                    _tc(odu_pd.exhaust_temperature_c, use_f),
                 )
                 self._kv(
                     "p-odu-hi",
                     "High Pressure",
-                    f"{pd.high_pressure_kpa:.1f} kPa",
+                    f"{odu_pd.high_pressure_kpa:.1f} kPa",
                 )
-                self._kv("p-odu-lo", "Low Pressure", f"{pd.low_pressure_kpa:.1f} kPa")
+                self._kv("p-odu-lo", "Low Pressure", f"{odu_pd.low_pressure_kpa:.1f} kPa")
                 self._kv(
                     "p-odu-ambient",
                     "ODU Ambient",
-                    _tc(pd.ambient_temperature_c, use_f),
+                    _tc(odu_pd.ambient_temperature_c, use_f),
                 )
             else:
                 for nid in (
@@ -2057,7 +1216,7 @@ class RoomScreen(Screen):
         self._sched_day_by_id = {d.id: d for d in snap.schedule_days}
         self._sched_cs_by_id = {cs.id: cs for cs in snap.comfort_settings}
 
-        week_table: DataTable = self.query_one("#sched-week", DataTable)
+        week_table: DataTable[str | Text] = self.query_one("#sched-week", DataTable)
         if not week_table.columns:
             week_table.add_columns("Day")
 
@@ -2101,7 +1260,9 @@ class RoomScreen(Screen):
         days = [day_by_id[did] for did in day_ids if did in day_by_id]
         self._populate_day_events(days, cs_by_id, label=_WEEKDAY_NAMES[idx] if idx < 7 else "")
 
-    def _populate_day_events(self, days: list, cs_by_id: dict, label: str = "") -> None:
+    def _populate_day_events(
+        self, days: list[ScheduleDay], cs_by_id: dict[str, ComfortSetting], label: str = ""
+    ) -> None:
         from quilt_hp.models.enums import HVACMode as _HM
         from quilt_hp.models.enums import LouverMode as _LM
         from quilt_hp.models.schedule import ScheduleDay
@@ -2110,7 +1271,7 @@ class RoomScreen(Screen):
             with contextlib.suppress(Exception):
                 self.query_one("#sched-events-panel").border_title = label
 
-        day_table: DataTable = self.query_one("#sched-day", DataTable)
+        day_table: DataTable[str | Text] = self.query_one("#sched-day", DataTable)
         if not day_table.columns:
             day_table.add_columns("Time", "Mode", "Heat", "Cool", "Fan", "Preset")
         day_table.clear()
@@ -2177,7 +1338,7 @@ class RoomScreen(Screen):
         """Fetch 30 days of hourly room energy data for summary totals."""
         try:
             self._set_energy_status("⟳ Loading energy data…")
-            tz = datetime.UTC
+            tz: datetime.tzinfo = datetime.UTC
             snap_tz = self.snapshot.timezone
             if snap_tz:
                 try:
@@ -2206,7 +1367,7 @@ class RoomScreen(Screen):
     def _populate_energy(self, metrics: object | None, tz: datetime.tzinfo) -> None:
         from quilt_hp.models.energy import SpaceEnergyMetrics
 
-        table: DataTable = self.query_one("#e-table", DataTable)
+        table: DataTable[str | Text] = self.query_one("#e-table", DataTable)
         if not table.columns:
             table.add_columns("Date", "Hour", "kWh", "Status")
 
@@ -2227,7 +1388,9 @@ class RoomScreen(Screen):
 
         # Group buckets by local date.
         # Buckets are UTC-aware from the service; astimezone converts them.
-        by_date: dict[datetime.date, list] = {}
+        by_date: dict[
+            datetime.date, list[tuple[datetime.datetime, float, MetricBucketStatus]]
+        ] = {}
         for b in metrics.buckets:
             bt = b.start_time
             if bt.tzinfo is None:
@@ -2329,7 +1492,7 @@ class RoomScreen(Screen):
 
     def action_toggle_units(self) -> None:
         app = self.app
-        if isinstance(app, QuiltApp):
+        if isinstance(app, SnapshotHost):
             app.use_f = not app.use_f
 
     def refresh_units(self) -> None:
@@ -2564,590 +1727,3 @@ class RoomScreen(Screen):
             self.notify("Schedules " + ("paused" if paused else "resumed"), timeout=2)
         except Exception as exc:
             self.notify(f"Error: {exc}", severity="error")
-
-
-# ──────────────────────────────────────────────────────────────────
-# SystemScreen
-# ──────────────────────────────────────────────────────────────────
-
-
-class SystemScreen(Screen):
-    """System-wide overview: ODU, controllers, remote sensors."""
-
-    BINDINGS: ClassVar = [
-        Binding("escape,b", "back", "Back"),
-        Binding("u", "toggle_units", "°C/°F"),
-        Binding("p", "toggle_schedule", "Pause Sched"),
-    ]
-
-    def __init__(
-        self,
-        snapshot: SystemSnapshot,
-        client: QuiltClient,
-        *,
-        use_f: bool = False,
-    ) -> None:
-        super().__init__()
-        self._snapshot = snapshot  # fallback when not attached to a QuiltApp
-        self._client = client
-        self._use_f = use_f
-
-    @property
-    def snapshot(self) -> SystemSnapshot:
-        """The app-owned snapshot, falling back to the constructor value."""
-        with contextlib.suppress(Exception):
-            app = self.app
-            if isinstance(app, QuiltApp) and app.snapshot is not None:
-                return app.snapshot
-        return self._snapshot
-
-    @property
-    def use_f(self) -> bool:
-        """App-level °C/°F preference (falls back to the constructor value)."""
-        with contextlib.suppress(Exception):
-            app = self.app
-            if isinstance(app, QuiltApp):
-                return app.use_f
-        return self._use_f
-
-    def compose(self) -> ComposeResult:
-        yield Header(show_clock=True)
-        with Vertical(id="system-container"):
-            # System header
-            with Vertical(classes="odu-panel") as v:
-                v.border_title = "System"
-                yield Static(id="sys-header")
-
-            # ODU row — one panel per outdoor unit
-            with Horizontal(id="odu-row"):
-                if self.snapshot.outdoor_units:
-                    for i in range(len(self.snapshot.outdoor_units)):
-                        with Vertical(classes="odu-panel") as v:
-                            v.border_title = (
-                                f"Outdoor Unit {i + 1}"
-                                if len(self.snapshot.outdoor_units) > 1
-                                else "Outdoor Unit"
-                            )
-                            yield Static(id=f"sys-odu-{i}")
-                else:
-                    yield Static("[dim]No outdoor unit data[/dim]", id="sys-odu-0")
-
-            # Controllers
-            with Vertical(classes="odu-panel") as v:
-                v.border_title = "Controllers (Dials)"
-                yield DataTable(id="sys-ctrls")
-
-            # Remote sensors
-            with Vertical(classes="odu-panel") as v:
-                v.border_title = "Remote Sensors"
-                yield DataTable(id="sys-sensors")
-
-            # Firmware / software update status
-            with Vertical(classes="odu-panel") as v:
-                v.border_title = "Firmware / Software Updates"
-                yield DataTable(id="sys-firmware")
-        yield Footer()
-
-    def on_mount(self) -> None:
-        self._populate()
-
-    def _populate(self) -> None:
-        snap = self.snapshot
-        use_f = self.use_f
-
-        # Header
-        loc = snap.primary_location
-        tz = snap.timezone or "?"
-        sched = (
-            "[yellow]⏸ PAUSED[/yellow]"
-            if (loc and loc.schedule_paused)
-            else "[green]▶ RUNNING[/green]"
-        )
-        loc_name = loc.name if loc and loc.name else ""
-        header_parts = []
-        if loc_name:
-            header_parts.append(f"[bold]{loc_name}[/bold]")
-        header_parts.append(f"[bold]Timezone:[/bold] {tz}")
-        header_parts.append(f"[bold]Schedule:[/bold] {sched}")
-        if snap.version_at is not None:
-            changed = snap.version_at.astimezone().strftime("%Y-%m-%d %H:%M:%S")
-            header_parts.append(f"[bold]Config changed:[/bold] {changed}")
-        self.query_one("#sys-header", Static).update("   ".join(header_parts))
-
-        # ODU panels — one per unit
-        for i, odu in enumerate(snap.outdoor_units):
-            odu_lines: list[str] = []
-            hs = HVACState(odu.hvac_state)
-            state = hs.name if odu.hvac_state else "—"
-            state_style = _STATE_STYLE.get(hs, "dim") if odu.hvac_state else "dim"
-            odu_lines.append(f"[{state_style}]State: {state}[/{state_style}]")
-            model = _sku_or_none(odu.model_sku)
-            if model:
-                odu_lines.append(f"Model:    {model}")
-            if odu.serial_number:
-                odu_lines.append(f"Serial:   {odu.serial_number}")
-            if odu.firmware_version:
-                odu_lines.append(f"Firmware: {odu.firmware_version}")
-            if odu.performance_data:
-                pd = odu.performance_data
-                odu_lines.append(f"Compressor:  {pd.compressor_frequency_hz:.1f} Hz")
-                odu_lines.append(f"ODU Coil:    {_tc(pd.coil_temperature_c, use_f)}")
-                odu_lines.append(f"Exhaust:     {_tc(pd.exhaust_temperature_c, use_f)}")
-                odu_lines.append(f"Hi Pressure: {pd.high_pressure_kpa:.1f} kPa")
-                odu_lines.append(f"Lo Pressure: {pd.low_pressure_kpa:.1f} kPa")
-                odu_lines.append(f"ODU Ambient: {_tc(pd.ambient_temperature_c, use_f)}")
-            self.query_one(f"#sys-odu-{i}", Static).update("\n".join(odu_lines))
-
-        # Controllers table
-        ctrl_table: DataTable = self.query_one("#sys-ctrls", DataTable)
-        if not ctrl_table.columns:
-            ctrl_table.add_columns(
-                "Name",
-                "Model",
-                "Serial",
-                "Ambient",
-                "Raw Thermistor",
-                "Encoder",
-                "SoC",
-                "Display",
-                "Radar",
-                "Light",
-                "WiFi SSID",
-                "IP",
-                "Signal",
-            )
-        ctrl_table.clear()
-        for ctrl in snap.controllers:
-            ctrl_table.add_row(
-                ctrl.name or ctrl.id[:8],
-                _sku_or_none(ctrl.model_sku) or "--",
-                ctrl.serial_number or "--",
-                _tc(ctrl.calibrated_ambient_c, use_f),
-                _tc(ctrl.raw_thermistor_c, use_f),
-                _tc(ctrl.pcb_temperature_a_c, use_f),
-                _tc(ctrl.pcb_temperature_b_c, use_f),
-                _fmt_display(ctrl)[0],
-                _fmt_detected(ctrl.presence_detected)[0],
-                f"{ctrl.ambient_light_lux:.0f} lx" if ctrl.ambient_light_lux is not None else "--",
-                ctrl.wifi_ssid or "--",
-                ctrl.wifi_ip or "--",
-                f"{ctrl.wifi_signal_dbm} dBm" if ctrl.wifi_signal_dbm else "--",
-            )
-
-        # Remote sensors table
-        sensor_table: DataTable = self.query_one("#sys-sensors", DataTable)
-        if not sensor_table.columns:
-            sensor_table.add_columns(
-                "Sensor",
-                "Room",
-                "Mode",
-                "Temp",
-                "Humidity",
-                "Battery",
-                "Signal",
-            )
-        sensor_table.clear()
-        # Build IDU→room name map for display
-        idu_to_room: dict[str, str] = {}
-        for room in snap.rooms:
-            for idu in snap.indoor_units:
-                if idu.space_id == room.id:
-                    idu_to_room[idu.id] = room.name or room.id[:8]
-        for rs in sorted(
-            snap.remote_sensors,
-            key=lambda r: idu_to_room.get(r.indoor_unit_id, ""),
-        ):
-            mode_str = "EN" if rs.control_mode == RemoteSensorControlMode.ENABLED else "DIS"
-            mode_style = "green" if rs.control_mode == RemoteSensorControlMode.ENABLED else "dim"
-            sensor_table.add_row(
-                rs.mac or rs.id[:8],
-                idu_to_room.get(rs.indoor_unit_id, rs.indoor_unit_id[:8]),
-                Text(mode_str, style=mode_style),
-                _tc(rs.ambient_temperature_c, use_f),
-                f"{rs.humidity_percent:.0f}%" if rs.humidity_percent is not None else "--",
-                f"{rs.battery_level_percent:.0f}%"
-                if rs.battery_level_percent is not None
-                else "--",
-                f"{rs.signal_level_dbm} dBm" if rs.signal_level_dbm else "--",
-            )
-        for crs in snap.controller_remote_sensors:
-            ctrl = next((c for c in snap.controllers if c.id == crs.controller_id), None)
-            label = (
-                f"Dial {ctrl.serial_number or ctrl.name or crs.controller_id[:8]}"
-                if ctrl
-                else crs.id[:8]
-            )
-            room = next(
-                (c.space_id for c in snap.controllers if c.id == crs.controller_id),
-                None,
-            )
-            room_name = (
-                next(
-                    (s.name for s in snap.rooms if s.id == room),
-                    room[:8] if room else "--",
-                )
-                if room
-                else "--"
-            )
-            mode_str = "EN" if crs.control_mode == RemoteSensorControlMode.ENABLED else "DIS"
-            mode_style = "green" if crs.control_mode == RemoteSensorControlMode.ENABLED else "dim"
-            sensor_table.add_row(
-                label,
-                room_name,
-                Text(mode_str, style=mode_style),
-                _tc(crs.ambient_temperature_c, use_f),
-                f"{crs.humidity_percent:.0f}%" if crs.humidity_percent is not None else "--",
-                f"{crs.battery_level_percent:.0f}%"
-                if crs.battery_level_percent is not None
-                else "--",
-                f"{crs.signal_level_dbm} dBm" if crs.signal_level_dbm else "--",
-            )
-
-        # Firmware / software update table
-        fw_table: DataTable = self.query_one("#sys-firmware", DataTable)
-        if not fw_table.columns:
-            fw_table.add_columns(
-                "Device",
-                "Type",
-                "Current Version",
-                "Target Version",
-                "Progress",
-                "State",
-            )
-        fw_table.clear()
-        sui_by_id = {s.id: s for s in snap.software_update_infos}
-
-        def _fw_row(device_name: str, sw_id: str | None, fw_id: str | None) -> None:
-            for label, uid in [("SW", sw_id), ("FW", fw_id)]:
-                if not uid:
-                    continue
-                sui = sui_by_id.get(uid)
-                if not sui:
-                    continue
-                ver = sui.current_version or "--"
-                target = sui.target_version or "--"
-                prog = (
-                    f"{sui.current_progress:.0f}/{sui.total_progress:.0f}"
-                    if sui.total_progress
-                    else "--"
-                )
-                state = str(sui.state) if sui.state else "--"
-                fw_table.add_row(device_name, label, ver, target, prog, state)
-
-        for idu in snap.indoor_units:
-            room = next((s.name for s in snap.rooms if s.id == idu.space_id), idu.id[:8])
-            _fw_row(f"IDU {room}", None, idu.firmware_update_info_id)
-        for odu in snap.outdoor_units:
-            model = _sku_or_none(odu.model_sku)
-            _fw_row(
-                f"ODU {model or odu.serial_number or odu.id[:8]}",
-                None,
-                odu.firmware_update_info_id,
-            )
-        for ctrl in snap.controllers:
-            model = _sku_or_none(ctrl.model_sku)
-            _fw_row(
-                f"Dial {model or ctrl.serial_number or ctrl.name or ctrl.id[:8]}",
-                ctrl.software_update_info_id,
-                ctrl.firmware_update_info_id,
-            )
-        for qsm in snap.quilt_smart_modules:
-            _fw_row(
-                f"QSM {qsm.id[:8]}",
-                qsm.software_update_info_id,
-                qsm.firmware_update_info_id,
-            )
-
-    def action_back(self) -> None:
-        self.app.pop_screen()
-
-    def update_odu(self, _odu: OutdoorUnit) -> None:
-        """Called by QuiltApp stream dispatcher when an ODU update arrives.
-
-        The updated ODU is already merged into the snapshot, which
-        ``_populate`` reads directly.
-        """
-        self._populate()
-
-    def update_remote_sensor(self, rs: RemoteSensor) -> None:
-        """Called by QuiltApp stream dispatcher on RemoteSensor updates."""
-        self._populate()
-
-    def action_toggle_units(self) -> None:
-        app = self.app
-        if isinstance(app, QuiltApp):
-            app.use_f = not app.use_f
-
-    def refresh_units(self) -> None:
-        """Re-render the system panels after a °C/°F change."""
-        self._populate()
-
-    def action_toggle_schedule(self) -> None:
-        loc = self.snapshot.primary_location
-        if loc is None:
-            self.notify("No location found", severity="error")
-            return
-        self._do_toggle_schedule(not loc.schedule_paused)
-
-    @work
-    async def _do_toggle_schedule(self, paused: bool) -> None:
-        try:
-            await _set_schedule_paused(self._client, self.snapshot, paused)
-            self._populate()
-            self.notify("Schedules " + ("paused" if paused else "resumed"), timeout=2)
-        except Exception as exc:
-            self.notify(f"Error: {exc}", severity="error")
-
-
-# ──────────────────────────────────────────────────────────────────
-# QuiltApp
-# ──────────────────────────────────────────────────────────────────
-
-
-class QuiltApp(App[None]):
-    """Quilt HVAC TUI application."""
-
-    CSS = _APP_CSS
-    TITLE = "Quilt HVAC"
-    BINDINGS: ClassVar = [
-        Binding("q", "quit", "Quit", priority=True),
-        Binding("d", "toggle_dark", "Dark/Light", priority=True),
-    ]
-
-    _STREAM_RECOVERY_DELAYS_S: ClassVar = (5.0, 15.0, 30.0)
-
-    use_f: reactive[bool] = reactive(False)
-
-    def __init__(self, email: str, home: str | None = None) -> None:
-        super().__init__()
-        self._email = email
-        self._home = home
-        self._client = QuiltClient(email, home=home, snapshot_ttl_s=30, token_store=_token_store)
-        self._stream: NotifierStream | None = None
-        self._snapshot: SystemSnapshot | None = None
-        self._settings = _settings_store.load()
-        # Apply persisted preferences before first render; set_reactive avoids
-        # triggering watch_use_f before the app is running.
-        self.set_reactive(QuiltApp.use_f, self._settings.use_fahrenheit)
-        if self._settings.dark is not None:
-            self.theme = "textual-dark" if self._settings.dark else "textual-light"
-
-    # ── Shared state (single source of truth for all screens) ────
-
-    @property
-    def snapshot(self) -> SystemSnapshot | None:
-        """The current system snapshot shared by all screens."""
-        return self._snapshot
-
-    def update_snapshot(self, snap: SystemSnapshot) -> None:
-        """Adopt a freshly fetched snapshot as the shared source of truth."""
-        self._snapshot = snap
-
-    def watch_use_f(self, use_f: bool) -> None:
-        """Persist the °C/°F preference and re-render every stacked screen."""
-        self._persist()
-        for screen in self.screen_stack:
-            refresh = getattr(screen, "refresh_units", None)
-            if callable(refresh):
-                refresh()
-
-    @property
-    def _is_dark(self) -> bool:
-        return self.theme != "textual-light"
-
-    def _persist(self) -> None:
-        """Save current toggleable settings to disk."""
-        self._settings = _settings_store.update(use_fahrenheit=self.use_f, dark=self._is_dark)
-
-    def action_toggle_dark(self) -> None:
-        self.theme = "textual-light" if self._is_dark else "textual-dark"
-        self._persist()
-
-    def on_mount(self) -> None:
-        self._loading_screen = LoadingScreen()
-        self.push_screen(self._loading_screen)
-        self._boot()
-
-    async def _prompt_otp(self, email: str) -> str:
-        """OTP callback for first-time logins — modal input in the TUI."""
-        return await self.push_screen_wait(OtpScreen(email))
-
-    @work
-    async def _boot(self) -> None:
-        """Log in, fetch snapshot, and replace LoadingScreen."""
-        loading = self._loading_screen
-
-        # _boot is an async @work — it runs on the main event loop, so UI
-        # methods can be called directly (no call_from_thread needed).
-        def _set_status(msg: str) -> None:
-            if isinstance(loading, LoadingScreen):
-                loading.set_status(msg)
-
-        try:
-            _set_status("Authenticating…")
-            await self._client.login(otp_callback=self._prompt_otp)
-            _set_status("Loading system snapshot…")
-            snap = await self._client.get_snapshot()
-            self._snapshot = snap
-
-            # Auto-save home name to settings so future runs don't need --home
-            if self._client.system_name and not self._settings.home:
-                self._settings = _settings_store.update(home=self._client.system_name)
-
-            # Set app title to the home name once resolved
-            if self._client.system_name:
-                self.title = self._client.system_name
-
-            dashboard = DashboardScreen(snap, self._client)
-            await self.switch_screen(dashboard)
-
-            # Start the shared stream
-            self._start_stream(snap)
-
-        except QuiltAuthError as exc:
-            self._show_boot_error(
-                str(exc),
-                "Authentication failed. Run `quilt login` in a terminal and retry.",
-            )
-        except Exception as exc:
-            logger.exception("TUI boot failed")
-            self._show_boot_error(str(exc))
-
-    def _show_boot_error(self, message: str, hint: str | None = None) -> None:
-        """Replace the loading spinner with an actionable error screen."""
-        self.notify(f"Boot failed: {message}", severity="error")
-        self.switch_screen(BootErrorScreen(message, hint))
-
-    # ── Stream lifecycle ─────────────────────────────────────────
-
-    @work(exclusive=True, group="stream")
-    async def _start_stream(self, snap: SystemSnapshot) -> None:
-        """Open shared NotifierStream, dispatch events to the active screen."""
-        stream = self._client.stream(snap.stream_topics())
-        self._stream = stream
-
-        # Stream callbacks are invoked from within async code on the same event
-        # loop — call UI dispatch methods directly (no call_from_thread).
-        stream.on_space_update(self._dispatch_space)
-        stream.on_indoor_unit_update(self._dispatch_idu)
-        stream.on_outdoor_unit_update(self._dispatch_odu)
-        stream.on_controller_update(self._dispatch_ctrl)
-        stream.on_qsm_update(self._dispatch_qsm)
-        stream.on_remote_sensor_update(self._dispatch_remote_sensor)
-        stream.on_delete(self._dispatch_delete)
-        stream.on_error(self._on_stream_error)
-
-        try:
-            await stream.run_forever()
-        except asyncio.CancelledError:
-            raise
-        except Exception as exc:
-            # Fatal errors are normally reported via on_error; anything that
-            # still escapes run_forever is unexpected — surface it too.
-            logger.exception("NotifierStream terminated unexpectedly")
-            self._on_stream_error(exc)
-
-    def _on_stream_error(self, exc: Exception) -> None:
-        """Fatal stream error — tell the user and try to recover."""
-        logger.error("Notifier stream failed: %s", exc)
-        self._set_stream_disconnected(True)
-        self.notify(
-            f"Live updates disconnected: {exc}. Attempting to reconnect…",
-            severity="error",
-            timeout=8,
-        )
-        self._recover_stream()
-
-    def _set_stream_disconnected(self, disconnected: bool) -> None:
-        """Show/clear a visible 'stream disconnected' indicator."""
-        self.sub_title = "⚠ live updates disconnected" if disconnected else ""
-
-    @work(exclusive=True, group="stream-recovery")
-    async def _recover_stream(self) -> None:
-        """Re-fetch a snapshot and restart the stream, with backoff."""
-        for delay in self._STREAM_RECOVERY_DELAYS_S:
-            await asyncio.sleep(delay)
-            try:
-                snap = await self._client.get_snapshot()
-            except Exception as exc:
-                logger.warning("Stream recovery snapshot fetch failed: %s", exc)
-                continue
-            self.update_snapshot(snap)
-            for screen in self.screen_stack:
-                refresh = getattr(screen, "refresh_units", None)
-                if callable(refresh):
-                    refresh()
-            self._set_stream_disconnected(False)
-            self.notify("Live updates restored", timeout=3)
-            self._start_stream(snap)
-            return
-        self.notify(
-            "Could not restore live updates. Data may be stale — press r to refresh, "
-            "or restart the app.",
-            severity="error",
-            timeout=10,
-        )
-
-    # ── Stream event dispatchers ─────────────────────────────────
-
-    def _dispatch_delete(self, kind: str, entity_id: str) -> None:
-        if self._snapshot and self._snapshot.remove(kind, entity_id):
-            self.notify(
-                f"A {kind.replace('_', ' ')} was removed from this system; press r to refresh."
-            )
-
-    def _dispatch_space(self, space: Space) -> None:
-        if self._snapshot:
-            space = self._snapshot.apply_space(space)
-        screen = self.screen
-        if isinstance(screen, DashboardScreen) or (
-            isinstance(screen, RoomScreen) and screen.space_id == space.id
-        ):
-            screen.update_space(space)
-
-    def _dispatch_idu(self, idu: IndoorUnit) -> None:
-        if self._snapshot:
-            idu = self._snapshot.apply_indoor_unit(idu)
-        screen = self.screen
-        if (isinstance(screen, RoomScreen) and screen.idu_id == idu.id) or isinstance(
-            screen, DashboardScreen
-        ):
-            screen.update_idu(idu)
-
-    def _dispatch_odu(self, odu: OutdoorUnit) -> None:
-        if self._snapshot:
-            odu = self._snapshot.apply_outdoor_unit(odu)
-        screen = self.screen
-        if isinstance(screen, (DashboardScreen, SystemScreen)) or (
-            isinstance(screen, RoomScreen) and screen.odu_id == odu.id
-        ):
-            screen.update_odu(odu)
-
-    def _dispatch_ctrl(self, ctrl: Controller) -> None:
-        if self._snapshot:
-            ctrl = self._snapshot.apply_controller(ctrl)
-        screen = self.screen
-        if isinstance(screen, RoomScreen) and screen.controller_id == ctrl.id:
-            screen.update_ctrl(ctrl)
-
-    def _dispatch_qsm(self, qsm: QuiltSmartModule) -> None:
-        if self._snapshot:
-            qsm = self._snapshot.apply_qsm(qsm)
-        screen = self.screen
-        if isinstance(screen, RoomScreen) and screen.qsm_id == qsm.id:
-            screen.update_qsm(qsm)
-
-    def _dispatch_remote_sensor(self, rs: RemoteSensor) -> None:
-        if self._snapshot:
-            rs = self._snapshot.apply_remote_sensor(rs)
-        screen = self.screen
-        if isinstance(screen, SystemScreen):
-            screen.update_remote_sensor(rs)
-
-    async def on_unmount(self) -> None:
-        stream = self._stream
-        self._stream = None
-        if stream is not None:
-            with contextlib.suppress(Exception):
-                await stream.stop()
-        await self._client.close()
