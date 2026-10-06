@@ -16,6 +16,7 @@ from quilt_hp import (
     QuiltAuthError,
     QuiltConnectionError,
     QuiltNotFoundError,
+    QuiltPreconditionError,
 )
 ```
 
@@ -65,6 +66,16 @@ class QuiltNotFoundError(QuiltError): ...
 ```
 
 Raised when a requested resource does not exist (gRPC `NOT_FOUND`).
+
+### `QuiltPreconditionError`
+
+```python
+class QuiltPreconditionError(QuiltError): ...
+```
+
+Raised when the server refuses because the system isn't set up for the request yet (gRPC
+`FAILED_PRECONDITION`), for example `list_certified_partners()` on a system with no address.
+The message is the server's explanation.
 
 ### `__version__`
 
@@ -690,3 +701,39 @@ async def patch_user_attributes(
 ```
 
 Updates user attributes.
+
+---
+
+## Account (read-only)
+
+These read who can use a system and how it relates to installer partners. They never change
+anything. Methods that take `system_id` default to the client's system. The models are
+described in [Models → Account models](models.md#account-models).
+
+```python
+async def list_system_users(self, system_id: str | None = None) -> SystemUsers
+async def get_access_role(self, system_id: str | None = None) -> AccessRole
+async def list_pending_invitations(self) -> list[Invitation]
+async def get_partner_details(self) -> PartnerDetails | None
+async def get_data_sharing(self, system_id: str | None = None) -> SystemDataSharing
+async def list_certified_partners(self, system_id: str | None = None) -> list[PartnerProfile]
+async def list_user_tasks(self, system_id: str | None = None) -> list[UserTask]
+```
+
+- `list_system_users` — the system's administrators and members, and the invitations sent
+  from it that haven't been accepted.
+- `get_access_role` — whether you are an `ADMIN` or a `MEMBER` of the system.
+- `list_pending_invitations` — invitations *you* have received and not yet answered.
+- `get_partner_details` — the installer partner organisation you belong to; `None` for
+  homeowners.
+- `get_data_sharing` — whether the system shares data with an installer partner
+  (`NO_PARTNER` when it has none).
+- `list_certified_partners` — certified installers for the system's location. Raises
+  `QuiltPreconditionError` when the system has no address.
+- `list_user_tasks` — prompts the app would show, such as a data-sharing consent banner.
+
+```python
+role = await client.get_access_role()
+users = await client.list_system_users()
+print(role.name, [u.full_name for u in users.administrators])
+```

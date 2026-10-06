@@ -201,15 +201,17 @@ def _details(
         odu = snap.odu_for_idu(idu)  # tolerates path-prefixed and bare ids
         stale = "" if idu.is_online else " (last known)"
         pairs += [
-            ("Serial", idu.serial_number or "–"),
+            ("Serial", idu.unit_serial_number or idu.serial_number or "–"),
+            ("Smart module", idu.smart_module_serial_number or "–"),
             ("Firmware", row.firmware or "–"),
+            ("Made", _date(idu.manufactured_at)),
             ("Last report", when(idu.state.updated_at)),
             ("Outdoor unit", odu.serial_number or odu.id[:8] if odu else "–"),
         ]
         if qsm is not None:
             if qsm.hosted_wifi is not None:
                 w = qsm.hosted_wifi
-                pairs.append(("Wi-Fi", _wifi(w.ssid, w.ip, w.signal_dbm) + stale))
+                pairs.append(("Wi-Fi", _wifi(w.ssid, w.ip, w.signal_dbm, w.snr_db) + stale))
             pairs.append(
                 (
                     "Local mesh",
@@ -272,11 +274,17 @@ def _details(
         pairs += [
             ("Serial", ctrl.serial_number or "–"),
             ("Firmware", row.firmware or "–"),
+            ("Made", _date(ctrl.manufactured_at)),
             ("Last report", when(ctrl.state_updated_at) + ("" if live else f"  ({row.age} ago)")),
             ("Room temperature", temp(ctrl.calibrated_ambient_c)),
             (
                 "Wi-Fi",
-                _wifi(ctrl.wifi_ssid, ctrl.wifi_ip, ctrl.wifi_signal_dbm)
+                _wifi(
+                    ctrl.wifi_ssid,
+                    ctrl.wifi_ip,
+                    ctrl.wifi_signal_dbm,
+                    ctrl.hosted_wifi.snr_db if ctrl.hosted_wifi else None,
+                )
                 + (" (last known)" if not live else ""),
             ),
             (
@@ -366,7 +374,13 @@ def _details(
         pairs += [
             ("Serial", odu.serial_number or "–"),
             ("Firmware", row.firmware or "–"),
-            ("Serves", ", ".join(rooms) or "–"),
+            ("Made", _date(odu.manufactured_at)),
+            ("Serves", ", ".join(rooms) or "–")
+            if odu.port_count is None
+            else (
+                "Serves",
+                f"{', '.join(rooms) or '–'}  ({len(rooms)} of {odu.port_count} ports)",
+            ),
             ("Status", "the cloud does not report outdoor-unit status or sensors"),
         ]
         if raw and odu.performance_data is not None:
@@ -395,9 +409,16 @@ def _yes(value: bool | None) -> str:
     return "–" if value is None else ("yes" if value else "no")
 
 
-def _wifi(ssid: str | None, ip: str | None, signal: int | None) -> str:
-    parts = [p for p in (ssid, ip, f"{signal} dBm" if signal else None) if p]
+def _wifi(ssid: str | None, ip: str | None, signal: int | None, snr: int | None = None) -> str:
+    level = f"{signal} dBm" if signal else None
+    if level and snr is not None:
+        level += f" (SNR {snr} dB)"
+    parts = [p for p in (ssid, ip, level) if p]
     return " · ".join(parts) or "–"
+
+
+def _date(value: datetime | None) -> str:
+    return value.strftime("%Y-%m-%d") if value else "–"
 
 
 def _mesh(health: str, visible: int | None, expected: int | None) -> str:
