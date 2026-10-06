@@ -269,3 +269,63 @@ async def test_client_account_methods_resolve_the_system() -> None:
     assert await client.list_user_tasks() == []
     assert await client.list_pending_invitations() == []
     assert await client.get_partner_details() is None
+
+
+@pytest.mark.parametrize(
+    ("state", "ssid", "connected"),
+    [
+        (hds.WIFI_STATE_WPA_COMPLETED, "HomeNet", True),
+        (hds.WIFI_STATE_SCANNING, "HomeNet", False),  # a stale network name isn't a connection
+        (hds.WIFI_STATE_DISCONNECTED, "", False),
+        (hds.WIFI_STATE_UNSPECIFIED, "HomeNet", True),  # payloads without a phase
+    ],
+)
+def test_wifi_connected_follows_the_connection_phase(
+    state: int, ssid: str, connected: bool
+) -> None:
+    wifi = WifiInfo.from_proto(hds.WifiState(wifi_state=state, ssid=ssid))  # type: ignore[arg-type]
+    assert wifi.connected is connected
+    assert wifi.reported
+
+
+def test_disconnected_wifi_is_kept_not_dropped() -> None:
+    """A Dial or module that reports DISCONNECTED (no network name) keeps its Wi-Fi record."""
+    from quilt_hp.models import Controller, QuiltSmartModule
+
+    dial = hds.Controller(header=hds.EntityMetadata(object_id="dial-1"))
+    dial.hosted_wifi_state.wifi_state = hds.WIFI_STATE_DISCONNECTED
+    parsed = Controller.from_proto(dial)
+    assert parsed.hosted_wifi is not None
+    assert parsed.hosted_wifi.connection_state is WifiConnectionState.DISCONNECTED
+    assert not parsed.hosted_wifi.connected
+
+    module = hds.QuiltSmartModule(header=hds.EntityMetadata(object_id="qsm-1"))
+    module.hosted_wifi_state.wifi_state = hds.WIFI_STATE_SCANNING
+    assert QuiltSmartModule.from_proto(module).hosted_wifi is not None
+    # An interface that reports nothing at all is still None.
+    assert QuiltSmartModule.from_proto(module).ap_wifi is None
+
+
+def test_rooms_and_modules_keep_created_at_across_stream_merges() -> None:
+    from quilt_hp.models import QuiltSmartModule, Space
+
+    snap = load_snapshot()
+    room, module = snap.rooms[0], snap.quilt_smart_modules[0]
+    assert room.created_at is not None and module.created_at is not None
+    merged_room = snap.apply_space(
+        Space.from_proto(hds.Space(header=hds.EntityMetadata(object_id=room.id)))
+    )
+    merged_module = snap.apply_qsm(
+        QuiltSmartModule.from_proto(
+            hds.QuiltSmartModule(header=hds.EntityMetadata(object_id=module.id))
+        )
+    )
+    assert merged_room.created_at == room.created_at
+    assert merged_module.created_at == module.created_at
+
+
+def test_account_enums_live_in_the_enums_module() -> None:
+    from quilt_hp.models import account, enums
+
+    for name in ("AccessRole", "DataSharingSetting", "DataSharingState", "UserTaskKind"):
+        assert getattr(account, name) is getattr(enums, name)

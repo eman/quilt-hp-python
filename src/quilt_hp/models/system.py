@@ -295,6 +295,8 @@ class SystemSnapshot:
                     updates["system_id"] = s.system_id
                 if space.occupancy is None and s.occupancy is not None:
                     updates["occupancy"] = s.occupancy
+                if space.created_at is None and s.created_at is not None:
+                    updates["created_at"] = s.created_at
                 if updates:
                     space = replace(space, **updates)
                 self.spaces[i] = space
@@ -555,6 +557,8 @@ class SystemSnapshot:
                     and q.local_comms_health != LocalCommsHealthStatus.UNSPECIFIED
                 ):
                     updates["local_comms_health"] = q.local_comms_health
+                if qsm.created_at is None and q.created_at is not None:
+                    updates["created_at"] = q.created_at
                 if updates:
                     qsm = replace(qsm, **updates)
                 self.quilt_smart_modules[i] = qsm

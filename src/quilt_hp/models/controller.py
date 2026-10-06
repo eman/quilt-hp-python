@@ -188,7 +188,7 @@ class Controller:
             if wstate is None:
                 return None
             info = WifiInfo.from_proto(wstate)
-            return info if info.connected else None
+            return info if info.reported else None  # keeps DISCONNECTED, SCANNING, …
 
         if w is not None:
             wifi_ssid, wifi_ip, wifi_signal_dbm, wifi_bssid, wifi_freq_mhz = parse_wifi_state(w)
