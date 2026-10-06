@@ -3,6 +3,17 @@
 ## [Unreleased]
 
 ### Added
+- **Typed enums for raw integers.** `IndoorUnitHvacInputs.ambient_temperature_source` is now
+  an `AmbientTemperatureSource` (`DEFAULT` = the indoor unit's own sensor, `CONTROL` = the
+  Dial). `SoftwareUpdateInfo.state`, `.status` and `.progress_unit` are now
+  `SoftwareUpdateState` (`IDLE`, `DOWNLOADING`, `TRANSFERRING`, `INSTALLING`, `REBOOTING`),
+  `SoftwareUpdateStatus` (`OK`, `UNKNOWN_ERROR`) and `SoftwareUpdateProgressUnit` (`PERCENT`,
+  `BYTES`, `SECONDS`), with the values confirmed against the app. All are `IntEnum`s, so
+  comparisons with integers keep working; values this release doesn't know become
+  `UNSPECIFIED`. `SoftwareUpdateState.UNKNOWN` and `SoftwareUpdateStatus.UNKNOWN` remain as
+  aliases of `UNSPECIFIED`.
+- **TUI render tests.** Every screen is snapshot-tested at 100×30 and 160×45, rendered offline
+  from a scrubbed capture of a real system (`tests/fixtures/system_snapshot.bin`).
 - **Diagnostics view.** `QuiltClient.get_diagnostics()` and
   `SystemSnapshot.diagnostics()` return a new `SystemDiagnostics` — the
   installer-style diagnostic picture assembled from data the cloud API already
@@ -80,7 +91,30 @@
   summary shows the configuration change time and each Dial's display state and offline status.
   `quilt values` adds `display_on`, `presence_detected` and `power_w`.
 
+### Changed
+- The TUI moved from `quilt_hp/cli/tui.py` into a `quilt_hp/cli/tui/` package (one module per
+  screen, plus formatting and view helpers) and is now type-checked and included in test
+  coverage. `from quilt_hp.cli.tui import QuiltApp` is unchanged. `QuiltApp` accepts optional
+  `client` and `settings_store` arguments for tests and embedding.
+
 ### Fixed
+- **TUI:** an offline Dial's last display, radar and light readings were shown as current on
+  the System screen and the room's Dial panel; they now read "⚠ offline 8 h".
+- **TUI:** the hourly energy chart put today's usage under the wrong hour (leading idle hours
+  rendered as spaces and were dropped) and its axis didn't match the bars. Bars and axis now
+  share one grid, two columns per hour.
+- **TUI:** rows without data showed internal widget ids as labels (`p-odu-freq`, `Wifi Ip`).
+- **TUI:** values were parsed as Rich markup, so a room, device or Wi-Fi name containing
+  `[…]` was mis-rendered; long values wrapped onto the next row instead of truncating.
+- **TUI:** raw values reached the screen: "Ambient Source: 2" (now "Dial"), "Active (ACTIVE)"
+  for comfort presets, "Safety Heating: Unspecified" (the device treats it as on; now
+  "On (default)"). Standby and Fan schedule events showed the system's setpoint limits
+  (8 °C / 40 °C) as if they were settings; events now show only the setpoints their mode uses.
+- **TUI:** the dashboard's 60-second refresh method was named `_auto_refresh`, overriding a
+  Textual internal of the same name.
+- `quilt info --output json` reports software-update `state`, `status` and `progress_unit` as
+  names instead of integers.
+- Two tests used real device serial numbers; they now use test values.
 - `quilt info --output json` reported indoor-unit `occupancy_state` as a raw integer; it is now the
   enum name (`DETECTED`, `UNDETECTED`), matching spaces.
 - `quilt info` / `quilt values` summaries printed unrounded floats (e.g. `25.73853302001953°C`);

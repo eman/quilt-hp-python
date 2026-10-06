@@ -9,6 +9,7 @@ from quilt_hp.models.diagnostics import (
 )
 from quilt_hp.models.energy import EnergyBucket, SpaceEnergyMetrics
 from quilt_hp.models.enums import (
+    AmbientTemperatureSource,
     BoostMode,
     ComfortSettingOverride,
     ComfortSettingType,
@@ -50,7 +51,12 @@ from quilt_hp.models.indoor_unit import (
 from quilt_hp.models.outdoor_unit import OutdoorUnit
 from quilt_hp.models.schedule import ScheduleDay, ScheduleEvent, ScheduleWeek
 from quilt_hp.models.sensor import ControllerRemoteSensor, RemoteSensor
-from quilt_hp.models.software_update import SoftwareUpdateInfo
+from quilt_hp.models.software_update import (
+    SoftwareUpdateInfo,
+    SoftwareUpdateProgressUnit,
+    SoftwareUpdateState,
+    SoftwareUpdateStatus,
+)
 from quilt_hp.models.space import (
     Space,
     SpaceControls,
@@ -61,6 +67,7 @@ from quilt_hp.models.space import (
 from quilt_hp.models.system import Location, SystemInfo, SystemSnapshot
 
 __all__ = [
+    "AmbientTemperatureSource",
     "BoostMode",
     "ComfortSetting",
     "ComfortSettingOverride",
@@ -109,6 +116,9 @@ __all__ = [
     "ScheduleEvent",
     "ScheduleWeek",
     "SoftwareUpdateInfo",
+    "SoftwareUpdateProgressUnit",
+    "SoftwareUpdateState",
+    "SoftwareUpdateStatus",
     "Space",
     "SpaceControls",
     "SpaceEnergyMetrics",

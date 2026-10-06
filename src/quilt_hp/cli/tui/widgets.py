@@ -13,11 +13,15 @@ logger = logging.getLogger(__name__)
 
 
 class _KVStatic(Static):
-    """A key: value line as Rich markup."""
+    """A key: value line. The value is plain text: device and room names are never parsed as markup."""
+
+    DEFAULT_CSS = """
+    _KVStatic {
+        text-wrap: nowrap;
+        text-overflow: ellipsis;
+    }
+    """
 
     def set_kv(self, key: str, value: str, val_style: str = "") -> None:
-        if val_style:
-            val = Text(value, style=val_style)
-        else:
-            val = Text.from_markup(value)
+        val = Text(value, style=val_style)
         self.update(Text.assemble(Text(f"{key:<22}", style="dim"), val))

@@ -62,14 +62,25 @@ class QuiltApp(App[None]):
 
     use_f: reactive[bool] = reactive(False)
 
-    def __init__(self, email: str, home: str | None = None) -> None:
+    def __init__(
+        self,
+        email: str,
+        home: str | None = None,
+        *,
+        client: QuiltClient | None = None,
+        settings_store: SettingsStore | None = None,
+    ) -> None:
+        """Create the app. ``client`` and ``settings_store`` are for tests and embedding."""
         super().__init__()
         self._email = email
         self._home = home
-        self._client = QuiltClient(email, home=home, snapshot_ttl_s=30, token_store=_token_store)
+        self._client = client or QuiltClient(
+            email, home=home, snapshot_ttl_s=30, token_store=_token_store
+        )
         self._stream: NotifierStream | None = None
         self._snapshot: SystemSnapshot | None = None
-        self._settings = _settings_store.load()
+        self._settings_store = settings_store or _settings_store
+        self._settings = self._settings_store.load()
         # Apply persisted preferences before first render; set_reactive avoids
         # triggering watch_use_f before the app is running.
         self.set_reactive(QuiltApp.use_f, self._settings.use_fahrenheit)
@@ -101,7 +112,7 @@ class QuiltApp(App[None]):
 
     def _persist(self) -> None:
         """Save current toggleable settings to disk."""
-        self._settings = _settings_store.update(use_fahrenheit=self.use_f, dark=self._is_dark)
+        self._settings = self._settings_store.update(use_fahrenheit=self.use_f, dark=self._is_dark)
 
     def action_toggle_dark(self) -> None:
         self.theme = "textual-light" if self._is_dark else "textual-dark"
@@ -136,7 +147,7 @@ class QuiltApp(App[None]):
 
             # Auto-save home name to settings so future runs don't need --home
             if self._client.system_name and not self._settings.home:
-                self._settings = _settings_store.update(home=self._client.system_name)
+                self._settings = self._settings_store.update(home=self._client.system_name)
 
             # Set app title to the home name once resolved
             if self._client.system_name:

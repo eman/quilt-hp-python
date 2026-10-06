@@ -129,11 +129,17 @@ def test_fmt_display_and_detected() -> None:
     from quilt_hp.cli.tui.format import _fmt_detected, _fmt_display
     from quilt_hp.models import ControllerViewState
 
-    glance = SimpleNamespace(view_state=ControllerViewState.GLANCE, screen_brightness=0.25)
+    glance = SimpleNamespace(
+        view_state=ControllerViewState.GLANCE, screen_brightness=0.25, is_online=True
+    )
     assert _fmt_display(glance) == ("Glance 25%", "cyan")  # type: ignore[arg-type]
-    asleep = SimpleNamespace(view_state=ControllerViewState.SLEEP, screen_brightness=0.0)
+    asleep = SimpleNamespace(
+        view_state=ControllerViewState.SLEEP, screen_brightness=0.0, is_online=True
+    )
     assert _fmt_display(asleep) == ("Sleep", "dim")  # type: ignore[arg-type]
-    unknown = SimpleNamespace(view_state=ControllerViewState.UNSPECIFIED, screen_brightness=None)
+    unknown = SimpleNamespace(
+        view_state=ControllerViewState.UNSPECIFIED, screen_brightness=None, is_online=True
+    )
     assert _fmt_display(unknown) == ("--", "")  # type: ignore[arg-type]
 
     assert _fmt_detected(True)[0] == "● detected"

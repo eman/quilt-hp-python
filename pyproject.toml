@@ -45,6 +45,8 @@ dev = [
     "grpcio-tools==1.78.0",
     "mypy-protobuf>=3.6",
     "boto3-stubs[cognito-idp]",
+    "pytest-textual-snapshot>=1.0",
+    "time-machine>=2.15",
 ]
 docs = [
     "mkdocs>=1.6",
@@ -137,10 +139,9 @@ asyncio_mode = "auto"
 
 
 [tool.coverage.run]
-# Exclude generated protobuf stubs and the interactive TUI shell from unit-test gating.
+# Exclude generated protobuf stubs from coverage. The TUI is covered by its snapshot tests.
 omit = [
     "src/quilt_hp/_proto/*",
-    "src/quilt_hp/cli/tui/*",
 ]
 
 [tool.coverage.report]

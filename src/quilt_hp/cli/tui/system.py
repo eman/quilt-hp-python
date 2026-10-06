@@ -192,17 +192,23 @@ class SystemScreen(Screen[None]):
             )
         ctrl_table.clear()
         for ctrl in snap.controllers:
+            live = ctrl.is_online  # an offline Dial's last readings are not current
+            name = Text(ctrl.name or ctrl.id[:8])
+            if not live:
+                name = Text.assemble(("⚠ ", "bold red"), name)
             ctrl_table.add_row(
-                ctrl.name or ctrl.id[:8],
+                name,
                 _sku_or_none(ctrl.model_sku) or "--",
                 ctrl.serial_number or "--",
                 _tc(ctrl.calibrated_ambient_c, use_f),
                 _tc(ctrl.raw_thermistor_c, use_f),
                 _tc(ctrl.pcb_temperature_a_c, use_f),
                 _tc(ctrl.pcb_temperature_b_c, use_f),
-                _fmt_display(ctrl)[0],
-                _fmt_detected(ctrl.presence_detected)[0],
-                f"{ctrl.ambient_light_lux:.0f} lx" if ctrl.ambient_light_lux is not None else "--",
+                Text(*_fmt_display(ctrl)),
+                _fmt_detected(ctrl.presence_detected if live else None)[0],
+                f"{ctrl.ambient_light_lux:.0f} lx"
+                if live and ctrl.ambient_light_lux is not None
+                else "--",
                 ctrl.wifi_ssid or "--",
                 ctrl.wifi_ip or "--",
                 f"{ctrl.wifi_signal_dbm} dBm" if ctrl.wifi_signal_dbm else "--",
