@@ -18,20 +18,23 @@ Use this guide to set up a development environment, run the check suite, submit 
    ```bash
    python3 -m venv .venv
    source .venv/bin/activate   # or .venv\Scripts\activate on Windows
-   pip install -e ".[dev]"
+   pip install -e ".[dev,cli,docs]"
    ```
 
-   The `[dev]` extra installs `pytest`, `pytest-asyncio`, `mypy`, `ruff`, and `mkdocs-material`.
+   `dev` installs the test, lint and type-check tools (`pytest`, `pytest-asyncio`,
+   `pytest-textual-snapshot`, `time-machine`, `mypy`, `ruff`). `cli` installs the CLI and TUI
+   dependencies the tests exercise, and `docs` installs MkDocs.
 
 ---
 
 ## Run the full check suite
 
-Before opening a pull request, all four checks must pass:
+Before opening a pull request, all of these checks must pass:
 
 ```bash
-# Linter
+# Linter and formatter
 ruff check src/ tests/
+ruff format --check src/ tests/
 
 # Type checker
 mypy src/
@@ -45,6 +48,21 @@ python3 -m mkdocs build --strict -q
 ```
 
 Run them in this order. Fix linter and type errors before running tests, and run `check_docs_nav.py` before the docs build to get clearer error messages.
+
+### TUI snapshot tests
+
+`tests/test_tui_snapshots.py` renders every TUI screen at 100×30 and 160×45 and compares it
+with the SVGs in `tests/__snapshots__/`. The screens are rendered offline from
+`tests/fixtures/system_snapshot.bin`, a scrubbed capture of a real system, with the clock
+frozen, so the output is identical on every machine.
+
+After an intended visual change, regenerate the snapshots and review them before committing:
+
+```bash
+pytest tests/test_tui_snapshots.py --snapshot-update
+```
+
+A failing run writes `snapshot_report.html`, which shows each differing screen side by side.
 
 ---
 

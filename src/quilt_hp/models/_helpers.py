@@ -1,8 +1,17 @@
 from __future__ import annotations
 
 from datetime import UTC, datetime
+from enum import IntEnum
 
 from quilt_hp.const import PROTO_TIMESTAMP_UNSET_SECONDS
+
+
+def enum_or[E: IntEnum](cls: type[E], value: int, default: E) -> E:
+    """``cls(value)``, or ``default`` for a value this library version doesn't know yet."""
+    try:
+        return cls(value)
+    except ValueError:
+        return default
 
 
 def local_comms_last_session_change(local_comms_status: object) -> datetime | None:

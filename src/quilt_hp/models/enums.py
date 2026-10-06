@@ -411,6 +411,16 @@ class FastUpdateReason(IntEnum):
         return self.name
 
 
+class AmbientTemperatureSource(IntEnum):
+    """Which temperature reading an indoor unit is controlling to (``IndoorUnitHvacInputs``)."""
+
+    UNSPECIFIED = 0
+    DEFAULT = 1
+    """The indoor unit's own sensor."""
+    CONTROL = 2
+    """The room's Dial (the normal case when a Dial is installed)."""
+
+
 class ControllerViewState(IntEnum):
     """What the Dial's display is showing (``ControllerState.view_state``).
 
