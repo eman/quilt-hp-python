@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from datetime import UTC, datetime
 from types import SimpleNamespace
 from unittest.mock import patch
 
@@ -27,6 +28,8 @@ runner = CliRunner()
 
 class _FakeSnapshot:
     timezone = "UTC"
+    version = 1_791_238_698_730_367_462
+    version_at = datetime(2026, 10, 5, 22, 18, 18, tzinfo=UTC)
 
     def __init__(self) -> None:
         self.spaces = [
@@ -108,11 +111,17 @@ class _FakeSnapshot:
                 name="Dial",
                 ambient_temperature_c=22.8,
                 raw_thermistor_c=24.2,
+                pcb_temperature_a_c=41.0,
+                pcb_temperature_b_c=48.5,
+                main_board_temperature_c=44.0,
+                power_board_temperature_c=31.0,
                 remote_sensor_mode=RemoteSensorControlMode.ENABLED,
                 local_comms_health=LocalCommsHealthStatus.HEALTHY,
                 is_online=True,
                 view_state=ControllerViewState.GLANCE,
                 screen_brightness=0.25,
+                display_on=True,
+                presence_detected=False,
                 radar_target_detected=False,
                 radar_phase_detected=False,
                 ambient_light_lux=105.2,
@@ -213,7 +222,14 @@ def test_info_json_outputs_machine_readable_snapshot() -> None:
     assert payload["controllers"][0]["screen_brightness"] == 0.25
     assert payload["controllers"][0]["radar_target_detected"] is False
     assert payload["controllers"][0]["is_online"] is True
+    assert payload["controllers"][0]["display_on"] is True
+    assert payload["controllers"][0]["presence_detected"] is False
+    assert payload["controllers"][0]["main_board_temperature_c"] == 44.0
+    assert payload["controllers"][0]["soc_temperature_c"] == 48.5
+    assert payload["version"] == 1_791_238_698_730_367_462
+    assert payload["version_at"] == "2026-10-05T22:18:18+00:00"
     assert payload["spaces"][0]["occupancy_state"] == "DETECTED"
+    assert payload["indoor_units"][0]["occupancy_state"] == "DETECTED"
     assert payload["indoor_units"][0]["dew_point_c"] == 15.9
     assert payload["indoor_units"][0]["odu_usage_fraction"] == 0.5
     assert payload["indoor_units"][0]["under_test"] is False
@@ -247,6 +263,9 @@ def test_values_summary_contains_setpoints_and_sensor_values() -> None:
     assert "ambient=23.1°C" in result.stdout
     assert "idu-1 space=space-1" in result.stdout
     assert "rs-1 idu=idu-1 temp=22.6°C" in result.stdout
+    assert "display=GLANCE" in result.stdout
+    assert "presence=False" in result.stdout
+    assert "power=0.97W" in result.stdout
 
 
 def test_devices_json_includes_all_entity_ids() -> None:
