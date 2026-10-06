@@ -495,6 +495,46 @@ Updates indoor unit calibration settings.
 
 ---
 
+## Indoor-unit self-test
+
+### `start_self_test` / `cancel_self_test`
+
+```python
+async def start_self_test(self, idu: IndoorUnit | str) -> None
+async def cancel_self_test(self, idu: IndoorUnit | str) -> None
+```
+
+Start or cancel an indoor unit's diagnostic self-test: the Quilt app's "Run diagnostic
+test" (`DiagnosticService`). In the app's words, the test "takes up to 30 minutes. During
+this time, [the room] won't be available for heating or cooling." Quilt, and the home's
+certified partner if it has one, see the results; the server returns nothing to the caller.
+
+Follow progress on the indoor unit:
+
+```python
+await client.start_self_test(unit)
+snapshot = await client.get_snapshot()
+unit = next(u for u in snapshot.indoor_units if u.id == unit.id)
+print(unit.is_under_test, unit.effective_test_mode, unit.state.hvac_state)
+```
+
+What a run looked like on a live system (2026-10-06), for a unit alone on its outdoor unit:
+
+| Time | `test_state` (mode / coordination / phase) | `state.hvac_state` |
+|---|---|---|
+| 0 s | `INACTIVE` / `NONE` / `NONE` | `STANDBY` |
+| 15 s | `HEALTH_CHECK` / `EXCLUSIVE` / `NONE` | `STANDBY`, then `COOL` |
+| ~19 min | `HEALTH_CHECK` / `EXCLUSIVE` / `NONE` | `HEAT` (pipes 52–56 °C) |
+| ~20.5 min | `INACTIVE` / `NONE` / `NONE` | `STANDBY` |
+
+`test_phase` stayed `NONE` throughout, so use `is_under_test` and `hvac_state` rather than
+the phase. `test_state` cleared about 15 s before `state.test_mode`; `is_under_test` uses the
+newer of the two, as does `effective_test_mode` (`test_state` itself can be `None`). Units sharing an outdoor unit presumably take turns
+(`test_state.test_coordination`); this run didn't exercise that. The room's own mode and
+setpoints were unchanged afterwards. The cached snapshot is invalidated after each call.
+
+---
+
 ## Comfort settings
 
 ### `list_comfort_settings`

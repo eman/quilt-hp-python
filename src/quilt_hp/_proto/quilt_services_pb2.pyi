@@ -267,8 +267,11 @@ class _DiagnosticTypeEnumTypeWrapper(_enum_type_wrapper._EnumTypeWrapper[_Diagno
 
 class DiagnosticType(_DiagnosticType, metaclass=_DiagnosticTypeEnumTypeWrapper):
     """---------------------------------------------------------------------------
-    Diagnostic Service — installer diagnostics. Present in the app's stub registry but never
-    called by consumer code; results are not returned to the client (see README).
+    Diagnostic Service — an indoor unit's diagnostic self-test. The app calls both from its
+    "Run diagnostic test" screen (since app 1.0.33), sending system_id plus the unit's
+    serial (IndoorUnitHardware.indoor_unit_serial_number, else serial_number) and leaving
+    diagnostic_type unset. Results go to Quilt and the home's partner, not the client;
+    progress shows in IndoorUnit.test_state.
     ---------------------------------------------------------------------------
 
     (new in 1.0.33)

@@ -15,6 +15,16 @@ fi
 
 mkdir -p "$OUT_DIR"
 
+# The generators come from the dev extra; use the project's venv when the shell hasn't
+# activated it, and fail clearly rather than half-generating.
+if ! command -v protoc-gen-mypy >/dev/null && [[ -x "$PACKAGE_DIR/.venv/bin/protoc-gen-mypy" ]]; then
+    PATH="$PACKAGE_DIR/.venv/bin:$PATH"
+fi
+if ! command -v protoc-gen-mypy >/dev/null || ! python -c "import grpc_tools" 2>/dev/null; then
+    echo "Error: protoc-gen-mypy / grpc_tools not found. Run: uv run --extra dev $0"
+    exit 1
+fi
+
 # Locate google/protobuf includes
 PROTO_INCLUDE=""
 if [[ -d "/opt/homebrew/include" ]]; then
