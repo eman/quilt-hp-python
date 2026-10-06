@@ -141,7 +141,9 @@ class DevicesScreen(Screen[None]):
         self.render_all()
 
     def refresh_units(self) -> None:
-        self._render_detail()
+        # Also called after stream recovery adopts a new snapshot: rebuild rows and details
+        # together so the detail pane never reads a device that has gone.
+        self.render_all()
 
     def action_back(self) -> None:
         self.app.pop_screen()
@@ -188,9 +190,12 @@ def _details(
 
     pairs: list[tuple[str, str]] = []
     if row.kind == DeviceKind.INDOOR_UNIT:
-        idu = next(u for u in snap.indoor_units if u.id == row.device_id)
+        idu = next((u for u in snap.indoor_units if u.id == row.device_id), None)
+        if idu is None:
+            return _gone()
         qsm = snap.qsm_for_idu(idu)
-        odu = next((o for o in snap.outdoor_units if o.id == idu.outdoor_unit_id), None)
+        odu = snap.odu_for_idu(idu)  # tolerates path-prefixed and bare ids
+        stale = "" if idu.is_online else " (last known)"
         pairs += [
             ("Serial", idu.serial_number or "–"),
             ("Firmware", row.firmware or "–"),
@@ -200,7 +205,7 @@ def _details(
         if qsm is not None:
             if qsm.hosted_wifi is not None:
                 w = qsm.hosted_wifi
-                pairs.append(("Wi-Fi", _wifi(w.ssid, w.ip, w.signal_dbm)))
+                pairs.append(("Wi-Fi", _wifi(w.ssid, w.ip, w.signal_dbm) + stale))
             pairs.append(
                 (
                     "Local mesh",
@@ -208,7 +213,8 @@ def _details(
                         qsm.local_comms_health.name,
                         qsm.local_comms_visible_devices,
                         qsm.local_comms_expected_devices,
-                    ),
+                    )
+                    + stale,
                 )
             )
         if raw:
@@ -255,7 +261,9 @@ def _details(
                     )
                 )
     elif row.kind == DeviceKind.DIAL:
-        ctrl = next(c for c in snap.controllers if c.id == row.device_id)
+        ctrl = next((c for c in snap.controllers if c.id == row.device_id), None)
+        if ctrl is None:
+            return _gone()
         live = ctrl.is_online
         pairs += [
             ("Serial", ctrl.serial_number or "–"),
@@ -322,7 +330,9 @@ def _details(
             if not live:
                 pairs.append(("", "These are the last values the Dial reported."))
     elif row.kind == DeviceKind.REMOTE_SENSOR:
-        rs = next(r for r in snap.remote_sensors if r.id == row.device_id)
+        rs = next((r for r in snap.remote_sensors if r.id == row.device_id), None)
+        if rs is None:
+            return _gone()
         pairs += [
             ("Temperature", temp(rs.ambient_temperature_c)),
             (
@@ -341,11 +351,13 @@ def _details(
         if raw:
             pairs.append(("MAC", rs.mac or "–"))
     else:
-        odu = next(o for o in snap.outdoor_units if o.id == row.device_id)
+        odu = next((o for o in snap.outdoor_units if o.id == row.device_id), None)
+        if odu is None:
+            return _gone()
         rooms = [
             next((s.name for s in snap.rooms if s.id == u.space_id), "?")
             for u in snap.indoor_units
-            if u.outdoor_unit_id == odu.id
+            if snap.odu_for_idu(u) is odu
         ]
         pairs += [
             ("Serial", odu.serial_number or "–"),
@@ -369,6 +381,10 @@ def _details(
     if row.update:
         pairs.append(("Update", row.update))
     return pairs
+
+
+def _gone() -> list[tuple[str, str]]:
+    return [("", "This device is no longer part of the system.")]
 
 
 def _yes(value: bool | None) -> str:

@@ -44,14 +44,15 @@ class SetpointChange:
 def nudge_setpoint(space: Space, direction: int, use_f: bool = False) -> SetpointChange | None:
     """The change ``+`` (direction 1) or ``−`` (-1) makes, or None when the mode has no setpoint.
 
-    Cool and Dry adjust the cooling setpoint, Heat the heating one. Auto adjusts whichever
-    setpoint is nearer the room temperature, the one the room is working towards.
+    Cool adjusts the cooling setpoint and Heat the heating one. Auto adjusts whichever setpoint is
+    nearer the room temperature, the one the room is working towards. Dry, Fan and Standby have
+    no setpoint (the service doesn't send one for Dry), so they return None.
     """
     c = space.controls
     step = (STEP_F_IN_C if use_f else STEP_C) * direction
     heat = c.heating_setpoint_c or DEFAULT_HEAT_SETPOINT_C
     cool = c.cooling_setpoint_c or DEFAULT_COOL_SETPOINT_C
-    if c.hvac_mode in (HVACMode.COOL, HVACMode.DRY):
+    if c.hvac_mode == HVACMode.COOL:
         return SetpointChange(cool_c=clamp_setpoint_c(cool + step))
     if c.hvac_mode == HVACMode.HEAT:
         return SetpointChange(heat_c=clamp_setpoint_c(heat + step))
