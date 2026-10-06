@@ -390,7 +390,8 @@ class HomeDatastoreService:
 
         Sends a sparse UpdateController diff with only the blocks being changed. The sensor
         switch is the diff the app sends (header + ``controls``). A rename sends ``settings``
-        with the current description echoed, as for the other settings updates.
+        with the current description echoed, as for the other settings updates, so it needs a
+        ``Controller`` whose settings are known (``description`` not None).
         """
         if name is None and uses_dial_temperature is None:
             raise ValueError("Give a name, uses_dial_temperature, or both.")
@@ -400,10 +401,15 @@ class HomeDatastoreService:
         if name is not None:
             if not name.strip():
                 raise ValueError("A Dial's name can't be empty.")
+            if controller.description is None:
+                raise ValueError(
+                    "This Dial's settings are unknown (a partial update?); fetch it first so "
+                    "renaming doesn't erase its description."
+                )
             diff.settings.CopyFrom(
                 hds.ControllerSettings(
                     name=name.strip(),
-                    description=controller.description or "",
+                    description=controller.description,
                     updated_ts=_now_ts(),
                 )
             )

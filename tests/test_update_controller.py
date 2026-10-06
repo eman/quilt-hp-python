@@ -82,6 +82,37 @@ async def test_client_resolves_an_id_and_refreshes_the_cache() -> None:
     assert client._snapshot_cache is None
 
 
+async def test_rename_never_blanks_an_unknown_description() -> None:
+    """A partial Controller (settings absent) must not send description=""."""
+    snap = load_snapshot()
+    partial = snap.controllers[0]
+    partial.description = None
+    service, stub = _service()
+    with pytest.raises(ValueError, match="settings are unknown"):
+        await service.update_controller(partial, name="Hall Dial")
+    stub.UpdateController.assert_not_awaited()
+    # the sensor switch doesn't touch settings, so it still goes through
+    stub.UpdateController.return_value = hds.Controller()
+    await service.update_controller(partial, uses_dial_temperature=True)
+    assert not stub.UpdateController.await_args.args[0].controller.HasField("settings")
+
+    # The client fetches the Dial first, then renames with the real description.
+    client = QuiltClient("user@example.com")
+    client.get_snapshot = AsyncMock(return_value=snap)  # type: ignore[method-assign]
+    fetched = type(partial).from_proto(
+        hds.Controller(
+            header=hds.EntityMetadata(object_id=partial.id, system_id=partial.system_id),
+            settings=hds.ControllerSettings(name="old", description="by the door"),
+        )
+    )
+    hds_service = AsyncMock()
+    hds_service.get_controller.return_value = fetched
+    client._hds = hds_service
+    await client.set_controller(partial, name="Hall Dial")
+    hds_service.get_controller.assert_awaited_once_with(partial.id)
+    assert hds_service.update_controller.await_args.args[0].description == "by the door"
+
+
 def test_description_survives_a_sparse_stream_diff() -> None:
     snap = load_snapshot()
     dial = snap.controllers[0]
