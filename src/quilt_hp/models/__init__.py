@@ -63,6 +63,7 @@ from quilt_hp.models.indoor_unit import (
     IndoorUnitTestState,
 )
 from quilt_hp.models.outdoor_unit import OutdoorUnit
+from quilt_hp.models.qsm import QsmSensors, QuiltSmartModule, WifiInfo
 from quilt_hp.models.schedule import ScheduleDay, ScheduleEvent, ScheduleWeek
 from quilt_hp.models.sensor import ControllerRemoteSensor, RemoteSensor
 from quilt_hp.models.software_update import (
@@ -129,6 +130,8 @@ __all__ = [
     "OutdoorUnitDiagnostics",
     "PartnerDetails",
     "PartnerProfile",
+    "QsmSensors",
+    "QuiltSmartModule",
     "RemoteSensor",
     "RemoteSensorControlMode",
     "SafetyHeatingMode",
@@ -154,4 +157,5 @@ __all__ = [
     "UserTask",
     "UserTaskKind",
     "WifiConnectionState",
+    "WifiInfo",
 ]

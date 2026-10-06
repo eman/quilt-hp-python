@@ -574,8 +574,11 @@ class WifiInfo:
     ipv6: str | None
 ```
 
-Properties: `connected`, `band` (`"5 GHz"` / `"2.4 GHz"`) and `snr_db` (signal minus noise,
-when both are reported).
+Properties: `connected` (the connection phase is `COMPLETED`; payloads without a phase count
+as connected when they name a network), `reported` (the interface reported anything),
+`band` (`"5 GHz"` / `"2.4 GHz"`) and `snr_db` (signal minus noise, when both are reported).
+A Smart Module's or Dial's Wi-Fi record is present whenever the interface reports a network
+or a connection phase, so a disconnected or scanning interface is visible rather than `None`.
 
 ---
 

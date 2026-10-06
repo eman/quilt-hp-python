@@ -53,7 +53,18 @@ class WifiInfo:
 
     @property
     def connected(self) -> bool:
-        return bool(self.ssid)
+        """Connected to a network: the reported connection phase is COMPLETED.
+
+        Older payloads without a connection phase count as connected when they name a network.
+        """
+        if self.connection_state == WifiConnectionState.UNSPECIFIED:
+            return bool(self.ssid)
+        return self.connection_state == WifiConnectionState.COMPLETED
+
+    @property
+    def reported(self) -> bool:
+        """The interface reported anything (a network or a connection phase)."""
+        return bool(self.ssid) or self.connection_state != WifiConnectionState.UNSPECIFIED
 
     @property
     def band(self) -> str | None:
@@ -172,7 +183,7 @@ class QuiltSmartModule:
             if w is None:
                 return None
             info = WifiInfo.from_proto(w)
-            return info if info.connected else None
+            return info if info.reported else None  # keeps DISCONNECTED, SCANNING, …
 
         rel = cast("Any", present_submsg(proto, "relationships"))
         return cls(

@@ -20,6 +20,10 @@
 - **Wi-Fi link details:** `WifiInfo.connection_state` (new `WifiConnectionState` enum),
   `noise_dbm`, `snr_db`, `rx_invalid_fragments`, `tx_excessive_retries` and `ipv6`, and
   `Controller.hosted_wifi` with the Dial's home-network link in full.
+  `WifiInfo.connected` now follows the connection phase (`COMPLETED`), using the network
+  name only when no phase is reported, and a Wi-Fi record is kept whenever the interface
+  reports anything, so a disconnected or scanning Dial or Smart Module is no longer `None`.
+- `QuiltSmartModule`, `WifiInfo` and `QsmSensors` are exported from `quilt_hp.models`.
 - The TUI's Devices screen shows the indoor unit's own serial alongside its Smart Module's,
   manufacture dates, outdoor-unit port use and Wi-Fi signal-to-noise; `quilt info --output
   json` includes the serials, manufacture dates and port count.

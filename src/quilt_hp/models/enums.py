@@ -512,3 +512,37 @@ class IndoorUnitTestPhase(IntEnum):
     SELF_TEST = 2
     HEATING = 3
     COOLING = 4
+
+
+class AccessRole(IntEnum):
+    """A person's role in a system (``AccessRoleToSystem``)."""
+
+    UNKNOWN = 0
+    ADMIN = 1
+    MEMBER = 2
+
+
+class DataSharingSetting(IntEnum):
+    """Whether the owner allows sharing system data with the installer partner."""
+
+    UNSPECIFIED = 0
+    ON = 1
+    OFF = 2
+
+
+class DataSharingState(IntEnum):
+    """Where data sharing with a partner stands (``SystemDataSharingState``)."""
+
+    UNSPECIFIED = 0
+    NO_PARTNER = 1
+    PENDING = 2
+    ACTIVE = 3
+    DECLINED = 4
+    CONSENT_REQUIRED = 5
+
+
+class UserTaskKind(IntEnum):
+    """Kinds of task the app asks the user to act on."""
+
+    UNSPECIFIED = 0
+    DATA_SHARING_CONSENT_BANNER = 1

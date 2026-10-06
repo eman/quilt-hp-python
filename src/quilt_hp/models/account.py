@@ -4,44 +4,24 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from datetime import datetime
-from enum import IntEnum
 from typing import Any, cast
 
 from quilt_hp.models._helpers import enum_or, present_submsg, timestamp_or_none
+from quilt_hp.models.enums import AccessRole, DataSharingSetting, DataSharingState, UserTaskKind
 
-
-class AccessRole(IntEnum):
-    """A person's role in a system (``AccessRoleToSystem``)."""
-
-    UNKNOWN = 0
-    ADMIN = 1
-    MEMBER = 2
-
-
-class DataSharingSetting(IntEnum):
-    """Whether the owner allows sharing system data with the installer partner."""
-
-    UNSPECIFIED = 0
-    ON = 1
-    OFF = 2
-
-
-class DataSharingState(IntEnum):
-    """Where data sharing with a partner stands (``SystemDataSharingState``)."""
-
-    UNSPECIFIED = 0
-    NO_PARTNER = 1
-    PENDING = 2
-    ACTIVE = 3
-    DECLINED = 4
-    CONSENT_REQUIRED = 5
-
-
-class UserTaskKind(IntEnum):
-    """Kinds of task the app asks the user to act on."""
-
-    UNSPECIFIED = 0
-    DATA_SHARING_CONSENT_BANNER = 1
+__all__ = [
+    "AccessRole",
+    "DataSharingSetting",
+    "DataSharingState",
+    "Invitation",
+    "PartnerDetails",
+    "PartnerProfile",
+    "SystemDataSharing",
+    "SystemUser",
+    "SystemUsers",
+    "UserTask",
+    "UserTaskKind",
+]
 
 
 @dataclass(slots=True)
