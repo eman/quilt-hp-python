@@ -29,3 +29,15 @@ class QuiltPreconditionError(QuiltError):
 
 class QuiltStreamError(QuiltError):
     """Error in the NotifierService bidirectional stream."""
+
+
+class QuiltActionError(QuiltError):
+    """The server reported that an action failed (``ActionResult.FAILED``).
+
+    ``outcome`` holds the server's answer, including ``failure_reason``.
+    """
+
+    def __init__(self, outcome: object) -> None:
+        reason = getattr(outcome, "failure_reason", None) or "no reason given"
+        super().__init__(f"Action failed: {reason}")
+        self.outcome = outcome
