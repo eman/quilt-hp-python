@@ -53,9 +53,14 @@ def _dial_sensor(uses_dial: bool | None) -> str:
 def _self_test(idu: IndoorUnit) -> str:
     if not idu.is_under_test:
         return "not running"
-    mode = idu.effective_test_mode.name.replace("_", " ").lower()
+    effective = idu.effective_test_mode
+    mode = effective.name.replace("_", " ").lower()
     ts = idu.test_state
-    coordination = ts.test_coordination.name.lower() if ts is not None else ""
+    # Coordination belongs to test_state; skip it when the current mode came from a newer
+    # state.test_mode, so a stale coordination isn't paired with a different test.
+    coordination = (
+        ts.test_coordination.name.lower() if ts is not None and ts.test_mode == effective else ""
+    )
     if coordination in ("", "unspecified", "none"):
         return f"running ({mode})"
     return f"running ({mode}, {coordination})"

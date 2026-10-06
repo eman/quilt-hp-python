@@ -481,3 +481,61 @@ async def test_shift_o_turns_the_whole_house_off(tmp_path: Path, frozen: Any) ->
         await pilot.press("y")
         await _wait_for(pilot, lambda: client.calls)
     assert client.calls[0] == ("apply_mode", (ClimateMode.OFF,), {"whole_house": True})
+
+
+def _under_test(idu: Any, mode: Any, coordination: Any, state_mode: Any = None) -> Any:
+    from quilt_hp.models.enums import IndoorUnitTestPhase
+    from quilt_hp.models.indoor_unit import IndoorUnitTestState
+
+    test_state = IndoorUnitTestState(
+        test_mode=mode,
+        test_coordination=coordination,
+        test_phase=IndoorUnitTestPhase.NONE,
+        updated_at=FROZEN_NOW - timedelta(seconds=30),
+    )
+    state = replace(idu.state, test_mode=state_mode or mode, updated_at=FROZEN_NOW)
+    return replace(idu, test_state=test_state, state=state)
+
+
+async def test_t_cancels_a_running_self_test(tmp_path: Path, frozen: Any) -> None:
+    from quilt_hp.models.enums import IndoorUnitTestCoordination, IndoorUnitTestMode
+
+    client = FakeClient()
+    snap = client.snapshot
+    family = next(s for s in snap.rooms if s.name == "Family Room")
+    i = next(i for i, u in enumerate(snap.indoor_units) if u.space_id == family.id)
+    snap.indoor_units[i] = _under_test(
+        snap.indoor_units[i], IndoorUnitTestMode.HEALTH_CHECK, IndoorUnitTestCoordination.EXCLUSIVE
+    )
+    async with make_app(tmp_path, client).run_test(size=(100, 30)) as pilot:
+        await _devices_on(pilot, "INDOOR_UNIT", "Family Room")
+        await pilot.press("t")
+        await _wait_for(pilot, lambda: isinstance(pilot.app.screen, ConfirmScreen))
+        assert "Cancel the self-test" in str(
+            pilot.app.screen.query_one("#confirm-question").render()
+        )
+        await pilot.press("y")
+        await _wait_for(pilot, lambda: client.calls)
+    name, (idu,), _ = client.calls[0]
+    assert name == "cancel_self_test" and idu.space_id == family.id
+
+
+def test_self_test_text_skips_stale_coordination() -> None:
+    from quilt_hp.cli.tui.devices import _self_test
+    from quilt_hp.models.enums import IndoorUnitTestCoordination, IndoorUnitTestMode
+    from tests.tui_harness import load_snapshot
+
+    idu = load_snapshot().indoor_units[0]
+    current = _under_test(
+        idu, IndoorUnitTestMode.HEALTH_CHECK, IndoorUnitTestCoordination.EXCLUSIVE
+    )
+    assert _self_test(current) == "running (health check, exclusive)"
+    # state.test_mode is newer and reports a different test: drop the old coordination.
+    stale = _under_test(
+        idu,
+        IndoorUnitTestMode.HEALTH_CHECK,
+        IndoorUnitTestCoordination.EXCLUSIVE,
+        state_mode=IndoorUnitTestMode.COMMISSIONING,
+    )
+    assert stale.effective_test_mode is IndoorUnitTestMode.COMMISSIONING
+    assert _self_test(stale) == "running (commissioning)"
