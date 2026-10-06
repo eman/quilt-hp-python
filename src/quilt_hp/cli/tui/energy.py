@@ -108,7 +108,8 @@ class EnergyScreen(Screen[None]):
             self.render_all()
             return
         everything: list[EnergyBucket] = []
-        self._rooms = {}
+        # Every room appears, even one the response has no history for.
+        self._rooms = {room.id: energy_summary([], tz, now) for room in snap.rooms}
         for m in metrics:
             self._rooms[m.space_id] = energy_summary(m.buckets, tz, now)
             everything += m.buckets
@@ -138,16 +139,16 @@ class EnergyScreen(Screen[None]):
         self.query_one("#en-house-today", Static).update(
             Text.assemble((bars, "cyan"), "\n", (axis, "dim"))
         )
-        week = house.by_day[:7]
-        peak = max((kwh for _, kwh in week), default=0.0)
-        lines = [
-            Text.assemble(
-                (f"{day.strftime('%a')} {day.day:>2}  ", "dim"),
-                ("█" * (round(kwh / peak * 20) if peak else 0) or "▏", "cyan"),
-                f" {kwh:.2f}",
-            )
-            for day, kwh in week
-        ]
+        week = house.last_days(7)
+        peak = max((kwh for _, kwh in week if kwh is not None), default=0.0)
+        lines = []
+        for day, kwh in week:
+            label = (f"{day.strftime('%a')} {day.day:>2}  ", "dim")
+            if kwh is None:
+                lines.append(Text.assemble(label, ("no data", "dim")))
+                continue
+            bar = "█" * (round(kwh / peak * 20) if peak else 0) or "▏"
+            lines.append(Text.assemble(label, (bar, "cyan"), f" {kwh:.2f}"))
         self.query_one("#en-house-days", Static).update(Text("\n").join(lines))
 
         table: DataTable[Any] = self.query_one("#en-rooms", DataTable)

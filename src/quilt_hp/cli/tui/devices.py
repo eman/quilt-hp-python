@@ -140,6 +140,10 @@ class DevicesScreen(Screen[None]):
     def snapshot_changed(self, _kind: str, _entity: object) -> None:
         self.render_all()
 
+    def on_screen_resume(self) -> None:
+        # Catch up on updates that arrived while a dialog (e.g. help) was on top.
+        self.render_all()
+
     def refresh_units(self) -> None:
         # Also called after stream recovery adopts a new snapshot: rebuild rows and details
         # together so the detail pane never reads a device that has gone.

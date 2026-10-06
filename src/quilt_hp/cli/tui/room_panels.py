@@ -464,18 +464,16 @@ class RoomPanels(Screen[None]):
             )
         )
         today.update(self._today_chart(totals=False))
-        recent = e.by_day[:14]
-        peak = max((kwh for _, kwh in recent), default=0.0)
+        recent = e.last_days(14)
+        peak = max((kwh for _, kwh in recent if kwh is not None), default=0.0)
         lines = []
         for day, kwh in recent:
+            label = (f"{day.strftime('%a %b')} {day.day:>2}  ", "dim")
+            if kwh is None:
+                lines.append(Text.assemble(label, ("no data", "dim")))
+                continue
             width = round(kwh / peak * 30) if peak > 0 else 0
-            lines.append(
-                Text.assemble(
-                    (f"{day.strftime('%a %b')} {day.day:>2}  ", "dim"),
-                    ("█" * width or "▏", "cyan"),
-                    f" {kwh:.2f} kWh",
-                )
-            )
+            lines.append(Text.assemble(label, ("█" * width or "▏", "cyan"), f" {kwh:.2f} kWh"))
         days.update(Text("\n").join(lines) if lines else Text("No energy data yet.", style="dim"))
 
     def _render_devices(self) -> None:
