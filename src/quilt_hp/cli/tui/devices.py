@@ -38,6 +38,12 @@ _KIND_LABELS = {
 _COLUMNS = ("Device", "Room", "Status", "Link", "Firmware", "Update")
 
 
+def _dial_sensor(uses_dial: bool | None) -> str:
+    if uses_dial is None:
+        return "–"
+    return "controls the room" if uses_dial else "off (indoor unit's sensor used)"
+
+
 class DevicesScreen(Screen[None]):
     """One row per device, grouped by room; the selected device's details below."""
 
@@ -296,7 +302,7 @@ def _details(
                 )
                 + (" (last known)" if not live else ""),
             ),
-            ("Zone sensor", ctrl.remote_sensor_mode.name.replace("_", " ").lower()),
+            ("Temperature sensor", _dial_sensor(ctrl.uses_dial_temperature)),
         ]
         if raw:
             pairs += [

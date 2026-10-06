@@ -489,6 +489,35 @@ class QuiltClient:
             occupied_timeout_s=occupied_timeout_s,
         )
 
+    # --- Dial (controller) settings ---
+
+    async def set_controller(
+        self,
+        controller: Controller | str,
+        *,
+        name: str | None = None,
+        uses_dial_temperature: bool | None = None,
+    ) -> Controller:
+        """Rename a Dial and/or choose which sensor its room is controlled to.
+
+        Args:
+            controller: A ``Controller`` object or controller ID string.
+            name: The Dial's new name.
+            uses_dial_temperature: True to control the room to the Dial's temperature (the
+                app's "Temperature sensor" setting); False to use the indoor unit's sensor.
+
+        Returns the updated Dial as the server reports it (hardware fields are None).
+        """
+        hds = self._require_hds()
+        controller = await self._resolve_snapshot_item(
+            controller, items=lambda snapshot: snapshot.controllers, kind="Controller"
+        )
+        updated = await hds.update_controller(
+            controller, name=name, uses_dial_temperature=uses_dial_temperature
+        )
+        self.invalidate_snapshot()
+        return updated
+
     # --- Indoor unit control ---
 
     async def list_indoor_units(self) -> list[IndoorUnit]:
