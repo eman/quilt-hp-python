@@ -3,7 +3,7 @@
 This is the app's "Run diagnostic test" (Quilt app 1.0.33). The test takes up to 30 minutes,
 during which the unit's room can't be heated or cooled; Quilt (and a certified partner, if
 the home has one) sees the results. The server returns nothing: follow progress through
-``IndoorUnit.test_state`` / ``is_under_test``.
+``IndoorUnit.is_under_test`` (``test_state.test_mode`` is ``HEALTH_CHECK`` while it runs).
 """
 
 from __future__ import annotations

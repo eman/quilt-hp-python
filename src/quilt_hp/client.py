@@ -651,9 +651,12 @@ class QuiltClient:
 
         The test takes up to 30 minutes, and the unit's room can't be heated or cooled
         meanwhile. Quilt (and the home's certified partner, if any) sees the results; the
-        server returns none. Follow progress with ``IndoorUnit.is_under_test`` and
-        ``IndoorUnit.test_state`` (mode, coordination with units sharing the outdoor unit,
-        and phase: self-test, heating, cooling).
+        server returns none. Follow progress with ``IndoorUnit.is_under_test``.
+
+        Observed live (2026-10-06): the unit entered ``HEALTH_CHECK`` within 15 s, with
+        ``EXCLUSIVE`` coordination (it was alone on its outdoor unit), ran cooling and then
+        heating (``state.hvac_state``), and returned to normal after about 20 minutes.
+        ``test_state.test_phase`` stayed ``NONE`` throughout.
         """
         unit = await self._resolve_snapshot_item(
             idu, items=lambda snapshot: snapshot.indoor_units, kind="IndoorUnit"
