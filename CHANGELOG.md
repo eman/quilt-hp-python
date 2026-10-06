@@ -3,6 +3,10 @@
 ## [Unreleased]
 
 ### Added
+- **Indoor-unit self-test:** `QuiltClient.start_self_test()` and `cancel_self_test()` wrap
+  `DiagnosticService`, the app's "Run diagnostic test" (since app 1.0.33). They identify the
+  unit as the app does, by its own serial. The test takes up to 30 minutes and its results go
+  to Quilt, not the caller; follow progress with `IndoorUnit.is_under_test` / `test_state`.
 - **Dial settings:** `QuiltClient.set_controller()` renames a Dial and/or switches the app's
   "Temperature sensor" setting (`uses_dial_temperature`: control the room to the Dial's
   reading, or to the indoor unit's own sensor). Verified against a live system. New

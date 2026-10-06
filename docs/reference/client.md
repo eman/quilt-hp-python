@@ -495,6 +495,34 @@ Updates indoor unit calibration settings.
 
 ---
 
+## Indoor-unit self-test
+
+### `start_self_test` / `cancel_self_test`
+
+```python
+async def start_self_test(self, idu: IndoorUnit | str) -> None
+async def cancel_self_test(self, idu: IndoorUnit | str) -> None
+```
+
+Start or cancel an indoor unit's diagnostic self-test: the Quilt app's "Run diagnostic
+test" (`DiagnosticService`). In the app's words, the test "takes up to 30 minutes. During
+this time, [the room] won't be available for heating or cooling." Quilt, and the home's
+certified partner if it has one, see the results; the server returns nothing to the caller.
+
+Follow progress on the indoor unit:
+
+```python
+await client.start_self_test(unit)
+snapshot = await client.get_snapshot()
+unit = next(u for u in snapshot.indoor_units if u.id == unit.id)
+print(unit.is_under_test, unit.test_state)  # mode, coordination, phase (self-test, heating, cooling)
+```
+
+Units sharing an outdoor unit take turns (`test_state.test_coordination`). The cached
+snapshot is invalidated after each call.
+
+---
+
 ## Comfort settings
 
 ### `list_comfort_settings`
