@@ -52,7 +52,7 @@ from quilt_hp.cli.tui.format import (
     _tc,
     hourly_chart,
 )
-from quilt_hp.cli.tui.shared import _odu_for_space, _set_schedule_paused
+from quilt_hp.cli.tui.shared import _odu_for_space
 from quilt_hp.cli.tui.widgets import _KVStatic
 from quilt_hp.client import QuiltClient
 from quilt_hp.models.controller import Controller
@@ -148,7 +148,6 @@ class RoomScreen(Screen[None]):
         Binding("f", "cycle_fan", "Fan"),
         Binding("l", "cycle_louver", "Louver"),
         Binding("L", "toggle_led", "LED"),
-        Binding("p", "toggle_schedule", "Pause Sched"),
         Binding("e", "refresh_energy", "Energy ↻"),
         Binding("[", "away_timeout_dec", "Away-5m", show=False),
         Binding("]", "away_timeout_inc", "Away+5m", show=False),
@@ -1368,9 +1367,9 @@ class RoomScreen(Screen[None]):
             mode_str = ev_mode.name.replace("HVAC_MODE_", "").replace("_", " ").title()
             # Only show the setpoints the mode uses; Standby and Fan events carry the system's
             # limits (e.g. 8 °C / 40 °C), which are not settings anyone chose.
-            if ev_mode in (_HM.STANDBY, _HM.FAN, _HM.UNSPECIFIED):
+            if ev_mode in (_HM.STANDBY, _HM.FAN, _HM.UNSPECIFIED) or ev_mode == _HM.DRY:
                 heat = cool = None
-            elif ev_mode in (_HM.COOL, _HM.DRY):
+            elif ev_mode == _HM.COOL:
                 heat = None
             elif ev_mode == _HM.HEAT:
                 cool = None
@@ -1386,7 +1385,7 @@ class RoomScreen(Screen[None]):
     def _update_schedule_status(self, paused: bool) -> None:
         try:
             status = (
-                "[yellow]⏸ PAUSED[/yellow]  [dim](p to resume)[/dim]"
+                "[yellow]PAUSED[/yellow]  [dim](resume from Home with P)[/dim]"
                 if paused
                 else "[green]▶ RUNNING[/green]"
             )
@@ -1649,13 +1648,6 @@ class RoomScreen(Screen[None]):
         cur = self._space.settings.occupied_timeout_s
         self._mutate_settings(occupied_timeout_s=cur + self._RETURN_TIMEOUT_STEP_S)
 
-    def action_toggle_schedule(self) -> None:
-        loc = self.snapshot.primary_location
-        if loc is None:
-            self.notify("No location found", severity="error")
-            return
-        self._do_toggle_schedule(not loc.schedule_paused)
-
     @work
     async def _mutate_space(
         self,
@@ -1776,12 +1768,3 @@ class RoomScreen(Screen[None]):
             self._populate_status()
         except Exception as exc:
             self.notify(f"Fence update error: {exc}", severity="error")
-
-    @work
-    async def _do_toggle_schedule(self, paused: bool) -> None:
-        try:
-            await _set_schedule_paused(self._client, self.snapshot, paused)
-            self._update_schedule_status(paused)
-            self.notify("Schedules " + ("paused" if paused else "resumed"), timeout=2)
-        except Exception as exc:
-            self.notify(f"Error: {exc}", severity="error")

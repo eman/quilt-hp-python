@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import asyncio
 from collections.abc import Callable
+from dataclasses import replace
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
@@ -18,9 +19,10 @@ from zoneinfo import ZoneInfo
 from quilt_hp._proto import quilt_hds_pb2 as hds
 from quilt_hp.cli.settings import SettingsStore
 from quilt_hp.cli.tui import QuiltApp
-from quilt_hp.models import SystemSnapshot
+from quilt_hp.models import HVACMode, SystemSnapshot
 from quilt_hp.models.energy import EnergyBucket, SpaceEnergyMetrics
 from quilt_hp.models.enums import MetricBucketStatus
+from quilt_hp.models.space import Space
 
 FIXTURE = Path(__file__).parent / "fixtures" / "system_snapshot.bin"
 FROZEN_NOW = datetime.fromtimestamp(1_791_248_669 + 5, tz=UTC)
@@ -62,6 +64,7 @@ class FakeClient:
     def __init__(self, snapshot: SystemSnapshot | None = None) -> None:
         self.snapshot = snapshot or load_snapshot()
         self.calls: list[tuple[str, tuple[Any, ...], dict[str, Any]]] = []
+        self.delay = 0.0
 
     async def login(self, **_: Any) -> None:
         return None
@@ -87,6 +90,39 @@ class FakeClient:
 
     async def close(self) -> None:
         return None
+
+    async def set_space(
+        self,
+        space: Space,
+        *,
+        mode: HVACMode | None = None,
+        heat_setpoint_c: float | None = None,
+        cool_setpoint_c: float | None = None,
+    ) -> Space:
+        """Record the call and return the space with the change applied, like the server."""
+        if self.delay:
+            await asyncio.sleep(self.delay)  # a slow server, to test presses that overlap
+        self.calls.append(
+            (
+                "set_space",
+                (space.id,),
+                {"mode": mode, "heat": heat_setpoint_c, "cool": cool_setpoint_c},
+            )
+        )
+        c = space.controls
+        return replace(
+            space,
+            controls=replace(
+                c,
+                hvac_mode=mode if mode is not None else c.hvac_mode,
+                heating_setpoint_c=heat_setpoint_c
+                if heat_setpoint_c is not None
+                else c.heating_setpoint_c,
+                cooling_setpoint_c=cool_setpoint_c
+                if cool_setpoint_c is not None
+                else c.cooling_setpoint_c,
+            ),
+        )
 
     def __getattr__(self, name: str) -> Callable[..., Any]:
         if not name.startswith("set_"):

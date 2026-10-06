@@ -12,6 +12,8 @@ from quilt_hp.models.indoor_unit import IndoorUnit
 from quilt_hp.models.outdoor_unit import OutdoorUnit
 
 if TYPE_CHECKING:
+    from textual.screen import Screen
+
     from quilt_hp.models.system import SystemSnapshot
 
 
@@ -48,3 +50,26 @@ async def _set_schedule_paused(
     """Toggle schedule execution server-side and patch the local cache."""
     await client.set_schedule_execution(paused)
     _patch_schedule_paused(snapshot, paused)
+
+
+def room_screen_for(
+    snapshot: SystemSnapshot, client: QuiltClient, space_id: str, use_f: bool
+) -> Screen[None] | None:
+    """A RoomScreen for ``space_id`` with its devices resolved, or None if the room is gone."""
+    from quilt_hp.cli.tui.room import RoomScreen  # the room screen imports this module
+
+    space = next((s for s in snapshot.rooms if s.id == space_id), None)
+    if space is None:
+        return None
+    idu = next((u for u in snapshot.indoor_units if u.space_id == space_id), None)
+    ctrl = next((c for c in snapshot.controllers if c.space_id == space_id), None)
+    return RoomScreen(
+        space=space,
+        idu=idu,
+        controller=ctrl,
+        odu=_odu_for_space(snapshot, space_id, idu),
+        qsm=snapshot.qsm_for_idu(idu) if idu else None,
+        snapshot=snapshot,
+        client=client,
+        use_f=use_f,
+    )

@@ -16,9 +16,9 @@ pytest.importorskip("textual")
 pytest.importorskip("pytest_textual_snapshot")
 
 import time_machine
-from textual.widgets import ListView, TabbedContent
+from textual.widgets import DataTable, TabbedContent
 
-from quilt_hp.cli.tui import DashboardScreen, RoomScreen, SystemScreen
+from quilt_hp.cli.tui import DevicesScreen, HomeScreen, RoomScreen
 from tests.tui_harness import FROZEN_NOW, make_app
 
 if TYPE_CHECKING:
@@ -42,30 +42,40 @@ async def _wait_for(pilot: Pilot[Any], condition: Callable[[], bool]) -> None:
     raise AssertionError("timed out waiting for the TUI")
 
 
-async def _open_room(pilot: Pilot[Any]) -> None:
+async def _home(pilot: Pilot[Any]) -> HomeScreen:
     app = pilot.app
-    await _wait_for(pilot, lambda: isinstance(app.screen, DashboardScreen))
-    dashboard = app.screen
-    assert isinstance(dashboard, DashboardScreen)
-    room_ids = [space.id for space in dashboard.snapshot.rooms]
-    target = next(space.id for space in dashboard.snapshot.rooms if space.name == ROOM)
-    rooms = dashboard.query_one(ListView)
-    rooms.focus()
-    rooms.index = [getattr(item, "space_id", None) for item in rooms.children].index(target)
-    assert target in room_ids
-    dashboard.action_select_room()
-    await _wait_for(pilot, lambda: isinstance(app.screen, RoomScreen))
+    await _wait_for(pilot, lambda: isinstance(app.screen, HomeScreen))
+    home = app.screen
+    assert isinstance(home, HomeScreen)
+    return home
+
+
+async def _select_room(pilot: Pilot[Any], name: str) -> HomeScreen:
+    home = await _home(pilot)
+    ids = [s.id for s in home.snapshot.rooms]
+    target = next(s.id for s in home.snapshot.rooms if s.name == name)
+    home.query_one("#home-rooms", DataTable).move_cursor(row=ids.index(target))
+    await pilot.pause()
+    return home
+
+
+async def _open_room(pilot: Pilot[Any]) -> None:
+    await _select_room(pilot, ROOM)
+    await pilot.press("enter")
+    await _wait_for(pilot, lambda: isinstance(pilot.app.screen, RoomScreen))
 
 
 def _scenario(screen: str) -> Callable[[Pilot[Any]], Awaitable[None]]:
     async def run_before(pilot: Pilot[Any]) -> None:
         app = pilot.app
-        if screen == "dashboard":
-            await _wait_for(pilot, lambda: isinstance(app.screen, DashboardScreen))
-        elif screen == "system":
-            await _wait_for(pilot, lambda: isinstance(app.screen, DashboardScreen))
-            await pilot.press("s")
-            await _wait_for(pilot, lambda: isinstance(app.screen, SystemScreen))
+        if screen == "home":
+            await _select_room(pilot, "Primary Bedroom")  # the room with the offline Dial
+        elif screen.startswith("devices"):
+            await _home(pilot)
+            await pilot.press("d")
+            await _wait_for(pilot, lambda: isinstance(app.screen, DevicesScreen))
+            if screen == "devices-raw":
+                await pilot.press("down", "down", "down", "down", "down", "r")
         else:
             await _open_room(pilot)
             app.screen.query_one("#room-tabs", TabbedContent).active = ROOM_TABS[screen]
@@ -75,7 +85,7 @@ def _scenario(screen: str) -> Callable[[Pilot[Any]], Awaitable[None]]:
 
 
 @pytest.mark.parametrize("size", SIZES, ids=lambda s: f"{s[0]}x{s[1]}")
-@pytest.mark.parametrize("screen", ["dashboard", *ROOM_TABS, "system"])
+@pytest.mark.parametrize("screen", ["home", *ROOM_TABS, "devices", "devices-raw"])
 def test_screen(snap_compare: Any, tmp_path: Path, screen: str, size: tuple[int, int]) -> None:
     with time_machine.travel(FROZEN_NOW, tick=False):
         app = make_app(tmp_path)
