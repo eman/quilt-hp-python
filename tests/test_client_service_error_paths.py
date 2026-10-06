@@ -286,8 +286,11 @@ async def test_user_service_success_and_error_paths(monkeypatch: pytest.MonkeyPa
             )
         )
     )
+    # GetUserAttributes wraps the attributes; PatchUserAttributes returns them bare.
     ok_stub.GetUserAttributes = AsyncMock(
-        return_value=SimpleNamespace(declared_user_type=int(DeclaredUserType.HOMEOWNER))
+        return_value=SimpleNamespace(
+            user_attributes=SimpleNamespace(declared_user_type=int(DeclaredUserType.HOMEOWNER))
+        )
     )
     ok_stub.PatchUserAttributes = AsyncMock(
         return_value=SimpleNamespace(declared_user_type=int(DeclaredUserType.PARTNER))

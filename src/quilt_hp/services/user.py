@@ -124,7 +124,8 @@ class UserService:
                 "Any",
                 await self._stub.GetUserAttributes(svc.GetUserAttributesRequest()),
             )
-        return _to_user_attributes(response)
+        # GetUserAttributes wraps the attributes ({user_attributes = 1}); Patch returns them bare.
+        return _to_user_attributes(response.user_attributes)
 
     async def patch_user_attributes(
         self,

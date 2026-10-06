@@ -1,8 +1,8 @@
 """NotifierService streaming - real-time HDS change subscriptions.
 
-Handles the complex nested wire format:
-  NotifierEvent.topic (bytes) -> C1517Ta{type_url, value} ->
-    google.protobuf.Any -> HdsNotification -> HomeDatastoreObjectDiff
+Wire format:
+  SubscribeResponse.event -> SubscribeEvent{notifier_events, control_events, system_events}
+  NotifierEvent{topic, payload: Any} -> Any.value = Notification -> HomeDatastoreObjectDiff
 """
 
 from __future__ import annotations
@@ -24,6 +24,7 @@ from quilt_hp._proto import quilt_notifier_pb2 as notifier
 from quilt_hp._proto import quilt_notifier_pb2_grpc as notifier_grpc
 from quilt_hp.exceptions import QuiltStreamError
 from quilt_hp.models.controller import Controller
+from quilt_hp.models.enums import NotificationType
 from quilt_hp.models.indoor_unit import IndoorUnit
 from quilt_hp.models.outdoor_unit import OutdoorUnit
 from quilt_hp.models.qsm import QuiltSmartModule
@@ -49,6 +50,10 @@ RemoteSensorCallback = Callable[[RemoteSensor], Awaitable[None] | None]
 ControllerRemoteSensorCallback = Callable[[ControllerRemoteSensor], Awaitable[None] | None]
 SoftwareUpdateInfoCallback = Callable[[SoftwareUpdateInfo], Awaitable[None] | None]
 ErrorCallback = Callable[[Exception], Awaitable[None] | None]
+# Called with (entity kind, entity id) when the server reports an object deleted. Kinds match
+# StreamEvent attribute names: "space", "indoor_unit", "outdoor_unit", "controller", "qsm",
+# "remote_sensor", "controller_remote_sensor", "software_update_info".
+DeleteCallback = Callable[[str, str], Awaitable[None] | None]
 ConnectedCallback = Callable[[], Awaitable[None] | None]
 
 # Returned by the on_* registration methods; call it to unregister.
@@ -69,55 +74,17 @@ type _EventKey = tuple[str, str]
 type _AnyCallback = Callable[[Any], Awaitable[None] | None]
 
 
-def _parse_varint(data: bytes, pos: int) -> tuple[int, int]:
-    """Parse a protobuf varint from raw bytes."""
-    result, shift = 0, 0
-    while True:
-        b = data[pos]
-        pos += 1
-        result |= (b & 0x7F) << shift
-        if not (b & 0x80):
-            break
-        shift += 7
-    return result, pos
-
-
-def _get_len_field(data: bytes, field_num: int) -> bytes | None:
-    """Extract the first LEN-encoded field with the given field number."""
-    pos = 0
-    while pos < len(data):
-        tag, pos = _parse_varint(data, pos)
-        fnum = tag >> 3
-        wtype = tag & 0x7
-        if wtype == 0:  # varint
-            _, pos = _parse_varint(data, pos)
-        elif wtype == 2:  # length-delimited
-            length, pos = _parse_varint(data, pos)
-            if fnum == field_num:
-                return data[pos : pos + length]
-            pos += length
-        elif wtype == 5:  # 32-bit
-            pos += 4
-        elif wtype == 1:  # 64-bit
-            pos += 8
-        else:
-            break
-    return None
-
-
-# Entity field numbers inside HomeDatastoreObjectDiff, which mirrors the
-# HomeDatastoreSystem field layout.  Derived from the generated descriptor so
-# a proto regeneration cannot silently desynchronize the hand-rolled wire
-# scan in _parse_event.
-_HDS_FIELDS = hds.HomeDatastoreSystem.DESCRIPTOR.fields_by_name
-_SPACE_FIELD: int = _HDS_FIELDS["spaces"].number
-_ODU_FIELD: int = _HDS_FIELDS["outdoor_units"].number
-_QSM_FIELD: int = _HDS_FIELDS["quilt_smart_modules"].number
-_IDU_FIELD: int = _HDS_FIELDS["indoor_units"].number
-_CTRL_FIELD: int = _HDS_FIELDS["controllers"].number
-_RS_FIELD: int = _HDS_FIELDS["remote_sensors"].number
-_CRS_FIELD: int = _HDS_FIELDS["controller_remote_sensors"].number
-_SUI_FIELD: int = _HDS_FIELDS["software_update_infos"].number
+# HomeDatastoreObjectDiff oneof member -> (StreamEvent attribute, model class).
+_DIFF_MODELS: dict[str, tuple[str, Any]] = {
+    "space": ("space", Space),
+    "indoor_unit": ("indoor_unit", IndoorUnit),
+    "outdoor_unit": ("outdoor_unit", OutdoorUnit),
+    "controller": ("controller", Controller),
+    "quilt_smart_module": ("qsm", QuiltSmartModule),
+    "remote_sensor": ("remote_sensor", RemoteSensor),
+    "controller_remote_sensor": ("controller_remote_sensor", ControllerRemoteSensor),
+    "software_update_info": ("software_update_info", SoftwareUpdateInfo),
+}
 
 
 def _make_subscribe_request(topics: list[str]) -> notifier.SubscribeRequest:
@@ -150,6 +117,10 @@ class StreamEvent:
     controller_remote_sensor: ControllerRemoteSensor | None = None
     software_update_info: SoftwareUpdateInfo | None = None
     raw_bytes: bytes | None = None
+    notification_type: NotificationType = NotificationType.UPDATED
+    system_version: int | None = None
+    """``Notification.system_version``. The server sends 0 for every event observed (2026-10),
+    so this is None in practice; use ``QuiltClient.get_system_version()`` instead."""
 
 
 @dataclass(slots=True)
@@ -212,6 +183,7 @@ class NotifierStream:
     _crs_callbacks: list[ControllerRemoteSensorCallback] = field(default_factory=list, init=False)
     _sui_callbacks: list[SoftwareUpdateInfoCallback] = field(default_factory=list, init=False)
     _error_callbacks: list[ErrorCallback] = field(default_factory=list, init=False)
+    _delete_callbacks: list[DeleteCallback] = field(default_factory=list, init=False)
     _connected_callbacks: list[ConnectedCallback] = field(default_factory=list, init=False)
     _request_queue: asyncio.Queue[notifier.SubscribeRequest] = field(init=False)
     _subscription_lock: asyncio.Lock = field(init=False)
@@ -318,6 +290,15 @@ class NotifierStream:
         """Register callback for SoftwareUpdateInfo change events."""
         return self._register(self._sui_callbacks, callback)
 
+    def on_delete(self, callback: DeleteCallback) -> Unsubscribe:
+        """Register a callback for deleted objects, called with ``(kind, entity_id)``.
+
+        Deletions are never delivered to the ``on_*_update`` callbacks (which would
+        otherwise re-add the object to a snapshot); pair this with
+        ``SystemSnapshot.remove(kind, entity_id)``.
+        """
+        return self._register(self._delete_callbacks, callback)
+
     def on_error(self, callback: ErrorCallback) -> Unsubscribe:
         """Register a callback invoked when the stream encounters a fatal error."""
         return self._register(self._error_callbacks, callback)
@@ -397,93 +378,48 @@ class NotifierStream:
             except TimeoutError:
                 continue  # keepalive handled by gRPC channel options
 
-    def _parse_event(self, evt: object) -> StreamEvent | None:
-        """Parse the complex nested wire format of a NotifierEvent."""
-        topic_bytes: bytes = getattr(cast("Any", evt), "topic", b"")
-        if not topic_bytes:
-            return None  # heartbeat
-
-        type_url_bytes = _get_len_field(topic_bytes, 1) or b""
-        notif_bytes = _get_len_field(topic_bytes, 2)
-
+    def _parse_event(self, evt: notifier.NotifierEvent) -> StreamEvent | None:
+        """Decode one NotifierEvent: a topic plus an Any-wrapped Notification."""
+        if not evt.topic:
+            return None
+        event = StreamEvent(topic=evt.topic)
+        payload = evt.payload.value
+        if not payload:
+            return event
+        note = hds.Notification.FromString(payload)
         try:
-            topic_str = type_url_bytes.decode("utf-8")
-        except Exception:
-            topic_str = type_url_bytes.hex()
-
-        event = StreamEvent(topic=topic_str)
-
-        if not notif_bytes:
+            event.notification_type = NotificationType(note.notification_type)
+        except ValueError:
+            event.notification_type = NotificationType.UNSPECIFIED
+        event.system_version = note.system_version or None
+        diff = note.payload
+        which = diff.WhichOneof("data")
+        if which is None or which not in _DIFF_MODELS:
+            # An entity type the models don't cover (e.g. automation, ducted_zone).
+            event.raw_bytes = payload
             return event
-
-        inner_notif = _get_len_field(notif_bytes, 2)
-        if not inner_notif:
-            event.raw_bytes = notif_bytes
-            return event
-
-        obj_diff = _get_len_field(inner_notif, 2)
-        if obj_diff:
-            space_bytes = _get_len_field(obj_diff, _SPACE_FIELD)
-            if space_bytes:
-                updated = hds.Space()
-                updated.ParseFromString(space_bytes)
-                event.space = Space.from_proto(updated)
-
-            idu_bytes = _get_len_field(obj_diff, _IDU_FIELD)
-            if idu_bytes:
-                updated_idu = hds.IndoorUnit()
-                updated_idu.ParseFromString(idu_bytes)
-                event.indoor_unit = IndoorUnit.from_proto(updated_idu)
-
-            odu_bytes = _get_len_field(obj_diff, _ODU_FIELD)
-            if odu_bytes:
-                updated_odu = hds.OutdoorUnit()
-                updated_odu.ParseFromString(odu_bytes)
-                event.outdoor_unit = OutdoorUnit.from_proto(updated_odu)
-
-            ctrl_bytes = _get_len_field(obj_diff, _CTRL_FIELD)
-            if ctrl_bytes:
-                updated_ctrl = hds.Controller()
-                updated_ctrl.ParseFromString(ctrl_bytes)
-                event.controller = Controller.from_proto(updated_ctrl)
-
-            qsm_bytes = _get_len_field(obj_diff, _QSM_FIELD)
-            if qsm_bytes:
-                updated_qsm = hds.QuiltSmartModule()
-                updated_qsm.ParseFromString(qsm_bytes)
-                event.qsm = QuiltSmartModule.from_proto(updated_qsm)
-
-            rs_bytes = _get_len_field(obj_diff, _RS_FIELD)
-            if rs_bytes:
-                updated_rs = hds.RemoteSensor()
-                updated_rs.ParseFromString(rs_bytes)
-                event.remote_sensor = RemoteSensor.from_proto(updated_rs)
-
-            crs_bytes = _get_len_field(obj_diff, _CRS_FIELD)
-            if crs_bytes:
-                updated_crs = hds.ControllerRemoteSensor()
-                updated_crs.ParseFromString(crs_bytes)
-                event.controller_remote_sensor = ControllerRemoteSensor.from_proto(updated_crs)
-
-            sui_bytes = _get_len_field(obj_diff, _SUI_FIELD)
-            if sui_bytes:
-                updated_sui = hds.SoftwareUpdateInfo()
-                updated_sui.ParseFromString(sui_bytes)
-                event.software_update_info = SoftwareUpdateInfo.from_proto(updated_sui)
-
-        if (
-            event.space is None
-            and event.indoor_unit is None
-            and event.outdoor_unit is None
-            and event.controller is None
-            and event.qsm is None
-            and event.remote_sensor is None
-            and event.controller_remote_sensor is None
-            and event.software_update_info is None
-        ):
-            event.raw_bytes = inner_notif
-
+        attr, model = _DIFF_MODELS[which]
+        setattr(event, attr, model.from_proto(getattr(diff, which)))
         return event
+
+    async def _dispatch_delete(self, parsed: StreamEvent) -> None:
+        for kind in _DIFF_MODELS.values():
+            entity = getattr(parsed, kind[0])
+            if entity is None:
+                continue
+            entity_id = str(getattr(entity, "id", ""))
+            # A debounced update still pending for this object must not land after the delete.
+            async with self._pending_dispatch_lock:
+                pending = self._pending_dispatches.pop((kind[0], entity_id), None)
+            if pending is not None:
+                pending.task.cancel()
+            for callback in list(self._delete_callbacks):
+                try:
+                    result = callback(kind[0], entity_id)
+                    if asyncio.iscoroutine(result):
+                        await result
+                except Exception:
+                    logger.exception("Error in delete callback")
 
     async def _invoke_callbacks[T](
         self,
@@ -554,6 +490,13 @@ class NotifierStream:
         await self._queue_debounced_dispatch(entity_type, entity, callbacks, error_message)
 
     async def _dispatch_parsed_event(self, parsed: StreamEvent) -> None:
+        # DELETED carries the deleted object itself; CHILD_DELETED arrives on the parent's topic
+        # and carries the deleted child (e.g. an indoor unit removed from a space). Either way the
+        # payload is the object to drop. CREATED / CHILD_CREATED carry the new object and are
+        # delivered as updates.
+        if parsed.notification_type in (NotificationType.DELETED, NotificationType.CHILD_DELETED):
+            await self._dispatch_delete(parsed)
+            return
         if parsed.space is not None:
             await self._dispatch_entity(
                 "space", parsed.space, self._space_callbacks, "Error in space callback"
@@ -631,13 +574,14 @@ class NotifierStream:
         try:
             async for response in call:
                 saw_event = False
-                for ctrl in response.control_events:
+                batch = response.event
+                for ctrl in batch.control_events:
                     saw_event = True
                     if logger.isEnabledFor(logging.DEBUG):
                         event_name = notifier.ControlEventType.Name(ctrl.type)
                         logger.debug("Control event: %s topics=%s", event_name, list(ctrl.topics))
 
-                for evt in response.notifier_events:
+                for evt in batch.notifier_events:
                     try:
                         parsed = self._parse_event(evt)
                     except Exception:

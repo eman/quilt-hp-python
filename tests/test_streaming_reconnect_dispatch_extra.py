@@ -30,22 +30,6 @@ def _make_stream() -> NotifierStream:
 
 
 @pytest.mark.asyncio
-async def test_parse_event_decode_and_raw_fallback_branches() -> None:
-    stream = _make_stream()
-
-    evt_no_notif = SimpleNamespace(topic=b"\x0a\x01\xff")
-    parsed = stream._parse_event(evt_no_notif)
-    assert parsed is not None
-    assert parsed.topic
-
-    notif = b"\x12\x03abc"
-    evt_no_inner = SimpleNamespace(topic=b"\x0a\x04test\x12\x05" + notif)
-    parsed_inner = stream._parse_event(evt_no_inner)
-    assert parsed_inner is not None
-    assert parsed_inner.raw_bytes == b"abc"
-
-
-@pytest.mark.asyncio
 async def test_run_one_stream_dispatches_callbacks_and_swallows_callback_errors() -> None:
     stream = _make_stream()
 
@@ -82,8 +66,10 @@ async def test_run_one_stream_dispatches_callbacks_and_swallows_callback_errors(
     )
 
     response = SimpleNamespace(
-        control_events=[SimpleNamespace(type=0, topics=["hds/space/space-1"])],
-        notifier_events=[object()],
+        event=SimpleNamespace(
+            control_events=[SimpleNamespace(type=0, topics=["hds/space/space-1"])],
+            notifier_events=[object()],
+        )
     )
 
     async def _iter() -> asyncio.AsyncIterator[object]:
@@ -318,7 +304,9 @@ async def test_malformed_event_is_skipped_not_fatal() -> None:
     parse = MagicMock(side_effect=[IndexError("truncated varint"), good_event])
     stream._parse_event = parse  # type: ignore[method-assign]
 
-    response = SimpleNamespace(control_events=[], notifier_events=[object(), object()])
+    response = SimpleNamespace(
+        event=SimpleNamespace(control_events=[], notifier_events=[object(), object()])
+    )
 
     async def _iter() -> asyncio.AsyncIterator[object]:
         yield response

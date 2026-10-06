@@ -18,6 +18,9 @@ from quilt_hp.models.enums import (
     HvacControllerType,
     HVACMode,
     HVACState,
+    IndoorUnitTestCoordination,
+    IndoorUnitTestMode,
+    IndoorUnitTestPhase,
     LedAnimation,
     LightState,
     LouverMode,
@@ -109,6 +112,9 @@ class IndoorUnitState:
     louver_angle_up_down_degrees: float = 0.0
     # proto field 1: timestamp of last state update (used for online detection)
     updated_at: datetime | None = None
+    test_mode: IndoorUnitTestMode = (
+        IndoorUnitTestMode.UNSPECIFIED
+    )  # see IndoorUnit.effective_test_mode
 
 
 @dataclass(slots=True)
@@ -147,6 +153,13 @@ class IndoorUnitPerformanceMetrics:
     energy_total_j: float = 0.0
     hvac_energy_j: float = 0.0
     led_energy_j: float = 0.0
+    odu_usage_fraction: float = 0.0
+    """Share of the outdoor unit attributed to this indoor unit (0.0–1.0).
+
+    Observed live in standby as an even split among the indoor units on one outdoor unit
+    (0.5 / 0.5 for two, 1.0 for one). Use it to apportion outdoor-unit energy per room.
+    0.0 means not reported (the proto3 default), as with the other metrics here.
+    """
 
 
 @dataclass(slots=True)
@@ -271,6 +284,39 @@ class IndoorUnitOccupancy:
     occupancy_state: int
 
 
+def _enum_or[E: (IndoorUnitTestMode, IndoorUnitTestCoordination, IndoorUnitTestPhase)](
+    cls: type[E], value: int, default: E
+) -> E:
+    try:
+        return cls(value)
+    except ValueError:
+        return default
+
+
+@dataclass(slots=True)
+class IndoorUnitClimate:
+    """Climate readings the indoor unit derives from its sensors (``IndoorUnit.climate_state``).
+
+    Updated every few seconds. Observed dew points are consistent with the unit's own
+    temperature and humidity (e.g. 25.9 °C at 54 % RH → 15.9 °C).
+    """
+
+    is_valid: bool
+    inlet_dew_point_c: float
+    calculated_ambient_temperature_c: float
+    updated_at: datetime | None = None
+
+
+@dataclass(slots=True)
+class IndoorUnitTestState:
+    """Commissioning / health-check progress (``IndoorUnit.test_state``)."""
+
+    test_mode: IndoorUnitTestMode
+    test_coordination: IndoorUnitTestCoordination
+    test_phase: IndoorUnitTestPhase
+    updated_at: datetime | None = None
+
+
 @dataclass(slots=True)
 class IndoorUnit:
     """A Quilt indoor unit (wall-mounted mini-split head)."""
@@ -295,6 +341,48 @@ class IndoorUnit:
     model_sku: str | None = None  # IndoorUnitHardware.attributes.model_sku
     serial_number: str | None = None  # IndoorUnitHardware.attributes.serial_number
     firmware_version: str | None = None  # IndoorUnitHardware.attributes.firmware_version
+    climate: IndoorUnitClimate | None = None
+    test_state: IndoorUnitTestState | None = None
+
+    @property
+    def dew_point_c(self) -> float | None:
+        """Dew point at the unit's air inlet, or None when unknown or flagged invalid."""
+        if self.climate is None or not self.climate.is_valid:
+            return None
+        return self.climate.inlet_dew_point_c
+
+    @property
+    def effective_test_mode(self) -> IndoorUnitTestMode:
+        """The unit's current test mode, from ``test_state`` or ``state``, whichever is newer.
+
+        The server reports the mode in both places, and a snapshot merged from sparse stream
+        diffs can hold an older copy of one of them, so the more recently updated source wins.
+        A source that reports UNSPECIFIED (absent) is ignored.
+        """
+        ts = self.test_state
+        ts_mode = ts.test_mode if ts is not None else IndoorUnitTestMode.UNSPECIFIED
+        st_mode = self.state.test_mode
+        if ts_mode == IndoorUnitTestMode.UNSPECIFIED:
+            return st_mode
+        if st_mode == IndoorUnitTestMode.UNSPECIFIED:
+            return ts_mode
+        ts_at = ts.updated_at if ts is not None else None
+        st_at = self.state.updated_at
+        if ts_at is not None and st_at is not None and st_at > ts_at:
+            return st_mode
+        return ts_mode
+
+    @property
+    def is_under_test(self) -> bool:
+        """True while the unit runs a health check, commissioning or another test.
+
+        During a test the unit's behaviour is driven by the test, not by the room's controls.
+        Uses ``effective_test_mode``, so it works when only ``state.test_mode`` is reported.
+        """
+        return self.effective_test_mode not in (
+            IndoorUnitTestMode.UNSPECIFIED,
+            IndoorUnitTestMode.INACTIVE,
+        )
 
     @classmethod
     def from_proto(cls, proto: object, hw_map: dict[str, object] | None = None) -> IndoorUnit:
@@ -402,6 +490,7 @@ def _idu_from_proto(proto: object, hw_map: dict[str, object] | None = None) -> I
             energy_total_j=pm.energy_total_j,
             hvac_energy_j=pm.hvac_energy_j,
             led_energy_j=pm.led_energy_j,
+            odu_usage_fraction=getattr(pm, "odu_usage_fraction", 0.0),
         )
 
     hvac_inputs = None
@@ -449,8 +538,8 @@ def _idu_from_proto(proto: object, hw_map: dict[str, object] | None = None) -> I
     if pres is not None:
         pres = cast("Any", pres)
         presence_state = IndoorUnitPresence(
-            sensor0_presence=Presence(pres.sensor0_presence),
-            sensor1_presence=Presence(pres.sensor1_presence),
+            sensor0_presence=Presence(pres.sensor_0_presence),
+            sensor1_presence=Presence(pres.sensor_1_presence),
         )
 
     occupancy_state = None
@@ -528,6 +617,9 @@ def _idu_from_proto(proto: object, hw_map: dict[str, object] | None = None) -> I
             outlet_temperature_c=s.outlet_temperature_c,
             calculated_ambient_temperature_c=s.calculated_ambient_temperature_c,
             louver_angle_up_down_degrees=s.louver_angle_up_down_degrees,
+            test_mode=_enum_or(
+                IndoorUnitTestMode, getattr(s, "test_mode", 0), IndoorUnitTestMode.UNSPECIFIED
+            ),
             updated_at=timestamp_or_none(getattr(s, "updated_ts", None)),
         )
     else:
@@ -539,6 +631,34 @@ def _idu_from_proto(proto: object, hw_map: dict[str, object] | None = None) -> I
             fan_speed_rpm=0.0,
             fan_speed_setpoint_rpm=0.0,
             presence_detection_level=0.0,
+        )
+
+    climate = None
+    cs = present_submsg(proto, "climate_state")
+    if cs is not None:
+        cs = cast("Any", cs)
+        climate = IndoorUnitClimate(
+            is_valid=bool(cs.is_valid),
+            inlet_dew_point_c=cs.inlet_dew_point_c,
+            calculated_ambient_temperature_c=cs.calculated_ambient_temperature_c,
+            updated_at=timestamp_or_none(getattr(cs, "updated_ts", None)),
+        )
+
+    test_state = None
+    ts = present_submsg(proto, "test_state")
+    if ts is not None:
+        ts = cast("Any", ts)
+        test_state = IndoorUnitTestState(
+            test_mode=_enum_or(IndoorUnitTestMode, ts.test_mode, IndoorUnitTestMode.UNSPECIFIED),
+            test_coordination=_enum_or(
+                IndoorUnitTestCoordination,
+                ts.test_coordination,
+                IndoorUnitTestCoordination.UNSPECIFIED,
+            ),
+            test_phase=_enum_or(
+                IndoorUnitTestPhase, ts.test_phase, IndoorUnitTestPhase.UNSPECIFIED
+            ),
+            updated_at=timestamp_or_none(getattr(ts, "updated_ts", None)),
         )
 
     rel = cast("Any", present_submsg(proto, "relationships"))
@@ -578,4 +698,6 @@ def _idu_from_proto(proto: object, hw_map: dict[str, object] | None = None) -> I
         model_sku=model_sku,
         serial_number=serial_number,
         firmware_version=firmware_version,
+        climate=climate,
+        test_state=test_state,
     )

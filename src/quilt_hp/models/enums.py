@@ -409,3 +409,80 @@ class FastUpdateReason(IntEnum):
 
     def __str__(self) -> str:
         return self.name
+
+
+class ControllerViewState(IntEnum):
+    """What the Dial's display is showing (``ControllerState.view_state``).
+
+    Observed live: SLEEP with ``screen_brightness`` 0.0 and GLANCE at 0.25–0.6.
+    """
+
+    UNSPECIFIED = 0
+    SLEEP = 1
+    """Display off."""
+    GLANCE = 2
+    """Dimmed at-a-glance view."""
+    ACTIVE = 3
+    """Display fully on."""
+    INTERACTING = 4
+    """Someone is turning or touching the Dial."""
+
+
+class ControllerOrientation(IntEnum):
+    """Physical orientation of the Dial from its accelerometer (``ControllerState.orientation``)."""
+
+    UNSPECIFIED = 0
+    INDETERMINATE = 1
+    VERTICAL = 2
+    """Wall-mounted."""
+    HORIZONTAL = 3
+    """Lying flat (e.g. on a desk)."""
+
+
+class NotificationType(IntEnum):
+    """Kind of change a NotifierStream event reports (``Notification.notification_type``)."""
+
+    UNSPECIFIED = 0
+    UPDATED = 1
+    DELETED = 2
+    CHILD_CREATED = 3
+    CHILD_DELETED = 4
+    CREATED = 5
+
+
+class IndoorUnitTestMode(IntEnum):
+    """Commissioning / health-check mode of an indoor unit (``IndoorUnit.test_state``).
+
+    INACTIVE in normal operation. While a unit is under test its behaviour (fan, mode,
+    setpoints) is driven by the test, not by the room's controls.
+    """
+
+    UNSPECIFIED = 0
+    INACTIVE = 1
+    HEALTH_CHECK = 2
+    REQUEST_TEST = 3
+    STANDBY = 4
+    COMMISSIONING = 5
+
+
+class IndoorUnitTestCoordination(IntEnum):
+    """How indoor units sharing an outdoor unit sequence their tests."""
+
+    UNSPECIFIED = 0
+    NONE = 1
+    REQUESTING = 2
+    STANDBY = 3
+    PARALLEL = 4
+    WAITING = 5
+    EXCLUSIVE = 6
+    DONE = 7
+
+
+class IndoorUnitTestPhase(IntEnum):
+    """Current phase of an indoor-unit test."""
+
+    UNSPECIFIED = 0
+    NONE = 1
+    SELF_TEST = 2
+    HEATING = 3
+    COOLING = 4

@@ -1,13 +1,13 @@
 // quilt_services.proto
-// gRPC app-service definitions.
+// gRPC app-service definitions (package core.protos.app).
 //
-// NOTE: SystemService lives in package core.protos.system and has been moved to
-// quilt_system.proto to match the wire path.
+// NOTE: SystemService lives in package core.protos.system — see quilt_system.proto.
 
 syntax = "proto3";
 
 package core.protos.app;
 
+import "google/protobuf/empty.proto";
 import "google/protobuf/field_mask.proto";
 import "google/protobuf/timestamp.proto";
 
@@ -25,7 +25,8 @@ enum AccessRoleToSystem {
   ACCESS_ROLE_TO_SYSTEM_MEMBER = 2;
 }
 
-// Confirmed via live captures.
+// iOS-app-only/UserAttributes model. Not found in the current app, but used
+// by iOS source and confirmed via live captures.
 enum DeclaredUserType {
   DECLARED_USER_TYPE_UNSPECIFIED = 0;
   DECLARED_USER_TYPE_HOMEOWNER = 1;
@@ -45,7 +46,7 @@ message UserAttributes {
 }
 
 // ---------------------------------------------------------------------------
-// User Service  (GRPCUserClientService)
+// User Service (GRPCUserClientService)
 // ---------------------------------------------------------------------------
 
 message GetLoggedInUserRequest {}
@@ -63,6 +64,11 @@ message UpdateLoggedInUserResponse {
 }
 
 message GetUserAttributesRequest {}
+// GetUserAttributes wraps UserAttributes (wire bytes 0a 02 08 01 in captures).
+// Earlier revisions returned UserAttributes directly, which mis-decodes the response.
+message GetUserAttributesResponse {
+  UserAttributes user_attributes = 1;
+}
 
 message PatchUserAttributesRequest {
   UserAttributes user_attributes = 1;
@@ -71,39 +77,42 @@ message PatchUserAttributesRequest {
 service UserService {
   rpc GetLoggedInUser(GetLoggedInUserRequest) returns (GetLoggedInUserResponse);
   rpc UpdateLoggedInUser(UpdateLoggedInUserRequest) returns (UpdateLoggedInUserResponse);
-  rpc GetUserAttributes(GetUserAttributesRequest) returns (UserAttributes);
+  rpc GetUserAttributes(GetUserAttributesRequest) returns (GetUserAttributesResponse);
   rpc PatchUserAttributes(PatchUserAttributesRequest) returns (UserAttributes);
 }
 
 // ---------------------------------------------------------------------------
-// System Information Service  (GRPCSystemInformationClientService)
+// System Information Service (GRPCSystemInformationClientService)
 // ---------------------------------------------------------------------------
 
-// Wire-confirmed: fields 1-3. Address field (4) confirmed via live captures.
-enum GeocodeSource {
-  GEOCODE_SOURCE_UNSPECIFIED = 0;
-  GEOCODE_SOURCE_GOOGLE_PLACES = 1;
+// Address: confirmed against the app in 1.0.31 and 1.0.33. Earlier revisions of this file used the
+// iOS app model, which had the wrong layout from field 8 on (double lat/long
+// geocode_source=10, geocode_override=11). Also embedded in PartnerOrganizationPublicProfile.
+enum GeocodeService {
+  GEOCODE_SERVICE_UNSPECIFIED = 0;
+  GEOCODE_SERVICE_GOOGLE_PLACES = 1;
 }
 
 message Address {
-  string address_line_1 = 1;
-  string address_line_2 = 2;
+  string address_line1 = 1;
+  string address_line2 = 2;
   string city = 3;
-  string region_code = 4;
+  string state_province_region = 4;
   string postal_code = 5;
   string country_code = 6;
   string formatted_address = 7;
-  double latitude = 8;
-  double longitude = 9;
-  GeocodeSource geocode_source = 10;
-  bool geocode_override = 11;
+  float latitude = 8;
+  float longitude = 9;
+  bool geocode_override = 10;
+  string raw_geocoded_response = 11;
+  GeocodeService geocode_source = 12;
 }
 
 message SystemInformation {
   string id = 1;
   string name = 2;
   string tz_identifier = 3;
-  Address address = 4;
+  Address address = 4;  // Confirmed against the app in 1.0.33
 }
 
 message ListSystemInformationRequest {}
@@ -115,9 +124,7 @@ message SetAddressRequest {
   string system_id = 1;
   Address address = 2;
 }
-message SetAddressResponse {
-  bool success = 1;
-}
+message SetAddressResponse {}  // empty in the app; earlier revisions had `bool success = 1`
 
 enum TimeResolution {
   TIME_RESOLUTION_UNSPECIFIED = 0;
@@ -153,19 +160,137 @@ message GetEnergyMetricsResponse {
   repeated SpaceEnergyMetrics space_energy_metrics = 1;
 }
 
+// ---------------------------------------------------------------------------
+// Partner designation + data sharing (new in 1.0.33)
+// Assigns a certified installer ("partner") to a home and manages the homeowner's
+// consent to share system data with them. SetSystemPartner is a compare-and-set:
+// the client sends the state it expects plus the state it wants; a stale `expected`
+// yields RESULT_PRECONDITION_MISMATCH. Message names are ours.
+// ---------------------------------------------------------------------------
+
+enum DataSharingSetting {  // gja (existed in 1.0.31)
+  DATA_SHARING_SETTING_UNSPECIFIED = 0;
+  DATA_SHARING_SETTING_ON = 1;
+  DATA_SHARING_SETTING_OFF = 2;
+}
+
+enum SystemDataSharingState {  // bla (existed in 1.0.31)
+  SYSTEM_DATA_SHARING_STATE_UNSPECIFIED = 0;
+  SYSTEM_DATA_SHARING_STATE_NO_PARTNER = 1;
+  SYSTEM_DATA_SHARING_STATE_PENDING = 2;
+  SYSTEM_DATA_SHARING_STATE_ACTIVE = 3;
+  SYSTEM_DATA_SHARING_STATE_DECLINED = 4;
+  SYSTEM_DATA_SHARING_STATE_CONSENT_REQUIRED = 5;
+}
+
+enum DesignationChange {  // jja
+  DESIGNATION_CHANGE_UNSPECIFIED = 0;
+  DESIGNATION_CHANGE_DESIGNATED = 1;
+  DESIGNATION_CHANGE_REPLACED = 2;
+  DESIGNATION_CHANGE_UNCHANGED = 3;
+}
+
+enum DataSharingChange {  // fja
+  DATA_SHARING_CHANGE_UNSPECIFIED = 0;
+  DATA_SHARING_CHANGE_ENABLED = 1;
+  DATA_SHARING_CHANGE_DISABLED = 2;
+}
+
+message PartnerOrganizationPublicProfile {
+  string partner_organization_id = 1;
+  string display_name = 2;
+  Address contact_address = 3;
+  string contact_phone_number = 4;
+  string contact_website_url = 5;
+  string contact_email_address = 6;
+}
+
+message DataSharingStatus {  // ija
+  SystemDataSharingState state = 1;
+  google.protobuf.Timestamp active_after = 2;
+}
+
+message SystemDataSharing {  // ala (fields 1-3 existed in 1.0.31)
+  PartnerDetails partner = 1;
+  DataSharingSetting setting = 2;
+  DataSharingStatus status = 3;
+  PartnerOrganizationPublicProfile partner_organization_public_profile = 4;  // new in 1.0.33
+}
+
+message DesiredPartnerDesignation {  // hka
+  string partner_slug = 1;
+  DataSharingSetting data_sharing_setting = 2;
+}
+
+message PartnerDesignationState {  // jka
+  string partner_organization_id = 1;
+  SystemDataSharingState data_sharing_state = 2;
+}
+
+message GetPartnerDesignationPlanRequest {  // sja — dry run of SetSystemPartner
+  string system_id = 1;
+  DesiredPartnerDesignation desired = 2;
+}
+message GetPartnerDesignationPlanResponse {  // uja
+  DesignationChange designation_change = 1;
+  DataSharingChange data_sharing_change = 2;
+  PartnerOrganizationPublicProfile proposed_partner = 3;
+  PartnerOrganizationPublicProfile current_partner = 4;
+  PartnerDesignationState expected_state = 5;  // pass back as SetSystemPartnerRequest.expected
+}
+
+message GetSystemDataSharingRequest {  // wja
+  string system_id = 1;
+}
+message SetSystemDataSharingRequest {  // pka
+  string system_id = 1;
+  string partner_organization_id = 2;
+  DataSharingSetting setting = 3;
+}
+
+message ListSystemCertifiedPartnersRequest {  // yja
+  string system_id = 1;
+}
+message ListSystemCertifiedPartnersResponse {  // aka
+  repeated PartnerOrganizationPublicProfile partners = 1;
+}
+
+message SetSystemPartnerRequest {  // rka
+  string system_id = 1;
+  PartnerDesignationState expected = 2;
+  DesiredPartnerDesignation desired = 3;
+}
+message SetSystemPartnerResponse {  // vka
+  enum Result {
+    RESULT_UNSPECIFIED = 0;
+    RESULT_APPLIED = 1;
+    RESULT_PRECONDITION_MISMATCH = 2;
+  }
+  Result result = 1;
+  DesignationChange designation_change = 2;
+  DataSharingChange data_sharing_change = 3;
+  SystemDataSharing data_sharing = 4;
+}
+
 service SystemInformationService {
   rpc ListSystems(ListSystemInformationRequest) returns (ListSystemInformationResponse);
   rpc SetAddress(SetAddressRequest) returns (SetAddressResponse);
   rpc GetEnergyMetrics(GetEnergyMetricsRequest) returns (GetEnergyMetricsResponse);
+  rpc GetPartnerDesignationPlan(GetPartnerDesignationPlanRequest) returns (GetPartnerDesignationPlanResponse);  // new in 1.0.33
+  rpc ListSystemCertifiedPartners(ListSystemCertifiedPartnersRequest) returns (ListSystemCertifiedPartnersResponse);  // new in 1.0.33
+  rpc SetSystemPartner(SetSystemPartnerRequest) returns (SetSystemPartnerResponse);  // new in 1.0.33
+  rpc GetSystemDataSharing(GetSystemDataSharingRequest) returns (SystemDataSharing);  // in app 1.0.31+; first documented here
+  rpc SetSystemDataSharing(SetSystemDataSharingRequest) returns (SystemDataSharing);
 }
 
 // ---------------------------------------------------------------------------
-// Invitation Service  (GRPCInvitationClientService)
+// Invitation Service (GRPCInvitationClientService)
 // ---------------------------------------------------------------------------
 
 message InviterInformation {
   string first_name = 1;
   string last_name = 2;
+  string email = 3;  // Confirmed against the app in 1.0.31 and 1.0.33
 }
 
 message Invitation {
@@ -174,6 +299,7 @@ message Invitation {
   InviterInformation invited_by = 3;
   string system_name = 4;
   AccessRoleToSystem access_role = 5;
+  string system_id = 6;  // server-only: sent by the server (ListSystemUsers, 2026-10-05) but absent from app 1.0.33
 }
 
 message ListPendingInvitationsRequest {}
@@ -186,8 +312,16 @@ message CreateInvitationRequest {
   string system_id = 2;
   AccessRoleToSystem access_role = 3;
 }
+enum CreateInvitationResult {  // new in 1.0.33
+  CREATE_INVITATION_RESULT_UNSPECIFIED = 0;
+  CREATE_INVITATION_RESULT_CREATED = 1;
+  CREATE_INVITATION_RESULT_ALREADY_INVITED = 2;
+  CREATE_INVITATION_RESULT_ALREADY_MEMBER = 3;
+}
+
 message CreateInvitationResponse {
   Invitation invitation = 1;
+  CreateInvitationResult result = 2;  // new in 1.0.33
 }
 
 message AcceptInvitationRequest {
@@ -220,8 +354,9 @@ service InvitationService {
 }
 
 // ---------------------------------------------------------------------------
-// Partner Service  (GRPCPartnerClientService)
-// Confirmed via live captures.
+// Partner Service (GRPCPartnerClientService)
+// All four RPCs are in the app stub registry (1.0.31, 1.0.33); message layouts
+// re-checked against app 1.0.33.
 // ---------------------------------------------------------------------------
 
 enum AfterInviteBehavior {
@@ -230,9 +365,11 @@ enum AfterInviteBehavior {
   AFTER_INVITE_BEHAVIOR_REMOVE_INSTALLER = 2;
 }
 
+// Also the direct response of JoinPartnerOrganization and SystemDataSharing.partner.
 message PartnerDetails {
-  string organization_id = 1;
-  string organization_name = 2;
+  string partner_organization_id = 1;  // was organization_id
+  string partner_organization_name = 2;  // was organization_name
+  string partner_tier = 3;
 }
 
 message InviteSystemOwnerRequest {
@@ -242,6 +379,7 @@ message InviteSystemOwnerRequest {
 }
 message InviteSystemOwnerResponse {
   Invitation invitation = 1;
+  CreateInvitationResult result = 2;  // app 1.0.33
 }
 
 message GetLoggedInUserPartnerDetailsRequest {}
@@ -252,24 +390,20 @@ message GetLoggedInUserPartnerDetailsResponse {
 message JoinPartnerOrganizationRequest {
   string partner_code = 1;
 }
-message JoinPartnerOrganizationResponse {
-  PartnerDetails partner_details = 1;
-}
 
 message LeavePartnerOrganizationRequest {
   string partner_organization_id = 1;
 }
-message LeavePartnerOrganizationResponse {}
 
 service PartnerService {
   rpc InviteSystemOwner(InviteSystemOwnerRequest) returns (InviteSystemOwnerResponse);
   rpc GetLoggedInUserPartnerDetails(GetLoggedInUserPartnerDetailsRequest) returns (GetLoggedInUserPartnerDetailsResponse);
-  rpc JoinPartnerOrganization(JoinPartnerOrganizationRequest) returns (JoinPartnerOrganizationResponse);
-  rpc LeavePartnerOrganization(LeavePartnerOrganizationRequest) returns (LeavePartnerOrganizationResponse);
+  rpc JoinPartnerOrganization(JoinPartnerOrganizationRequest) returns (PartnerDetails);  // unwrapped (app 1.0.33)
+  rpc LeavePartnerOrganization(LeavePartnerOrganizationRequest) returns (google.protobuf.Empty);
 }
 
 // ---------------------------------------------------------------------------
-// System User Service  (GRPCSystemUserClientService)
+// System User Service (GRPCSystemUserClientService)
 // ---------------------------------------------------------------------------
 
 message UserList {
@@ -324,7 +458,7 @@ service SystemUserService {
 }
 
 // ---------------------------------------------------------------------------
-// Mobile App Service  (GRPCMobileAppClientService)
+// Mobile App Service (GRPCMobileAppClientService)
 // ---------------------------------------------------------------------------
 
 message AuthorizeNewDeviceRequest {
@@ -333,6 +467,158 @@ message AuthorizeNewDeviceRequest {
 }
 message AuthorizeNewDeviceResponse {}
 
+// New in 1.0.33: creates a ducted zone bound to an air handling unit in one call
+// (Statsig gate mobile_ducted_pairing_enabled).
+message CreateAndConfigureDuctedZoneRequest {
+  string request_id = 1;  // client-generated idempotency key
+  string system_id = 2;
+  string name = 3;
+  string air_handling_unit_id = 4;
+}
+message CreateAndConfigureDuctedZoneResponse {
+  string ducted_zone_id = 1;
+  string air_handling_unit_id = 2;
+}
+
+// System/space creation used by onboarding.
+message CreateAndConfigureSystemRequest {
+  string request_id = 1;  // client-generated idempotency key
+  string name = 2;
+  string tz_identifier = 3;
+  Address address = 4;
+}
+message CreateAndConfigureSystemResponse {
+  string system_id = 1;
+}
+message CreateAndConfigureSpaceRequest {
+  string request_id = 1;
+  string system_id = 2;
+  string name = 3;
+  string ducted_zone_id = 4;  // optional: add the new space to a ducted zone
+}
+message CreateAndConfigureSpaceResponse {
+  string space_id = 1;
+}
+
 service MobileAppService {
   rpc AuthorizeNewDevice(AuthorizeNewDeviceRequest) returns (AuthorizeNewDeviceResponse);
+  rpc CreateAndConfigureSystem(CreateAndConfigureSystemRequest) returns (CreateAndConfigureSystemResponse);
+  rpc CreateAndConfigureSpace(CreateAndConfigureSpaceRequest) returns (CreateAndConfigureSpaceResponse);
+  rpc CreateAndConfigureDuctedZone(CreateAndConfigureDuctedZoneRequest) returns (CreateAndConfigureDuctedZoneResponse);  // new in 1.0.33
+}
+
+// ---------------------------------------------------------------------------
+// Diagnostic Service — installer diagnostics. Present in the app's stub registry but never
+// called by consumer code; results are not returned to the client (see README).
+// ---------------------------------------------------------------------------
+
+enum DiagnosticType {  // (new in 1.0.33)
+  DIAGNOSTIC_TYPE_UNSPECIFIED = 0;
+  DIAGNOSTIC_TYPE_INDOOR_UNIT = 1;
+  DIAGNOSTIC_TYPE_OUTDOOR_UNIT = 2;
+}
+
+message StartDiagnosticRunRequest {
+  string system_id = 1;
+  string target_serial_number = 2;
+  DiagnosticType diagnostic_type = 3;  // new in 1.0.33
+}
+message StartDiagnosticRunResponse {}
+
+message CancelDiagnosticRunRequest {
+  string system_id = 1;
+  string target_serial_number = 2;
+  DiagnosticType diagnostic_type = 3;  // new in 1.0.33
+}
+message CancelDiagnosticRunResponse {}
+
+service DiagnosticService {
+  rpc StartDiagnosticRun(StartDiagnosticRunRequest) returns (StartDiagnosticRunResponse);
+  rpc CancelDiagnosticRun(CancelDiagnosticRunRequest) returns (CancelDiagnosticRunResponse);
+}
+
+// ---------------------------------------------------------------------------
+// User Task Service — onboarding task list + client telemetry. Named
+// UserActionsAppService in 1.0.31; renamed in 1.0.33 with the same methods.
+// ---------------------------------------------------------------------------
+
+enum UserTaskKind {  // neb
+  USER_TASK_KIND_UNSPECIFIED = 0;
+  USER_TASK_KIND_DATA_SHARING_CONSENT_BANNER = 1;
+}
+
+message DataSharingConsentBannerTask {  // sdb
+  string system_id = 1;
+  string system_designated_partner_organization_id = 2;
+}
+
+message UserTask {  // meb
+  oneof task {
+    DataSharingConsentBannerTask data_sharing_consent_banner = 1;
+  }
+}
+
+message ListUserTasksRequest {  // ceb
+  repeated UserTaskKind task_kinds = 1;
+  string system_id = 2;
+}
+message ListUserTasksResponse {  // eeb
+  repeated UserTask user_tasks = 1;
+}
+
+message DataSharingConsentBannerDismissed {
+  string system_id = 1;
+  string system_designated_partner_organization_id = 2;
+}
+
+message UserAction {
+  oneof action {
+    DataSharingConsentBannerDismissed data_sharing_consent_banner_dismissed = 1;
+  }
+}
+
+message CaptureUserActionRequest {  // odb
+  UserAction payload = 1;
+}
+message CaptureUserActionResponse {}  // qdb
+
+service UserTaskService {
+  rpc CaptureUserAction(CaptureUserActionRequest) returns (CaptureUserActionResponse);
+  rpc ListUserTasks(ListUserTasksRequest) returns (ListUserTasksResponse);
+}
+
+// ---------------------------------------------------------------------------
+// User Feedback Service — in-app "shake to send feedback" (app 1.0.33; not documented before).
+// ---------------------------------------------------------------------------
+
+message FeedbackAppInfo {  // f27
+  string version_name = 1;
+  string build_id = 2;
+}
+
+message FeedbackDeviceInfo {
+  enum Platform {
+    PLATFORM_UNSPECIFIED = 0;
+    PLATFORM_IOS = 1;
+    PLATFORM_ANDROID = 2;
+  }
+  Platform platform = 1;
+  string os_version = 2;
+  string model = 3;
+}
+
+message FeedbackClientContext {  // pcb
+  FeedbackAppInfo app = 1;
+  FeedbackDeviceInfo device = 2;
+  string selected_system_id = 3;
+}
+
+message SubmitUserFeedbackRequest {  // rcb
+  string feedback_text = 1;
+  FeedbackClientContext client_context = 2;
+}
+message SubmitUserFeedbackResponse {}  // tcb
+
+service UserFeedbackService {
+  rpc SubmitUserFeedback(SubmitUserFeedbackRequest) returns (SubmitUserFeedbackResponse);
 }

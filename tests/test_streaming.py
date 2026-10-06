@@ -3,16 +3,19 @@
 from __future__ import annotations
 
 import asyncio
+from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import grpc
 import pytest
+from google.protobuf import any_pb2
 
+from quilt_hp._proto import quilt_hds_pb2 as hds
+from quilt_hp._proto import quilt_notifier_pb2 as notifier
+from quilt_hp.models import ControllerViewState, NotificationType
 from quilt_hp.services.streaming import (
     NotifierStream,
     _dispatch,
-    _get_len_field,
-    _parse_varint,
 )
 from quilt_hp.tokens import TokenRefreshContext, TokenRefreshReason
 from quilt_hp.tokens import invoke_refresh_callback as _invoke_refresh_callback
@@ -32,31 +35,9 @@ class _FakeRpcError(grpc.aio.AioRpcError):
         return self._details
 
 
-def test_parse_varint_single_byte() -> None:
-    val, pos = _parse_varint(b"\x08", 0)
-    assert val == 8
-    assert pos == 1
-
-
-def test_parse_varint_multi_byte() -> None:
-    val, pos = _parse_varint(b"\xac\x02", 0)
-    assert val == 300
-    assert pos == 2
-
-
-def test_get_len_field_present() -> None:
-    data = b"\x0a\x05hello"
-    assert _get_len_field(data, 1) == b"hello"
-
-
-def test_get_len_field_absent() -> None:
-    data = b"\x0a\x05hello"
-    assert _get_len_field(data, 2) is None
-
-
-def test_get_len_field_skip_varint() -> None:
-    data = b"\x08\x2a\x12\x02ok"
-    assert _get_len_field(data, 2) == b"ok"
+def _notifier_event(topic: str, note: hds.Notification | None = None) -> notifier.NotifierEvent:
+    payload = any_pb2.Any(value=note.SerializeToString()) if note is not None else None
+    return notifier.NotifierEvent(topic=topic, payload=payload)
 
 
 # ─── _dispatch ───────────────────────────────────────────────────────────────
@@ -124,21 +105,78 @@ def test_error_property_initially_none() -> None:
 # ─── event parsing ───────────────────────────────────────────────────────────
 
 
-def test_parse_event_empty_topic_is_heartbeat() -> None:
+def test_parse_event_empty_topic_is_ignored() -> None:
     stream = _make_stream()
-    evt = MagicMock()
-    evt.topic = b""
-    assert stream._parse_event(evt) is None
+    assert stream._parse_event(notifier.NotifierEvent()) is None
 
 
-def test_parse_event_nonempty_topic_returns_event() -> None:
+def test_parse_event_topic_without_payload_returns_bare_event() -> None:
     stream = _make_stream()
-    evt = MagicMock()
-    # field 1 (type_url string), tag = (1<<3)|2 = 0x0A, length = 4
-    evt.topic = b"\x0a\x04test"
-    result = stream._parse_event(evt)
+    result = stream._parse_event(_notifier_event("hds/space/space-1"))
     assert result is not None
-    assert result.topic == "test"
+    assert result.topic == "hds/space/space-1"
+    assert result.space is None and result.raw_bytes is None
+
+
+def test_parse_event_decodes_space_diff() -> None:
+    stream = _make_stream()
+    space = hds.Space(header=hds.EntityMetadata(object_id="space-1"))
+    space.state.ambient_temperature_c = 21.5
+    note = hds.Notification(
+        notification_type=hds.NOTIFICATION_TYPE_UPDATED,
+        payload=hds.HomeDatastoreObjectDiff(space=space),
+    )
+    result = stream._parse_event(_notifier_event("hds/space/space-1", note))
+    assert result is not None
+    assert result.space is not None
+    assert result.space.id == "space-1"
+    assert result.space.state.ambient_temperature_c == pytest.approx(21.5)
+
+
+def test_parse_event_decodes_controller_diff() -> None:
+    stream = _make_stream()
+    ctrl = hds.Controller(header=hds.EntityMetadata(object_id="dial-1"))
+    ctrl.state.calculated_ambient_temperature_c = 20.0
+    note = hds.Notification(payload=hds.HomeDatastoreObjectDiff(controller=ctrl))
+    result = stream._parse_event(_notifier_event("hds/controller/dial-1", note))
+    assert result is not None
+    assert result.controller is not None
+    assert result.controller.calibrated_ambient_c == pytest.approx(20.0)
+
+
+def test_parse_event_unmodelled_entity_keeps_raw_bytes() -> None:
+    stream = _make_stream()
+    note = hds.Notification(
+        payload=hds.HomeDatastoreObjectDiff(automation=hds.Automation()),
+    )
+    result = stream._parse_event(_notifier_event("hds/automation/a-1", note))
+    assert result is not None
+    assert result.raw_bytes == note.SerializeToString()
+
+
+def test_parses_real_server_frame() -> None:
+    """Decode a SubscribeResponse captured from the live notifier stream (2026-10-05).
+
+    The frame is the raw gRPC message for a Dial UPDATED notification. Every string in it
+    (ids, name, Wi-Fi details) was replaced by a same-length placeholder, so the wire
+    layout is exactly what the server sent.
+    """
+    raw = (Path(__file__).parent / "fixtures" / "subscribe_response_controller.bin").read_bytes()
+    resp = notifier.SubscribeResponse.FromString(raw)
+    assert len(resp.event.notifier_events) == 1
+    evt = resp.event.notifier_events[0]
+    assert evt.payload.type_url == "type.googleapis.com/core.protos.home_datastore.Notification"
+
+    parsed = _make_stream()._parse_event(evt)
+
+    assert parsed is not None
+    assert parsed.topic == "hds/controller/00000000-0000-4000-8000-000000000001"
+    assert parsed.notification_type is NotificationType.UPDATED
+    assert parsed.controller is not None
+    assert parsed.controller.id == "00000000-0000-4000-8000-000000000001"
+    assert parsed.controller.view_state is ControllerViewState.GLANCE
+    assert parsed.controller.screen_brightness == pytest.approx(0.5)
+    assert parsed.controller.state_updated_at is not None
 
 
 # ─── subscribe / unsubscribe ─────────────────────────────────────────────────
@@ -331,3 +369,134 @@ async def test_stream_refresh_callback_receives_context() -> None:
     )
     await _invoke_refresh_callback(_with_context, context)
     assert captured == [context]
+
+
+# ─── deletions ───────────────────────────────────────────────────────────────
+
+
+def _space_note(notification_type: int, space_id: str = "space-1") -> hds.Notification:
+    space = hds.Space(header=hds.EntityMetadata(object_id=space_id))
+    return hds.Notification(
+        notification_type=notification_type,  # type: ignore[arg-type]
+        payload=hds.HomeDatastoreObjectDiff(space=space),
+        system_version=42,
+    )
+
+
+def test_parse_event_records_notification_type_and_system_version() -> None:
+    from quilt_hp.models import NotificationType
+
+    stream = _make_stream()
+    parsed = stream._parse_event(
+        _notifier_event("hds/space/space-1", _space_note(hds.NOTIFICATION_TYPE_DELETED))
+    )
+    assert parsed is not None
+    assert parsed.notification_type is NotificationType.DELETED
+    assert parsed.system_version == 42
+
+
+@pytest.mark.asyncio
+async def test_deleted_event_goes_to_delete_callbacks_not_updates() -> None:
+    stream = _make_stream()
+    updates: list[object] = []
+    deletes: list[tuple[str, str]] = []
+    stream.on_space_update(updates.append)
+    stream.on_delete(lambda kind, entity_id: deletes.append((kind, entity_id)))
+
+    parsed = stream._parse_event(
+        _notifier_event("hds/space/space-1", _space_note(hds.NOTIFICATION_TYPE_DELETED))
+    )
+    assert parsed is not None
+    await stream._dispatch_parsed_event(parsed)
+
+    assert deletes == [("space", "space-1")]
+    assert updates == []
+
+
+@pytest.mark.asyncio
+async def test_delete_cancels_pending_debounced_update() -> None:
+    with patch("quilt_hp.services.streaming.notifier_grpc.NotifierServiceStub"):
+        stream = NotifierStream.create(MagicMock(), ["hds/space/space-1"], debounce_s=0.05)
+    updates: list[object] = []
+    stream.on_space_update(updates.append)
+
+    for kind in (hds.NOTIFICATION_TYPE_UPDATED, hds.NOTIFICATION_TYPE_DELETED):
+        parsed = stream._parse_event(_notifier_event("hds/space/space-1", _space_note(kind)))
+        assert parsed is not None
+        await stream._dispatch_parsed_event(parsed)
+    await asyncio.sleep(0.1)
+
+    assert updates == []
+
+
+def test_snapshot_remove_drops_object() -> None:
+    from quilt_hp.models import SystemSnapshot
+
+    system = hds.HomeDatastoreSystem()
+    system.spaces.add().header.object_id = "space-1"
+    system.spaces.add().header.object_id = "space-2"
+    snap = SystemSnapshot.from_proto(system)
+
+    assert snap.remove("space", "space-1") is True
+    assert [s.id for s in snap.spaces] == ["space-2"]
+    assert snap.remove("space", "space-1") is False
+    with pytest.raises(ValueError, match="unknown entity kind"):
+        snap.remove("gizmo", "x")
+
+
+@pytest.mark.asyncio
+async def test_child_deleted_goes_to_delete_callbacks() -> None:
+    """CHILD_DELETED arrives on the parent's topic and carries the deleted child."""
+    stream = _make_stream()
+    updates: list[object] = []
+    deletes: list[tuple[str, str]] = []
+    stream.on_indoor_unit_update(updates.append)
+    stream.on_delete(lambda kind, entity_id: deletes.append((kind, entity_id)))
+    note = hds.Notification(
+        notification_type=hds.NOTIFICATION_TYPE_CHILD_DELETED,
+        payload=hds.HomeDatastoreObjectDiff(
+            indoor_unit=hds.IndoorUnit(header=hds.EntityMetadata(object_id="idu-1"))
+        ),
+    )
+
+    parsed = stream._parse_event(_notifier_event("hds/space/space-1", note))
+    assert parsed is not None
+    await stream._dispatch_parsed_event(parsed)
+
+    assert deletes == [("indoor_unit", "idu-1")]
+    assert updates == []
+
+
+@pytest.mark.asyncio
+async def test_in_flight_update_cannot_resurrect_deleted_object() -> None:
+    """An async update callback that awaits before applying must not re-add a deleted object."""
+    from quilt_hp.models import SystemSnapshot
+
+    system = hds.HomeDatastoreSystem()
+    space = system.spaces.add()
+    space.header.object_id = "space-1"
+    space.settings.name = "Den"
+    snap = SystemSnapshot.from_proto(system)
+    with patch("quilt_hp.services.streaming.notifier_grpc.NotifierServiceStub"):
+        stream = NotifierStream.create(MagicMock(), ["hds/space/space-1"], debounce_s=0.01)
+
+    async def on_update(updated: object) -> None:
+        await asyncio.sleep(0.03)  # e.g. awaiting I/O before merging
+        snap.apply_space(updated)  # type: ignore[arg-type]
+
+    stream.on_space_update(on_update)
+    stream.on_delete(snap.remove)
+    update = stream._parse_event(
+        _notifier_event("hds/space/space-1", _space_note(hds.NOTIFICATION_TYPE_UPDATED))
+    )
+    delete = stream._parse_event(
+        _notifier_event("hds/space/space-1", _space_note(hds.NOTIFICATION_TYPE_DELETED))
+    )
+    assert update is not None and delete is not None
+
+    await stream._dispatch_parsed_event(update)
+    await asyncio.sleep(0.02)  # debounce fired; the update callback is mid-await
+    await stream._dispatch_parsed_event(delete)
+    await asyncio.sleep(0.05)
+
+    assert snap.spaces == []

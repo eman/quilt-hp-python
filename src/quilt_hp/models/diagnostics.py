@@ -14,7 +14,7 @@ not, over the cloud) alongside the ODU's coarse ``hvac_state``.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -46,6 +46,14 @@ class IndoorUnitDiagnostics:
     inlet_humidity_pct: float | None
     # Power (from IndoorUnit.performance_metrics); None if absent.
     hvac_power_w: float | None
+    #: Dew point at the air inlet (``IndoorUnit.dew_point_c``); None if unknown.
+    inlet_dew_point_c: float | None = None
+    #: Share of the outdoor unit attributed to this indoor unit; None if absent or 0.
+    odu_usage_fraction: float | None = None
+    #: True while the unit runs a health check / commissioning test.
+    under_test: bool = False
+    #: Test mode / coordination / phase names when ``under_test``; empty otherwise.
+    test: dict[str, str] = field(default_factory=dict)
 
     @classmethod
     def from_indoor_unit(cls, idu: IndoorUnit, space_name: str = "") -> IndoorUnitDiagnostics:
@@ -69,6 +77,25 @@ class IndoorUnitDiagnostics:
             outlet_temperature_c=pd.outlet_temperature_c if pd is not None else None,
             inlet_humidity_pct=pd.inlet_humidity_pct if pd is not None else None,
             hvac_power_w=pm.hvac_power_w if pm is not None else None,
+            inlet_dew_point_c=idu.dew_point_c,
+            # 0.0 is the proto3 default: the server did not report a share.
+            odu_usage_fraction=(pm.odu_usage_fraction or None) if pm is not None else None,
+            under_test=idu.is_under_test,
+            test=(
+                {
+                    "mode": idu.effective_test_mode.name,
+                    **(
+                        {
+                            "coordination": idu.test_state.test_coordination.name,
+                            "phase": idu.test_state.test_phase.name,
+                        }
+                        if idu.test_state is not None
+                        else {}
+                    ),
+                }
+                if idu.is_under_test
+                else {}
+            ),
         )
 
 
