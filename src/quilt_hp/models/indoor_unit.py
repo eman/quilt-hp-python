@@ -10,8 +10,9 @@ from quilt_hp.const import (
     ABSENT_FAN_SPEED_MODE_SENTINEL,
     LOUVER_FIXED_POSITION_SENTINEL,
 )
-from quilt_hp.models._helpers import lookup_hardware, present_submsg, timestamp_or_none
+from quilt_hp.models._helpers import enum_or, lookup_hardware, present_submsg, timestamp_or_none
 from quilt_hp.models.enums import (
+    AmbientTemperatureSource,
     ConditionState,
     FallbackControlCommand,
     FanSpeed,
@@ -167,7 +168,8 @@ class IndoorUnitHvacInputs:
     """HVAC controller inputs — what the controller sends to the IDU."""
 
     external_ambient_temperature_c: float
-    ambient_temperature_source: int
+    ambient_temperature_source: AmbientTemperatureSource
+    """Which reading drives the unit: its own sensor (DEFAULT) or the Dial's (CONTROL)."""
     temperature_setpoint_c: float
     hvac_mode: HVACMode
     hvac_state: HVACState
@@ -282,15 +284,6 @@ class IndoorUnitOccupancy:
     """
 
     occupancy_state: int
-
-
-def _enum_or[E: (IndoorUnitTestMode, IndoorUnitTestCoordination, IndoorUnitTestPhase)](
-    cls: type[E], value: int, default: E
-) -> E:
-    try:
-        return cls(value)
-    except ValueError:
-        return default
 
 
 @dataclass(slots=True)
@@ -499,7 +492,11 @@ def _idu_from_proto(proto: object, hw_map: dict[str, object] | None = None) -> I
         hi = cast("Any", hi)
         hvac_inputs = IndoorUnitHvacInputs(
             external_ambient_temperature_c=hi.external_ambient_temperature_c,
-            ambient_temperature_source=hi.ambient_temperature_source,
+            ambient_temperature_source=enum_or(
+                AmbientTemperatureSource,
+                hi.ambient_temperature_source,
+                AmbientTemperatureSource.UNSPECIFIED,
+            ),
             temperature_setpoint_c=hi.temperature_setpoint_c,
             hvac_mode=HVACMode(hi.hvac_mode),
             hvac_state=HVACState(hi.hvac_state),
@@ -617,7 +614,7 @@ def _idu_from_proto(proto: object, hw_map: dict[str, object] | None = None) -> I
             outlet_temperature_c=s.outlet_temperature_c,
             calculated_ambient_temperature_c=s.calculated_ambient_temperature_c,
             louver_angle_up_down_degrees=s.louver_angle_up_down_degrees,
-            test_mode=_enum_or(
+            test_mode=enum_or(
                 IndoorUnitTestMode, getattr(s, "test_mode", 0), IndoorUnitTestMode.UNSPECIFIED
             ),
             updated_at=timestamp_or_none(getattr(s, "updated_ts", None)),
@@ -649,13 +646,13 @@ def _idu_from_proto(proto: object, hw_map: dict[str, object] | None = None) -> I
     if ts is not None:
         ts = cast("Any", ts)
         test_state = IndoorUnitTestState(
-            test_mode=_enum_or(IndoorUnitTestMode, ts.test_mode, IndoorUnitTestMode.UNSPECIFIED),
-            test_coordination=_enum_or(
+            test_mode=enum_or(IndoorUnitTestMode, ts.test_mode, IndoorUnitTestMode.UNSPECIFIED),
+            test_coordination=enum_or(
                 IndoorUnitTestCoordination,
                 ts.test_coordination,
                 IndoorUnitTestCoordination.UNSPECIFIED,
             ),
-            test_phase=_enum_or(
+            test_phase=enum_or(
                 IndoorUnitTestPhase, ts.test_phase, IndoorUnitTestPhase.UNSPECIFIED
             ),
             updated_at=timestamp_or_none(getattr(ts, "updated_ts", None)),

@@ -1412,7 +1412,7 @@ def test_system_snapshot_resolves_indoor_unit_hardware() -> None:
                 header=_make_header("hw-1"),
                 attributes=_ns(
                     model_sku="IDU-SKU-1",
-                    serial_number="QS1-0HIST0002",
+                    serial_number="QS1-0TEST0101",
                     firmware_version="43",
                 ),
             )
@@ -1431,14 +1431,14 @@ def test_system_snapshot_resolves_indoor_unit_hardware() -> None:
 
     snap = SystemSnapshot.from_proto(proto)
     assert snap.indoor_units[0].model_sku == "IDU-SKU-1"
-    assert snap.indoor_units[0].serial_number == "QS1-0HIST0002"
+    assert snap.indoor_units[0].serial_number == "QS1-0TEST0101"
     assert snap.indoor_units[0].firmware_version == "43"
 
     # A sparse stream diff (no hw_map) must not erase the resolved hardware info.
     diff = IndoorUnit.from_proto(_make_idu_proto("idu-1"))
     assert diff.serial_number is None
     merged = snap.apply_indoor_unit(diff)
-    assert merged.serial_number == "QS1-0HIST0002"
+    assert merged.serial_number == "QS1-0TEST0101"
     assert merged.firmware_version == "43"
     assert merged.model_sku == "IDU-SKU-1"
 
@@ -1455,7 +1455,7 @@ def test_apply_indoor_unit_preserves_hardware_fields_independently() -> None:
                 header=_make_header("hw-1"),
                 attributes=_ns(
                     model_sku="",  # real IDUs report "N/A"/empty → resolves to None
-                    serial_number="QS1-0HIST0001",
+                    serial_number="QS1-0TEST0102",
                     firmware_version="43",
                 ),
             )
@@ -1474,13 +1474,13 @@ def test_apply_indoor_unit_preserves_hardware_fields_independently() -> None:
 
     snap = SystemSnapshot.from_proto(proto)
     assert snap.indoor_units[0].model_sku is None
-    assert snap.indoor_units[0].serial_number == "QS1-0HIST0001"
+    assert snap.indoor_units[0].serial_number == "QS1-0TEST0102"
 
     # A sparse stream diff must not erase serial/firmware just because the
     # snapshot's model_sku was absent.
     diff = IndoorUnit.from_proto(_make_idu_proto("idu-1"))
     merged = snap.apply_indoor_unit(diff)
-    assert merged.serial_number == "QS1-0HIST0001"
+    assert merged.serial_number == "QS1-0TEST0102"
     assert merged.firmware_version == "43"
     assert merged.model_sku is None
 

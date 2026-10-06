@@ -7,6 +7,7 @@ import datetime
 import logging
 from typing import TYPE_CHECKING, ClassVar
 
+from rich.text import Text
 from textual import on, work
 from textual.binding import Binding
 from textual.containers import (
@@ -49,12 +50,14 @@ from quilt_hp.cli.tui.format import (
     _led_color_str,
     _sku_or_none,
     _tc,
+    hourly_chart,
 )
 from quilt_hp.cli.tui.shared import _odu_for_space, _set_schedule_paused
 from quilt_hp.cli.tui.widgets import _KVStatic
 from quilt_hp.client import QuiltClient
 from quilt_hp.models.controller import Controller
 from quilt_hp.models.enums import (
+    AmbientTemperatureSource,
     FanSpeed,
     HVACMode,
     HVACState,
@@ -62,13 +65,13 @@ from quilt_hp.models.enums import (
     LouverMode,
     OccupancyMode,
     OccupancyState,
+    SafetyHeatingMode,
 )
 from quilt_hp.models.indoor_unit import IndoorUnit
 from quilt_hp.models.outdoor_unit import OutdoorUnit
 from quilt_hp.models.qsm import QuiltSmartModule, WifiInfo
 
 if TYPE_CHECKING:
-    from rich.text import Text
     from textual.app import ComposeResult
 
     from quilt_hp.models.comfort import ComfortSetting
@@ -79,6 +82,55 @@ if TYPE_CHECKING:
 
 
 logger = logging.getLogger(__name__)
+
+
+# Labels for rows whose data branch may not run (no Dial / no outdoor-unit data).
+_SAFETY_HEATING_LABELS = {
+    SafetyHeatingMode.UNSPECIFIED: "On (default)",
+    SafetyHeatingMode.ENABLED: "On",
+    SafetyHeatingMode.DISABLED: "Off",
+}
+_AMBIENT_SOURCE_LABELS = {
+    AmbientTemperatureSource.DEFAULT: "Indoor unit sensor",
+    AmbientTemperatureSource.CONTROL: "Dial",
+    AmbientTemperatureSource.UNSPECIFIED: "--",
+}
+
+_FALLBACK_LABELS: dict[str, str] = {
+    "dial-model": "Model",
+    "dial-serial": "Serial",
+    "dial-fw": "Firmware",
+    "dial-ambient": "Ambient",
+    "dial-calib": "Raw Thermistor",
+    "dial-pcb": "Encoder / SoC",
+    "dial-boards": "Main / Power Board",
+    "dial-humidity": "Humidity",
+    "dial-display": "Display",
+    "dial-radar": "Radar Presence",
+    "dial-light": "Ambient Light",
+    "dial-power": "Power Draw",
+    "dial-wifi": "WiFi",
+    "dial-wifi-ip": "  IP",
+    "dial-wifi-last": "  Last Seen",
+    "dial-wifi-ap": "WiFi (AP)",
+    "dial-wifi-p2p": "WiFi (P2P)",
+    "dial-remote-sensor": "Zone Sensor",
+    "dial-crs-temp": "  Zone Temp",
+    "dial-crs-humidity": "  Zone Humidity",
+    "dial-crs-battery": "  Battery",
+    "dial-crs-signal": "  Signal",
+    "dial-local-comms": "Local Control",
+    "p-odu-freq": "Compressor Freq",
+    "p-odu-coil": "ODU Coil Temp",
+    "p-odu-exhaust": "Exhaust Temp",
+    "p-odu-hi": "High Pressure",
+    "p-odu-lo": "Low Pressure",
+    "p-odu-ambient": "ODU Ambient",
+    "p-odu-state": "ODU State",
+    "p-odu-model": "Model",
+    "p-odu-serial": "Serial",
+    "p-odu-fw": "Firmware",
+}
 
 
 class RoomScreen(Screen[None]):
@@ -397,7 +449,9 @@ class RoomScreen(Screen[None]):
                 None,
             )
             if cs:
-                preset_name = f"{cs.name} ({cs.type.name})"
+                preset_name = cs.name
+                if cs.name.casefold() != cs.type.name.replace("_", " ").casefold():
+                    preset_name += f" ({cs.type.name.replace('_', ' ').title()})"
 
         if space.is_away:
             mode_label, mode_style = "AWAY", "yellow dim"
@@ -512,7 +566,7 @@ class RoomScreen(Screen[None]):
         self._kv(
             "ctl-safety",
             "Safety Heating",
-            sets.safety_heating.name.capitalize(),
+            _SAFETY_HEATING_LABELS.get(sets.safety_heating, sets.safety_heating.name.title()),
         )
 
         # Auto-away / auto-return timeouts (editable with [ ] { })
@@ -762,12 +816,15 @@ class RoomScreen(Screen[None]):
             )
             disp, disp_style = _fmt_display(ctrl)
             self._kv("dial-display", "Display", disp, disp_style)
-            radar, radar_style = _fmt_detected(ctrl.presence_detected)
+            live = ctrl.is_online  # an offline Dial's last readings are not current
+            radar, radar_style = _fmt_detected(ctrl.presence_detected if live else None)
             self._kv("dial-radar", "Radar Presence", radar, radar_style)
             self._kv(
                 "dial-light",
                 "Ambient Light",
-                f"{ctrl.ambient_light_lux:.0f} lx" if ctrl.ambient_light_lux is not None else "--",
+                f"{ctrl.ambient_light_lux:.0f} lx"
+                if live and ctrl.ambient_light_lux is not None
+                else "--",
             )
             self._kv(
                 "dial-power",
@@ -863,11 +920,7 @@ class RoomScreen(Screen[None]):
                 "dial-crs-signal",
                 "dial-local-comms",
             ):
-                self._kv(
-                    nid,
-                    nid.replace("dial-", "").replace("-", " ").title(),
-                    "--",
-                )
+                self._kv_empty(nid, "--")
 
         # QSM / Smart Module
         qsm = self._qsm
@@ -1062,7 +1115,9 @@ class RoomScreen(Screen[None]):
             self._kv(
                 "p-hi-source",
                 "Ambient Source",
-                str(hi.ambient_temperature_source),
+                _AMBIENT_SOURCE_LABELS.get(
+                    hi.ambient_temperature_source, hi.ambient_temperature_source.name.title()
+                ),
             )
             ctrl_type = hi.hvac_controller_type
             ctrl_type_short = (
@@ -1184,7 +1239,7 @@ class RoomScreen(Screen[None]):
                     "p-odu-lo",
                     "p-odu-ambient",
                 ):
-                    self._kv(nid, nid, "no data")
+                    self._kv_empty(nid, "no data")
         else:
             for nid in (
                 "p-odu-state",
@@ -1198,7 +1253,7 @@ class RoomScreen(Screen[None]):
                 "p-odu-serial",
                 "p-odu-fw",
             ):
-                self._kv(nid, nid, "no ODU")
+                self._kv_empty(nid, "no outdoor unit")
 
         # IDU Commands (fallback control on connectivity loss)
         if idu and idu.commands:
@@ -1290,8 +1345,8 @@ class RoomScreen(Screen[None]):
             ev_mode = _HM(ev.hvac_mode) if ev.hvac_mode else _HM.UNSPECIFIED
             preset_name = ""
             fan_str = "--"
-            heat = ev.heating_setpoint_c
-            cool = ev.cooling_setpoint_c
+            heat: float | None = ev.heating_setpoint_c
+            cool: float | None = ev.cooling_setpoint_c
 
             if ev.comfort_setting_id:
                 cs = cs_by_id.get(ev.comfort_setting_id)
@@ -1311,6 +1366,14 @@ class RoomScreen(Screen[None]):
                         fan_str = f"{fan_str} / {louver}"
 
             mode_str = ev_mode.name.replace("HVAC_MODE_", "").replace("_", " ").title()
+            # Only show the setpoints the mode uses; Standby and Fan events carry the system's
+            # limits (e.g. 8 °C / 40 °C), which are not settings anyone chose.
+            if ev_mode in (_HM.STANDBY, _HM.FAN, _HM.UNSPECIFIED):
+                heat = cool = None
+            elif ev_mode in (_HM.COOL, _HM.DRY):
+                heat = None
+            elif ev_mode == _HM.HEAT:
+                cool = None
             day_table.add_row(
                 ev.start_time or "--",
                 mode_str,
@@ -1416,23 +1479,15 @@ class RoomScreen(Screen[None]):
         # Sparkline — today so far, 24 fixed hourly slots (00–23 local time)
         cutoff = now - datetime.timedelta(hours=24)
         today_hours = by_date.get(today, [])
-        blocks = " ▁▂▃▄▅▆▇█"
+        spark: Text
         if today_hours:
-            max_kwh = max(kwh for _, kwh, _ in today_hours) or 1.0
-            hour_map = {bt.hour: kwh for bt, kwh, _ in today_hours}
-            bar_chars = []
-            for h in range(24):
-                kwh = hour_map.get(h, 0.0)
-                idx = min(int(kwh / max_kwh * 8), 8)
-                bar_chars.append(blocks[idx])
-            sparkline = "".join(bar_chars)
-            labels = "00  03  06  09  12  15  18  21  23"
-            spark_str = f"{sparkline}\n[dim]{labels}[/dim]"
+            bars, axis = hourly_chart({bt.hour: kwh for bt, kwh, _ in today_hours})
+            spark = Text.assemble(Text(bars, style="cyan"), "\n", Text(axis, style="dim"))
         else:
-            spark_str = "[dim]no energy data for today[/dim]"
+            spark = Text("no energy data for today", style="dim")
 
         try:
-            self.query_one("#e-sparkline", Static).update(spark_str)
+            self.query_one("#e-sparkline", Static).update(spark)
         except NoMatches:
             pass
 
@@ -1449,6 +1504,9 @@ class RoomScreen(Screen[None]):
                 f"{kwh:.4f}",
                 status_labels.get(status, str(status)),
             )
+
+    def _kv_empty(self, widget_id: str, placeholder: str) -> None:
+        self._kv(widget_id, _FALLBACK_LABELS[widget_id], placeholder, "dim")
 
     def _kv(self, widget_id: str, key: str, value: str, val_style: str = "") -> None:
         try:

@@ -14,17 +14,39 @@ from __future__ import annotations
 from dataclasses import dataclass
 from enum import IntEnum
 
+from quilt_hp.models._helpers import enum_or
+
 
 class SoftwareUpdateState(IntEnum):
-    """Update state values (field 2, values still unconfirmed)."""
+    """Where an update is in its lifecycle (``SoftwareUpdateInfoAttributes.state``)."""
 
+    UNSPECIFIED = 0
     UNKNOWN = 0
+    """Alias of UNSPECIFIED, kept for code written before the values were confirmed."""
+    IDLE = 1
+    DOWNLOADING = 2
+    TRANSFERRING = 3
+    INSTALLING = 4
+    REBOOTING = 5
 
 
 class SoftwareUpdateStatus(IntEnum):
-    """Update status values (field 3, values still unconfirmed)."""
+    """Outcome of the last update step (``SoftwareUpdateInfoAttributes.status``)."""
 
+    UNSPECIFIED = 0
     UNKNOWN = 0
+    """Alias of UNSPECIFIED, kept for code written before the values were confirmed."""
+    OK = 1
+    UNKNOWN_ERROR = 2
+
+
+class SoftwareUpdateProgressUnit(IntEnum):
+    """Unit of ``current_progress`` / ``total_progress``."""
+
+    UNSPECIFIED = 0
+    PERCENT = 1
+    BYTES = 2
+    SECONDS = 3
 
 
 @dataclass(slots=True)
@@ -41,10 +63,10 @@ class SoftwareUpdateInfo:
 
     id: str
     """Object UUID for software_update_info_id or firmware_update_info_id."""
-    state: int
-    """Raw update state integer (SoftwareUpdateState enum, TBD)."""
-    status: int
-    """Raw update status integer (SoftwareUpdateStatus enum, TBD)."""
+    state: SoftwareUpdateState
+    """Lifecycle state; IDLE when no update is in progress."""
+    status: SoftwareUpdateStatus
+    """Outcome of the last step."""
     current_version: str
     """Installed version string; empty when no update is active."""
     target_version: str
@@ -53,8 +75,8 @@ class SoftwareUpdateInfo:
     """Download/install progress in ``progress_unit`` units."""
     total_progress: float
     """Total work in ``progress_unit`` units."""
-    progress_unit: int
-    """Unit for progress values (enum TBD)."""
+    progress_unit: SoftwareUpdateProgressUnit
+    """Unit for the progress values."""
 
     @classmethod
     def from_proto(cls, proto: object) -> SoftwareUpdateInfo:
@@ -62,11 +84,13 @@ class SoftwareUpdateInfo:
         a = proto.attributes  # type: ignore[attr-defined]
         return cls(
             id=proto.header.object_id,  # type: ignore[attr-defined]
-            state=a.state,
-            status=a.status,
+            state=enum_or(SoftwareUpdateState, a.state, SoftwareUpdateState.UNSPECIFIED),
+            status=enum_or(SoftwareUpdateStatus, a.status, SoftwareUpdateStatus.UNSPECIFIED),
             current_version=a.current_version or "",
             target_version=a.target_version or "",
             current_progress=a.current_progress,
             total_progress=a.total_progress,
-            progress_unit=a.progress_unit,
+            progress_unit=enum_or(
+                SoftwareUpdateProgressUnit, a.progress_unit, SoftwareUpdateProgressUnit.UNSPECIFIED
+            ),
         )

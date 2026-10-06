@@ -380,13 +380,13 @@ def _snapshot_payload(snap: SystemSnapshot) -> dict[str, Any]:
         "software_update_infos": [
             {
                 "id": sui.id,
-                "state": sui.state,
-                "status": sui.status,
+                "state": sui.state.name,
+                "status": sui.status.name,
                 "current_version": sui.current_version,
                 "target_version": sui.target_version,
                 "current_progress": sui.current_progress,
                 "total_progress": sui.total_progress,
-                "progress_unit": sui.progress_unit,
+                "progress_unit": sui.progress_unit.name,
                 "linked_entities": update_refs.get(sui.id, []),
             }
             for sui in snap.software_update_infos

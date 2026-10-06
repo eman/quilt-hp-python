@@ -3,10 +3,12 @@
 from __future__ import annotations
 
 import logging
+from datetime import UTC, datetime
 from typing import TYPE_CHECKING
 
 from rich.text import Text
 
+from quilt_hp.cli.tui.views import age_text
 from quilt_hp.models.controller import Controller
 from quilt_hp.models.enums import (
     ControllerViewState,
@@ -131,7 +133,12 @@ def _tc(val_c: float | None, use_f: bool) -> str:
 
 
 def _fmt_display(ctrl: Controller) -> tuple[str, str]:
-    """Dial screen: view state plus brightness, e.g. ``GLANCE 25%``."""
+    """Dial screen: view state plus brightness, e.g. ``Glance 25%``; ``⚠ offline 8 h`` when offline.
+
+    An offline Dial's last report is not shown: it would read as the current state.
+    """
+    if not ctrl.is_online:
+        return f"⚠ offline {age_text(ctrl.state_updated_at, datetime.now(tz=UTC))}", "bold red"
     if ctrl.view_state == ControllerViewState.UNSPECIFIED:
         return "--", ""
     label = ctrl.view_state.name.title()
@@ -258,6 +265,30 @@ def _fmt_state(state: HVACState) -> Text:
     label = _STATE_SYMBOLS.get(state, state.name)
     style = _STATE_STYLE.get(state, "")
     return Text(label, style=style)
+
+
+_BAR_LEVELS = "▁▂▃▄▅▆▇█"
+_HOUR_WIDTH = 2
+
+
+def hourly_chart(hour_kwh: dict[int, float]) -> tuple[str, str]:
+    """Bars and a matching axis for one day of hourly energy, two columns per hour.
+
+    Hours with data get a bar scaled to the day's peak (``▁`` for the lowest); hours without
+    data are blank. The axis labels every third hour at the same column as its bar.
+    """
+    peak = max(hour_kwh.values(), default=0.0)
+    bars = []
+    for hour in range(24):
+        if hour not in hour_kwh:
+            bars.append(" " * _HOUR_WIDTH)
+            continue
+        level = round(hour_kwh[hour] / peak * (len(_BAR_LEVELS) - 1)) if peak > 0 else 0
+        bars.append(_BAR_LEVELS[level] * _HOUR_WIDTH)
+    axis = [" "] * (24 * _HOUR_WIDTH)
+    for hour in range(0, 24, 3):
+        axis[hour * _HOUR_WIDTH : hour * _HOUR_WIDTH + 2] = f"{hour:02d}"
+    return "".join(bars), "".join(axis)
 
 
 def _cycle_next[T](current: T, cycle: list[T]) -> T:

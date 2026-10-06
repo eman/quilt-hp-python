@@ -7,6 +7,7 @@ from datetime import UTC, datetime
 from typing import Any, cast
 
 from quilt_hp.models._helpers import (
+    enum_or,
     local_comms_last_session_change,
     lookup_hardware,
     parse_wifi_state,
@@ -255,15 +256,6 @@ class Controller:
         )
 
 
-def _enum_or[E: (ControllerViewState, ControllerOrientation)](
-    cls: type[E], value: int, default: E
-) -> E:
-    try:
-        return cls(value)
-    except ValueError:
-        return default
-
-
 def _display_fields(st: Any | None) -> dict[str, Any]:
     """Map ControllerState fields 6–22 to model fields (empty when state was absent)."""
     if st is None:
@@ -273,14 +265,14 @@ def _display_fields(st: Any | None) -> dict[str, Any]:
         return getattr(st, name, default)
 
     return {
-        "view_state": _enum_or(
+        "view_state": enum_or(
             ControllerViewState, g("view_state"), ControllerViewState.UNSPECIFIED
         ),
         "screen_brightness": g("screen_brightness", 0.0),
         "radar_target_detected": bool(g("mmwave_target_detect", False)),
         "radar_phase_detected": bool(g("mmwave_phase_detect", False)),
         "ambient_light_lux": g("als_illuminance_calib_lx", 0.0),
-        "orientation": _enum_or(
+        "orientation": enum_or(
             ControllerOrientation, g("orientation"), ControllerOrientation.UNSPECIFIED
         ),
         # 0 % RH is not a real indoor reading: Dials without the sensor send 0.
