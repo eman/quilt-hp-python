@@ -27,10 +27,11 @@ if TYPE_CHECKING:
 SIZES = [(100, 30), (160, 45)]
 ROOM = "Family Room"
 ROOM_TABS = {
-    "room-status": "tab-status",
-    "room-performance": "tab-perf",
+    "room-overview": "tab-overview",
+    "room-climate": "tab-climate",
     "room-schedule": "tab-schedule",
     "room-energy": "tab-energy",
+    "room-devices": "tab-devices",
 }
 
 
@@ -76,6 +77,12 @@ def _scenario(screen: str) -> Callable[[Pilot[Any]], Awaitable[None]]:
             await _wait_for(pilot, lambda: isinstance(app.screen, DevicesScreen))
             if screen == "devices-raw":
                 await pilot.press("down", "down", "down", "down", "down", "r")
+        elif screen == "room-settings":
+            await _open_room(pilot)
+            await pilot.press("s")
+        elif screen == "room-climate-raw":
+            await _open_room(pilot)
+            await pilot.press("2", "r")
         else:
             await _open_room(pilot)
             app.screen.query_one("#room-tabs", TabbedContent).active = ROOM_TABS[screen]
@@ -85,7 +92,10 @@ def _scenario(screen: str) -> Callable[[Pilot[Any]], Awaitable[None]]:
 
 
 @pytest.mark.parametrize("size", SIZES, ids=lambda s: f"{s[0]}x{s[1]}")
-@pytest.mark.parametrize("screen", ["home", *ROOM_TABS, "devices", "devices-raw"])
+@pytest.mark.parametrize(
+    "screen",
+    ["home", *ROOM_TABS, "room-climate-raw", "room-settings", "devices", "devices-raw"],
+)
 def test_screen(snap_compare: Any, tmp_path: Path, screen: str, size: tuple[int, int]) -> None:
     with time_machine.travel(FROZEN_NOW, tick=False):
         app = make_app(tmp_path)

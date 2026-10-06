@@ -53,23 +53,11 @@ async def _set_schedule_paused(
 
 
 def room_screen_for(
-    snapshot: SystemSnapshot, client: QuiltClient, space_id: str, use_f: bool
+    snapshot: SystemSnapshot, client: QuiltClient, space_id: str, use_f: bool = False
 ) -> Screen[None] | None:
-    """A RoomScreen for ``space_id`` with its devices resolved, or None if the room is gone."""
+    """A RoomScreen for ``space_id``, or None if the room is gone."""
     from quilt_hp.cli.tui.room import RoomScreen  # the room screen imports this module
 
-    space = next((s for s in snapshot.rooms if s.id == space_id), None)
-    if space is None:
+    if not any(s.id == space_id for s in snapshot.rooms):
         return None
-    idu = next((u for u in snapshot.indoor_units if u.space_id == space_id), None)
-    ctrl = next((c for c in snapshot.controllers if c.space_id == space_id), None)
-    return RoomScreen(
-        space=space,
-        idu=idu,
-        controller=ctrl,
-        odu=_odu_for_space(snapshot, space_id, idu),
-        qsm=snapshot.qsm_for_idu(idu) if idu else None,
-        snapshot=snapshot,
-        client=client,
-        use_f=use_f,
-    )
+    return RoomScreen(space_id, snapshot, client)

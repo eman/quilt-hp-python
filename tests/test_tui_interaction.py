@@ -181,3 +181,137 @@ async def test_old_settings_with_only_dark_still_apply(tmp_path: Path) -> None:
 
     SettingsStore(tmp_path / "settings.json").update(dark=False)
     assert make_app(tmp_path).theme == "textual-light"
+
+
+# ── Room screen ────────────────────────────────────────────────────────────
+
+
+async def _room(pilot: Pilot[Any], name: str) -> RoomScreen:
+    await _home_on(pilot, name)
+    await pilot.press("enter")
+    await _wait_for(pilot, lambda: isinstance(pilot.app.screen, RoomScreen))
+    screen = pilot.app.screen
+    assert isinstance(screen, RoomScreen)
+    await pilot.pause()
+    return screen
+
+
+async def test_room_tabs_and_room_switching_keep_the_tab(tmp_path: Path, frozen: Any) -> None:
+    from textual.widgets import TabbedContent
+
+    async with make_app(tmp_path).run_test(size=(100, 30)) as pilot:
+        room = await _room(pilot, "Family Room")
+        names = [s.name for s in pilot.app.snapshot.rooms]
+        await pilot.press("2")
+        assert room.query_one("#room-tabs", TabbedContent).active == "tab-climate"
+        await pilot.press("right_square_bracket")
+        await _wait_for(
+            pilot,
+            lambda: pilot.app.screen is not room and isinstance(pilot.app.screen, RoomScreen),
+        )
+        nxt = pilot.app.screen
+        assert isinstance(nxt, RoomScreen)
+        assert nxt.space is not None and nxt.space.name == names[names.index("Family Room") + 1]
+        assert nxt.query_one("#room-tabs", TabbedContent).active == "tab-climate"
+        await pilot.press("escape")  # back goes to Home, not to the previous room
+        await _wait_for(pilot, lambda: isinstance(pilot.app.screen, HomeScreen))
+
+
+async def test_room_controls_list(tmp_path: Path, frozen: Any) -> None:
+    from textual.widgets import Input
+
+    from quilt_hp.cli.tui.dialogs import ValueDialog
+
+    client = FakeClient()
+    family = next(s for s in client.snapshot.rooms if s.name == "Family Room")  # Cool
+    before = family.controls.cooling_setpoint_c
+    async with make_app(tmp_path, client).run_test(size=(100, 30)) as pilot:
+        await _room(pilot, "Family Room")
+        await pilot.press("down", "right")  # "Cool to", one step warmer
+        await _wait_for(pilot, lambda: client.calls)
+        assert client.calls[-1][2]["cool"] == pytest.approx(before + STEP_C)
+        await pilot.press("enter")  # type a value
+        await _wait_for(pilot, lambda: isinstance(pilot.app.screen, ValueDialog))
+        field = pilot.app.screen.query_one(Input)
+        field.value = "99"
+        await pilot.press("enter")  # out of range: stays open with an error
+        await pilot.pause()
+        assert isinstance(pilot.app.screen, ValueDialog)
+        field.value = "22.5"
+        await pilot.press("enter")
+        await _wait_for(pilot, lambda: len(client.calls) == 2)
+    assert client.calls[-1][2]["cool"] == pytest.approx(22.5)
+
+
+async def test_room_fan_louver_and_light_keys(tmp_path: Path, frozen: Any) -> None:
+    from quilt_hp.models import FanSpeed, LouverMode
+
+    client = FakeClient()
+    async with make_app(tmp_path, client).run_test(size=(100, 30)) as pilot:
+        await _room(pilot, "Family Room")  # fan auto, louver auto, light off
+        await pilot.press("f")
+        await _wait_for(pilot, lambda: len(client.calls) == 1)
+        await pilot.press("v")
+        await _wait_for(pilot, lambda: len(client.calls) == 2)
+        await pilot.press("l")
+        await _wait_for(pilot, lambda: len(client.calls) == 3)
+    assert [(c[0], c[2]) for c in client.calls[:2]] == [
+        ("set_indoor_unit", {"fan_speed": FanSpeed.QUIET}),
+        ("set_indoor_unit", {"louver_mode": LouverMode.FIXED}),
+    ]
+    assert client.calls[2][2]["led_brightness"] > 0  # turned on
+
+
+async def test_room_settings_dialog_sends_only_what_changed(tmp_path: Path, frozen: Any) -> None:
+    from textual.widgets import Input
+
+    from quilt_hp.cli.tui.dialogs import RoomSettingsScreen
+
+    client = FakeClient()
+    async with make_app(tmp_path, client).run_test(size=(100, 30)) as pilot:
+        await _room(pilot, "Family Room")
+        await pilot.press("s")
+        await _wait_for(pilot, lambda: isinstance(pilot.app.screen, RoomSettingsScreen))
+        dialog = pilot.app.screen
+        dialog.query_one("#set-away_after", Input).value = "30"
+        dialog.query_one("#set-radar_height", Input).value = "2.2"
+        await pilot.click("#settings-save")
+        await _wait_for(pilot, lambda: len(client.calls) == 2)
+    assert client.calls[0] == (
+        "set_space_settings",
+        (next(s.id for s in client.snapshot.rooms if s.name == "Family Room"),),
+        {"unoccupied_timeout_s": 1800.0, "occupied_timeout_s": None},
+    )
+    name, _args, kwargs = client.calls[1]
+    assert name == "set_indoor_unit_settings"
+    assert kwargs["radar_height_m"] == pytest.approx(2.2)
+    assert kwargs["fence_left_m"] is None and kwargs["light_brightness_default"] is None
+
+
+async def test_room_raw_toggle_and_offline_dial(tmp_path: Path, frozen: Any) -> None:
+    from textual.widgets import Static
+
+    async with make_app(tmp_path).run_test(size=(100, 30)) as pilot:
+        room = await _room(pilot, "Primary Bedroom")  # its Dial is offline
+        await pilot.press("2")
+        raw = room.query_one("#cl-raw", Static)
+        assert not raw.display
+        await pilot.press("r")
+        assert raw.display
+        presence = str(room.query_one("#cl-presence", Static).render())
+        assert "offline" in presence and "Dial radar" not in presence
+
+
+async def test_room_follows_live_updates_and_closes_when_removed(
+    tmp_path: Path, frozen: Any
+) -> None:
+    async with make_app(tmp_path).run_test(size=(100, 30)) as pilot:
+        room = await _room(pilot, "Family Room")
+        space = room.space
+        assert space is not None
+        cooler = replace(space, controls=replace(space.controls, cooling_setpoint_c=21.0))
+        pilot.app._dispatch_space(cooler)
+        await pilot.pause()
+        assert room.space is not None and room.space.controls.cooling_setpoint_c == 21.0
+        pilot.app._dispatch_delete("space", space.id)
+        await _wait_for(pilot, lambda: isinstance(pilot.app.screen, HomeScreen))
