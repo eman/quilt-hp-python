@@ -6,24 +6,34 @@ helpers send the change and merge the result into the shared snapshot.
 
 from __future__ import annotations
 
+import asyncio
+import contextlib
 from dataclasses import dataclass
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from quilt_hp.cli.constants import (
     DEFAULT_COOL_SETPOINT_C,
     DEFAULT_HEAT_SETPOINT_C,
     clamp_setpoint_c,
 )
-from quilt_hp.cli.tui.format import _MODE_CYCLE, _cycle_next
-from quilt_hp.models.enums import HVACMode
+from quilt_hp.cli.tui.format import _FAN_CYCLE, _LOUVER_CYCLE, _MODE_CYCLE, _cycle_next
+from quilt_hp.models.enums import FanSpeed, HVACMode, LouverMode
 
 if TYPE_CHECKING:
     from quilt_hp.client import QuiltClient
+    from quilt_hp.models.indoor_unit import IndoorUnit
     from quilt_hp.models.space import Space
     from quilt_hp.models.system import SystemSnapshot
 
 STEP_C = 0.5
 STEP_F_IN_C = 5 / 9  # one degree Fahrenheit
+
+
+def step_cycle[T](current: T, cycle: list[T], direction: int) -> T:
+    """The next (``direction`` 1) or previous (-1) value in ``cycle``, wrapping around."""
+    if current not in cycle:
+        return cycle[0]
+    return cycle[(cycle.index(current) + direction) % len(cycle)]
 
 
 def next_mode(space: Space) -> HVACMode:
@@ -82,3 +92,51 @@ async def send_space_change(
     if snapshot is not None:
         updated = snapshot.apply_space(updated)
     return updated
+
+
+def next_fan(idu: IndoorUnit) -> FanSpeed:
+    """The fan speed ``f`` switches to."""
+    return _cycle_next(idu.controls.fan_speed, _FAN_CYCLE)
+
+
+def next_louver(idu: IndoorUnit) -> LouverMode:
+    """The louver mode ``v`` switches to."""
+    return _cycle_next(idu.controls.louver_mode, _LOUVER_CYCLE)
+
+
+def light_toggle_brightness(idu: IndoorUnit) -> float:
+    """The LED brightness that toggles the light: 0 when on, else the last level used.
+
+    The server keeps the stored brightness while the light is off; when that is 0 the room's
+    default level is used, then full brightness.
+    """
+    if idu.controls.light_on:
+        return 0.0
+    if idu.controls.led_brightness > 0.0:
+        return idu.controls.led_brightness
+    return idu.settings.light_brightness_default_percent or 1.0
+
+
+async def send_idu_change(
+    client: QuiltClient, snapshot: SystemSnapshot | None, idu: IndoorUnit, **changes: Any
+) -> IndoorUnit:
+    """Send indoor-unit control changes and merge the result into the shared snapshot."""
+    updated = await client.set_indoor_unit(idu, **changes)
+    if snapshot is not None:
+        updated = snapshot.apply_indoor_unit(updated)
+    return updated
+
+
+def room_lock(app: object, space_id: str) -> asyncio.Lock:
+    """The lock that serialises control changes for one room across every screen.
+
+    Changes for a room run one at a time and each computes its target from the room as the
+    previous change left it, so two quick ``+`` presses from 24 °C reach 25 °C. The locks live
+    on the app (an ``asyncio.Lock`` belongs to one event loop).
+    """
+    locks: dict[str, asyncio.Lock] | None = getattr(app, "control_locks", None)
+    if locks is None:
+        locks = {}
+        with contextlib.suppress(AttributeError):
+            app.control_locks = locks  # type: ignore[attr-defined]
+    return locks.setdefault(space_id, asyncio.Lock())

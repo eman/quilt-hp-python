@@ -3,6 +3,21 @@
 ## [Unreleased]
 
 ### Added
+- **TUI Room screen, redesigned.** Five tabs, switched with `1`–`5`; `[` and `]` move to the
+  previous or next room on the same tab.
+  - *Overview*: the room's temperature and what it's doing, humidity, power, Dial state,
+    occupancy with its auto-away timing, the active comfort setting and how it was set, and a
+    **controls list** (mode, cool and heat setpoints, fan, louver, light): `↑`/`↓` choose,
+    `←`/`→` change, `enter` types a setpoint. Today's hourly energy below.
+  - *Climate*: air temperatures from each sensor, refrigerant pipes, humidity and dew point;
+    the indoor unit's state, fan, power, capacity, COP, outdoor-unit share and only the
+    conditions that are active; presence from each radar. `r` adds raw telemetry.
+  - *Schedule*: the week as a grid (view only).
+  - *Energy*: today, yesterday, 7 and 30 days, today by hour, and the last 14 days.
+  - *Devices*: the room's indoor unit, Dial and outdoor unit with their details.
+  - **Room settings** (`s`): auto-away timing, the Away temperatures, the presence sensor's
+    detection range and mounting height, and the light's default brightness, as typed fields
+    with an explicit Save. These replace the hidden `[ ] { }`, `ctrl`+arrow and `alt` keys.
 - **TUI Home screen** (replaces the dashboard). A rooms table (temperature, humidity, target,
   what the room is doing, occupancy, today's energy, alerts), a summary of the selected room
   (dew point, fan, power, COP, outdoor-unit share, Dial display and radar), and a **Needs
@@ -103,6 +118,9 @@
   `quilt values` adds `display_on`, `presence_detected` and `power_w`.
 
 ### Changed
+- **TUI Room keys:** no more upper/lower-case pairs. `+`/`−` change the setpoint the mode uses
+  (as on Home), `f` fan, `v` louver (was `l`), `l` light (was `L`), `s` settings. Control
+  changes from Home and Room share one queue per room.
 - **TUI keys:** `d` opens Devices (it toggled the theme; change the theme from the command
   palette, `ctrl+p`). The chosen theme is now remembered by name, so palette themes such as
   Nord survive a restart; older settings that only recorded light or dark still apply.
