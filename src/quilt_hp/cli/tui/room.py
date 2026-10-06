@@ -92,7 +92,7 @@ class RoomScreen(RoomPanels):
         Binding("v", "cycle_louver", "Louver"),
         Binding("l", "toggle_light", "Light"),
         Binding("s", "settings", "Settings"),
-        Binding("r", "toggle_raw", "Raw"),
+        Binding("r", "toggle_raw", "Raw telemetry"),
         Binding("left_square_bracket", "switch_room(-1)", "Previous room", show=False),
         Binding("right_square_bracket", "switch_room(1)", "Next room", show=False),
         Binding("left", "adjust(-1)", "Less", show=False),

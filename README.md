@@ -76,7 +76,12 @@ quilt energy --period week
 
 # Set a room to cooling mode
 quilt set "Living Room" --mode cool --cool 22
+
+# Full-screen terminal UI: every room, live, with controls (press ? for keys)
+quilt tui
 ```
+
+See [Use the terminal UI](https://eman.github.io/quilt-hp-python/how-to/use-the-tui/) for a tour.
 
 ## Related Projects
 
