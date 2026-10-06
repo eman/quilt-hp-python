@@ -120,3 +120,21 @@ def test_odu_for_space_prefers_idu_link() -> None:
             return sentinel
 
     assert _odu_for_space(_Snap(), "space/space-1", idu=object()) is sentinel  # type: ignore[arg-type]
+
+
+def test_fmt_display_and_detected() -> None:
+    from types import SimpleNamespace
+
+    from quilt_hp.cli.tui import _fmt_detected, _fmt_display
+    from quilt_hp.models import ControllerViewState
+
+    glance = SimpleNamespace(view_state=ControllerViewState.GLANCE, screen_brightness=0.25)
+    assert _fmt_display(glance) == ("Glance 25%", "cyan")  # type: ignore[arg-type]
+    asleep = SimpleNamespace(view_state=ControllerViewState.SLEEP, screen_brightness=0.0)
+    assert _fmt_display(asleep) == ("Sleep", "dim")  # type: ignore[arg-type]
+    unknown = SimpleNamespace(view_state=ControllerViewState.UNSPECIFIED, screen_brightness=None)
+    assert _fmt_display(unknown) == ("--", "")  # type: ignore[arg-type]
+
+    assert _fmt_detected(True)[0] == "● detected"
+    assert _fmt_detected(False)[0] == "○ clear"
+    assert _fmt_detected(None) == ("--", "")
