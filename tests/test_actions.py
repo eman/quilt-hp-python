@@ -181,6 +181,11 @@ async def test_client_targets_follow_the_app_and_refresh_the_cache() -> None:
     await client.apply_light(on=False, whole_house=True)
     assert sorted(sent()) == sorted(("indoor_unit_id", u.id) for u in snap.indoor_units)
 
+    # Whole house covers every indoor unit, even one whose room isn't a leaf room.
+    snap.indoor_units[0].space_id = "not-a-room"
+    await client.apply_fan_speed(FanSpeed.AUTO, whole_house=True)
+    assert sorted(sent()) == sorted(("indoor_unit_id", u.id) for u in snap.indoor_units)
+
     await client.apply_fan_angle(FanAngle.AUTO, indoor_units=["idu-9"])
     assert sent() == [("indoor_unit_id", "idu-9")]
     assert all(kind != "system_id" for kind, _ in sent())

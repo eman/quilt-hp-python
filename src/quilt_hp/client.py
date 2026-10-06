@@ -843,12 +843,14 @@ class QuiltClient:
         unit_ids = [u if isinstance(u, str) else u.id for u in indoor_units]
         if whole_house or (per_unit and room_ids):
             snap = await self.get_snapshot(system_id)
-            if whole_house:
-                room_ids = [r.id for r in snap.rooms]
             if per_unit:
                 wanted = set(room_ids)
-                unit_ids += [u.id for u in snap.indoor_units if u.space_id in wanted]
+                unit_ids += [
+                    u.id for u in snap.indoor_units if whole_house or u.space_id in wanted
+                ]
                 room_ids = []
+            elif whole_house:
+                room_ids = [r.id for r in snap.rooms]
         targets = _actions.build_targets(
             rooms=list(dict.fromkeys(room_ids)), indoor_units=list(dict.fromkeys(unit_ids))
         )
