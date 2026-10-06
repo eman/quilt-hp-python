@@ -2,13 +2,13 @@
 
 Screen flow::
 
-    LoadingScreen ──→ DashboardScreen ──→ RoomScreen (Status | Performance | Schedule | Energy)
-                                     └──→ SystemScreen
+    LoadingScreen ──→ HomeScreen ──→ RoomScreen (Status | Performance | Schedule | Energy)
+                                └──→ DevicesScreen
 """
 
 from quilt_hp.cli.tui.app import QuiltApp
-from quilt_hp.cli.tui.dashboard import DashboardScreen
+from quilt_hp.cli.tui.devices import DevicesScreen
+from quilt_hp.cli.tui.home import HomeScreen
 from quilt_hp.cli.tui.room import RoomScreen
-from quilt_hp.cli.tui.system import SystemScreen
 
-__all__ = ["DashboardScreen", "QuiltApp", "RoomScreen", "SystemScreen"]
+__all__ = ["DevicesScreen", "HomeScreen", "QuiltApp", "RoomScreen"]

@@ -15,10 +15,9 @@ from textual.reactive import reactive
 from quilt_hp.cli.settings import SettingsStore
 from quilt_hp.cli.store import FileStore
 from quilt_hp.cli.tui.boot import BootErrorScreen, LoadingScreen, OtpScreen
-from quilt_hp.cli.tui.dashboard import DashboardScreen
+from quilt_hp.cli.tui.home import HomeScreen
 from quilt_hp.cli.tui.room import RoomScreen
 from quilt_hp.cli.tui.styles import _APP_CSS
-from quilt_hp.cli.tui.system import SystemScreen
 from quilt_hp.client import QuiltClient
 from quilt_hp.exceptions import QuiltAuthError
 from quilt_hp.models.controller import Controller
@@ -55,7 +54,6 @@ class QuiltApp(App[None]):
     TITLE = "Quilt HVAC"
     BINDINGS: ClassVar = [
         Binding("q", "quit", "Quit", priority=True),
-        Binding("d", "toggle_dark", "Dark/Light", priority=True),
     ]
 
     _STREAM_RECOVERY_DELAYS_S: ClassVar = (5.0, 15.0, 30.0)
@@ -84,7 +82,9 @@ class QuiltApp(App[None]):
         # Apply persisted preferences before first render; set_reactive avoids
         # triggering watch_use_f before the app is running.
         self.set_reactive(QuiltApp.use_f, self._settings.use_fahrenheit)
-        if self._settings.dark is not None:
+        if self._settings.theme and self._settings.theme in self.available_themes:
+            self.theme = self._settings.theme
+        elif self._settings.dark is not None:  # settings saved before themes were remembered
             self.theme = "textual-dark" if self._settings.dark else "textual-light"
 
     # ── Shared state (single source of truth for all screens) ────
@@ -106,19 +106,18 @@ class QuiltApp(App[None]):
             if callable(refresh):
                 refresh()
 
-    @property
-    def _is_dark(self) -> bool:
-        return self.theme != "textual-light"
-
     def _persist(self) -> None:
         """Save current toggleable settings to disk."""
-        self._settings = self._settings_store.update(use_fahrenheit=self.use_f, dark=self._is_dark)
+        self._settings = self._settings_store.update(
+            use_fahrenheit=self.use_f, theme=self.theme, dark=self.current_theme.dark
+        )
 
-    def action_toggle_dark(self) -> None:
-        self.theme = "textual-light" if self._is_dark else "textual-dark"
+    def _on_theme_changed(self, _theme: object) -> None:
+        """Persist a theme chosen from the command palette (ctrl+p → Change theme)."""
         self._persist()
 
     def on_mount(self) -> None:
+        self.theme_changed_signal.subscribe(self, self._on_theme_changed)
         self._loading_screen = LoadingScreen()
         self.push_screen(self._loading_screen)
         self._boot()
@@ -153,8 +152,7 @@ class QuiltApp(App[None]):
             if self._client.system_name:
                 self.title = self._client.system_name
 
-            dashboard = DashboardScreen(snap, self._client)
-            await self.switch_screen(dashboard)
+            await self.switch_screen(HomeScreen(snap, self._client))
 
             # Start the shared stream
             self._start_stream(snap)
@@ -247,15 +245,24 @@ class QuiltApp(App[None]):
 
     def _dispatch_delete(self, kind: str, entity_id: str) -> None:
         if self._snapshot and self._snapshot.remove(kind, entity_id):
+            self._notify_screen(kind, None)
             self.notify(
                 f"A {kind.replace('_', ' ')} was removed from this system; press r to refresh."
             )
+
+    def _notify_screen(self, kind: str, entity: object) -> bool:
+        """Tell the active screen about a merged update; True if it took it generically."""
+        hook = getattr(self.screen, "snapshot_changed", None)
+        if callable(hook):
+            hook(kind, entity)
+            return True
+        return False
 
     def _dispatch_space(self, space: Space) -> None:
         if self._snapshot:
             space = self._snapshot.apply_space(space)
         screen = self.screen
-        if isinstance(screen, DashboardScreen) or (
+        if not self._notify_screen("space", space) and (
             isinstance(screen, RoomScreen) and screen.space_id == space.id
         ):
             screen.update_space(space)
@@ -264,8 +271,8 @@ class QuiltApp(App[None]):
         if self._snapshot:
             idu = self._snapshot.apply_indoor_unit(idu)
         screen = self.screen
-        if (isinstance(screen, RoomScreen) and screen.idu_id == idu.id) or isinstance(
-            screen, DashboardScreen
+        if not self._notify_screen("indoor_unit", idu) and (
+            isinstance(screen, RoomScreen) and screen.idu_id == idu.id
         ):
             screen.update_idu(idu)
 
@@ -273,7 +280,7 @@ class QuiltApp(App[None]):
         if self._snapshot:
             odu = self._snapshot.apply_outdoor_unit(odu)
         screen = self.screen
-        if isinstance(screen, (DashboardScreen, SystemScreen)) or (
+        if not self._notify_screen("outdoor_unit", odu) and (
             isinstance(screen, RoomScreen) and screen.odu_id == odu.id
         ):
             screen.update_odu(odu)
@@ -282,22 +289,24 @@ class QuiltApp(App[None]):
         if self._snapshot:
             ctrl = self._snapshot.apply_controller(ctrl)
         screen = self.screen
-        if isinstance(screen, RoomScreen) and screen.controller_id == ctrl.id:
+        if not self._notify_screen("controller", ctrl) and (
+            isinstance(screen, RoomScreen) and screen.controller_id == ctrl.id
+        ):
             screen.update_ctrl(ctrl)
 
     def _dispatch_qsm(self, qsm: QuiltSmartModule) -> None:
         if self._snapshot:
             qsm = self._snapshot.apply_qsm(qsm)
         screen = self.screen
-        if isinstance(screen, RoomScreen) and screen.qsm_id == qsm.id:
+        if not self._notify_screen("qsm", qsm) and (
+            isinstance(screen, RoomScreen) and screen.qsm_id == qsm.id
+        ):
             screen.update_qsm(qsm)
 
     def _dispatch_remote_sensor(self, rs: RemoteSensor) -> None:
         if self._snapshot:
             rs = self._snapshot.apply_remote_sensor(rs)
-        screen = self.screen
-        if isinstance(screen, SystemScreen):
-            screen.update_remote_sensor(rs)
+        self._notify_screen("remote_sensor", rs)
 
     async def on_unmount(self) -> None:
         stream = self._stream

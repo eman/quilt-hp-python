@@ -862,7 +862,7 @@ enum WifiConnectionState {
 // Field layout confirmed against the app. Used in QSM (f4/f5/f6) and Controller (f5/f6/f7).
 message WifiState {
   WifiConnectionState wifi_state = 1;  // connection phase (DISCONNECTED→WPA_COMPLETED)
-  string ssid = 2;  // "HomeNt" — shared Quilt AP
+  string ssid = 2;  // network name
   string bssid = 3;  // AP MAC address
   int32  frequency_mhz = 4;  // 5745 = 5 GHz
   string passphrase = 5;  // WiFi password (usually empty in responses)
