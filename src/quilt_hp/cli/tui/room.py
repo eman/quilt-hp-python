@@ -177,6 +177,14 @@ class RoomScreen(RoomPanels):
     # ── Live updates ────────────────────────────────────────────
 
     def snapshot_changed(self, kind: str, _entity: object) -> None:
+        self._reconcile()
+
+    def on_screen_resume(self) -> None:
+        """Catch up after a dialog (help, settings, a setpoint) closes: while one is open,
+        live updates go to the dialog, not to this screen."""
+        self._reconcile()
+
+    def _reconcile(self) -> None:
         if self.space is None:
             self.notify("This room was removed from the system.")
             self.app.pop_screen()

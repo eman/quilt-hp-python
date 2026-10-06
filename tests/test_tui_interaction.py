@@ -352,3 +352,59 @@ async def test_help_lists_every_screens_keys(tmp_path: Path, frozen: Any) -> Non
             assert expected in text
         await pilot.press("escape")
         await _wait_for(pilot, lambda: isinstance(pilot.app.screen, RoomScreen))
+
+
+async def test_energy_lists_rooms_without_energy_history(tmp_path: Path, frozen: Any) -> None:
+    from quilt_hp.cli.tui import EnergyScreen
+
+    class PartialClient(FakeClient):
+        async def get_energy(self, start: Any, end: Any) -> Any:
+            metrics = await super().get_energy(start, end)
+            return metrics[1:]  # the first room has no history
+
+    client = PartialClient()
+    async with make_app(tmp_path, client).run_test(size=(100, 30)) as pilot:
+        await _home_on(pilot, "Family Room")
+        await pilot.press("e")
+        await _wait_for(pilot, lambda: isinstance(pilot.app.screen, EnergyScreen))
+        screen = pilot.app.screen
+        await _wait_for(pilot, lambda: screen._house is not None)
+        assert screen.query_one("#en-rooms", DataTable).row_count == len(client.snapshot.rooms)
+        assert screen._rooms[client.snapshot.rooms[0].id].last_30_days_kwh == 0.0
+
+
+async def test_room_catches_up_after_help_closes(tmp_path: Path, frozen: Any) -> None:
+    from textual.widgets import OptionList
+
+    from quilt_hp.cli.tui.help import HelpScreen
+
+    async with make_app(tmp_path).run_test(size=(100, 30)) as pilot:
+        room = await _room(pilot, "Family Room")
+        await pilot.press("question_mark")
+        await _wait_for(pilot, lambda: isinstance(pilot.app.screen, HelpScreen))
+        space = room.space
+        assert space is not None
+        pilot.app._dispatch_space(
+            replace(space, controls=replace(space.controls, cooling_setpoint_c=21.0))
+        )  # arrives while Help is on top
+        await pilot.press("escape")
+        await _wait_for(pilot, lambda: pilot.app.screen is room)
+        await pilot.pause()
+        prompt = room.query_one("#ov-controls", OptionList).get_option("cool").prompt
+        assert "21.0" in str(prompt)
+
+
+async def test_room_removed_while_help_is_open_closes_after_help(
+    tmp_path: Path, frozen: Any
+) -> None:
+    from quilt_hp.cli.tui.help import HelpScreen
+
+    async with make_app(tmp_path).run_test(size=(100, 30)) as pilot:
+        room = await _room(pilot, "Family Room")
+        await pilot.press("question_mark")
+        await _wait_for(pilot, lambda: isinstance(pilot.app.screen, HelpScreen))
+        pilot.app._dispatch_delete("space", room.space_id)
+        await pilot.pause()
+        assert isinstance(pilot.app.screen, HelpScreen)  # the dialog isn't closed for it
+        await pilot.press("escape")
+        await _wait_for(pilot, lambda: isinstance(pilot.app.screen, HomeScreen))

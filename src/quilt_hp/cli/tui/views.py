@@ -458,7 +458,16 @@ class EnergySummary:
     last_7_days_kwh: float
     last_30_days_kwh: float
     today_by_hour: dict[int, float]
-    by_day: list[tuple[date, float]]  # most recent first, up to 30 days
+    today: date
+    daily: dict[date, float]  # only days with data
+
+    def last_days(self, count: int) -> list[tuple[date, float | None]]:
+        """The last ``count`` calendar days, most recent first; None for a day with no data.
+
+        Days are calendar days in the system's time zone, so a gap never pulls in an older day.
+        """
+        days = (self.today - timedelta(days=offset) for offset in range(count))
+        return [(day, self.daily.get(day)) for day in days]
 
 
 def energy_summary(buckets: list[EnergyBucket], tz: tzinfo, now: datetime) -> EnergySummary:
@@ -489,5 +498,6 @@ def energy_summary(buckets: list[EnergyBucket], tz: tzinfo, now: datetime) -> En
         last_7_days_kwh=since(7),
         last_30_days_kwh=since(30),
         today_by_hour=hours,
-        by_day=sorted(by_day.items(), reverse=True)[:30],
+        today=today,
+        daily=by_day,
     )
