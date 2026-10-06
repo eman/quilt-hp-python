@@ -22,6 +22,7 @@ class Settings:
     home: str | None = None
     use_fahrenheit: bool = False
     dark: bool | None = None
+    theme: str | None = None  # Textual theme name; ``dark`` is kept for older settings files
 
 
 class SettingsStore:
@@ -77,6 +78,7 @@ class SettingsStore:
         home: str | None = None,
         use_fahrenheit: bool | None = None,
         dark: bool | None = None,
+        theme: str | None = None,
     ) -> Settings:
         """Update selected settings fields and persist."""
         settings = self.load()
@@ -88,6 +90,8 @@ class SettingsStore:
             settings.use_fahrenheit = use_fahrenheit
         if dark is not None:
             settings.dark = dark
+        if theme is not None:
+            settings.theme = theme
         self.save(settings)
         return settings
 
@@ -98,12 +102,14 @@ class SettingsStore:
         email = payload.get("email")
         home = payload.get("home")
         dark = payload.get("dark")
+        theme = payload.get("theme")
         uf = payload.get("use_fahrenheit", False)
         return Settings(
             email=email if isinstance(email, str) else None,
             home=home if isinstance(home, str) else None,
             use_fahrenheit=uf if isinstance(uf, bool) else False,
             dark=dark if isinstance(dark, bool) else None,
+            theme=theme if isinstance(theme, str) and theme else None,
         )
 
     def _atomic_write(self, payload: dict[str, object]) -> None:

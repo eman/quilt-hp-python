@@ -43,7 +43,6 @@ def test_next_mode_cycles() -> None:
     ("mode", "temp", "expect"),
     [
         (HVACMode.COOL, 22.5, ("cool", 24.0 + STEP_C)),
-        (HVACMode.DRY, 22.5, ("cool", 24.0 + STEP_C)),
         (HVACMode.HEAT, 22.5, ("heat", 20.0 + STEP_C)),
         (HVACMode.AUTO, 20.5, ("heat", 20.0 + STEP_C)),  # nearer the heating setpoint
         (HVACMode.AUTO, 23.5, ("cool", 24.0 + STEP_C)),  # nearer the cooling setpoint
@@ -64,7 +63,7 @@ def test_nudge_setpoint_steps_one_fahrenheit_degree_in_fahrenheit() -> None:
     assert change is not None and change.cool_c == pytest.approx(24.0 - STEP_F_IN_C)
 
 
-@pytest.mark.parametrize("mode", [HVACMode.STANDBY, HVACMode.FAN])
+@pytest.mark.parametrize("mode", [HVACMode.STANDBY, HVACMode.FAN, HVACMode.DRY])
 def test_nudge_setpoint_none_without_a_setpoint(mode: HVACMode) -> None:
     assert nudge_setpoint(_with(_room("Family Room"), mode), +1) is None
 
@@ -95,3 +94,48 @@ def test_device_views_group_by_room_with_outdoor_units_last() -> None:
         (DeviceKind.DIAL, "Primary Bedroom", "8 h", "")  # no stale Wi-Fi/mesh shown
     ]
     assert all(r.firmware != "N/A" for r in rows)  # the server's placeholder is dropped
+
+
+def test_device_details_resolve_prefixed_outdoor_unit_ids() -> None:
+    """IDs may be path-prefixed on one side and bare on the other (snapshot.odu_for_idu)."""
+    from quilt_hp.cli.tui.devices import _details
+
+    snap = load_snapshot()
+    idu = snap.indoor_units[0]
+    odu = snap.odu_for_idu(idu)
+    assert odu is not None
+    snap.indoor_units[0] = replace(idu, outdoor_unit_id=f"outdoor_unit/{odu.id}")
+    room = next(s.name for s in snap.rooms if s.id == idu.space_id)
+    with time_machine.travel(FROZEN_NOW, tick=False):
+        rows = {(r.kind, r.device_id): r for r in device_views(snap, FROZEN_NOW)}
+        idu_detail = dict(_details(snap, rows[(DeviceKind.INDOOR_UNIT, idu.id)], False, raw=False))
+        odu_detail = dict(
+            _details(snap, rows[(DeviceKind.OUTDOOR_UNIT, odu.id)], False, raw=False)
+        )
+    assert idu_detail["Outdoor unit"] == odu.serial_number
+    assert room in odu_detail["Serves"]
+
+
+def test_offline_indoor_unit_details_mark_connectivity_as_last_known() -> None:
+    from datetime import timedelta
+
+    from quilt_hp.cli.tui.devices import _details
+
+    snap = load_snapshot()
+    idu = snap.indoor_units[0]
+    old = FROZEN_NOW - timedelta(hours=3)
+    snap.indoor_units[0] = replace(idu, state=replace(idu.state, updated_at=old))
+    with time_machine.travel(FROZEN_NOW, tick=False):
+        row = next(r for r in device_views(snap, FROZEN_NOW) if r.device_id == idu.id)
+        detail = dict(_details(snap, row, False, raw=False))
+    assert row.online is False and row.link == ""
+    assert detail["Wi-Fi"].endswith("(last known)")
+    assert detail["Local mesh"].endswith("(last known)")
+
+
+def test_settings_remember_the_theme_name(tmp_path) -> None:  # type: ignore[no-untyped-def]
+    from quilt_hp.cli.settings import SettingsStore
+
+    store = SettingsStore(tmp_path / "settings.json")
+    store.update(theme="nord", dark=True)
+    assert store.load().theme == "nord"

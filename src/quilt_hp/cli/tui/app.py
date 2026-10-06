@@ -82,7 +82,9 @@ class QuiltApp(App[None]):
         # Apply persisted preferences before first render; set_reactive avoids
         # triggering watch_use_f before the app is running.
         self.set_reactive(QuiltApp.use_f, self._settings.use_fahrenheit)
-        if self._settings.dark is not None:
+        if self._settings.theme and self._settings.theme in self.available_themes:
+            self.theme = self._settings.theme
+        elif self._settings.dark is not None:  # settings saved before themes were remembered
             self.theme = "textual-dark" if self._settings.dark else "textual-light"
 
     # ── Shared state (single source of truth for all screens) ────
@@ -104,13 +106,11 @@ class QuiltApp(App[None]):
             if callable(refresh):
                 refresh()
 
-    @property
-    def _is_dark(self) -> bool:
-        return self.theme != "textual-light"
-
     def _persist(self) -> None:
         """Save current toggleable settings to disk."""
-        self._settings = self._settings_store.update(use_fahrenheit=self.use_f, dark=self._is_dark)
+        self._settings = self._settings_store.update(
+            use_fahrenheit=self.use_f, theme=self.theme, dark=self.current_theme.dark
+        )
 
     def _on_theme_changed(self, _theme: object) -> None:
         """Persist a theme chosen from the command palette (ctrl+p → Change theme)."""

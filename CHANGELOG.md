@@ -104,8 +104,13 @@
 
 ### Changed
 - **TUI keys:** `d` opens Devices (it toggled the theme; change the theme from the command
-  palette, `ctrl+p`, and the choice is still remembered). Pausing schedules for the whole house
-  moved from `p` on the Room and System screens to `P` on Home, and now asks for confirmation.
+  palette, `ctrl+p`). The chosen theme is now remembered by name, so palette themes such as
+  Nord survive a restart; older settings that only recorded light or dark still apply.
+  Pausing schedules for the whole house moved from `p` on the Room and System screens to `P`
+  on Home, and now asks for confirmation; `p` on the Room screen does nothing.
+- **TUI controls:** quick repeated presses build on each other (two `+` presses from 24 °C
+  reach 25 °C): presses for a room are applied one at a time, each from the result of the
+  last. `+`/`−` do nothing in Dry, which has no setpoint the server accepts.
 - The TUI moved from `quilt_hp/cli/tui.py` into a `quilt_hp/cli/tui/` package (one module per
   screen, plus formatting and view helpers) and is now type-checked and included in test
   coverage. `from quilt_hp.cli.tui import QuiltApp` is unchanged. `QuiltApp` accepts optional

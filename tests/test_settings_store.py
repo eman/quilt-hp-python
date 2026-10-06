@@ -36,6 +36,7 @@ def test_migrates_legacy_settings_file(tmp_path: Path) -> None:
             "home": "My Home",
             "use_fahrenheit": True,
             "dark": False,
+            "theme": None,
         },
     }
 
@@ -58,6 +59,7 @@ def test_recovers_from_corrupt_settings_file(tmp_path: Path) -> None:
             "home": None,
             "use_fahrenheit": False,
             "dark": None,
+            "theme": None,
         },
     }
     backups = list(tmp_path.glob("settings.json.corrupt-*"))

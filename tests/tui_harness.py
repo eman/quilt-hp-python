@@ -64,6 +64,7 @@ class FakeClient:
     def __init__(self, snapshot: SystemSnapshot | None = None) -> None:
         self.snapshot = snapshot or load_snapshot()
         self.calls: list[tuple[str, tuple[Any, ...], dict[str, Any]]] = []
+        self.delay = 0.0
 
     async def login(self, **_: Any) -> None:
         return None
@@ -99,6 +100,8 @@ class FakeClient:
         cool_setpoint_c: float | None = None,
     ) -> Space:
         """Record the call and return the space with the change applied, like the server."""
+        if self.delay:
+            await asyncio.sleep(self.delay)  # a slow server, to test presses that overlap
         self.calls.append(
             (
                 "set_space",

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import contextlib
 import logging
 from datetime import UTC, datetime
@@ -96,6 +97,7 @@ class HomeScreen(Screen[None]):
         self._today_kwh: dict[str, float] | None = None
         self._views: list[RoomView] = []
         self._alerts: list[AttentionItem] = []
+        self._locks: dict[str, asyncio.Lock] = {}  # serialises control presses per room
 
     # ── Shared state ────────────────────────────────────────────
 
@@ -309,35 +311,36 @@ class HomeScreen(Screen[None]):
         self.app.push_screen(DevicesScreen(self.snapshot, self._client))
 
     def action_cycle_mode(self) -> None:
-        space = self._selected_space()
-        if space is not None:
-            self._send(space.id, mode=next_mode(space))
+        if (space_id := self.selected_space_id) is not None:
+            self._control(space_id, "mode")
 
     def action_setpoint(self, direction: int) -> None:
-        space = self._selected_space()
-        if space is None:
-            return
-        change = nudge_setpoint(space, direction, self.use_f)
-        if change is None:
-            mode = _MODE_WORDS.get(space.controls.hvac_mode, "this mode")
-            self.notify(f"{space.name} has no setpoint in {mode}. Press m to change mode.")
-            return
-        self._send(space.id, change=change)
-
-    def _selected_space(self) -> Any:
-        space_id = self.selected_space_id
-        return next((s for s in self.snapshot.rooms if s.id == space_id), None)
+        if (space_id := self.selected_space_id) is not None:
+            self._control(space_id, "setpoint", direction)
 
     @work(group="home-control")
-    async def _send(self, space_id: str, **changes: Any) -> None:
-        space = next((s for s in self.snapshot.rooms if s.id == space_id), None)
-        if space is None:
-            return
-        try:
-            await send_space_change(self._client, self.snapshot, space, **changes)
-        except Exception as exc:
-            self.notify(f"Couldn't update {space.name}: {exc}", severity="error")
-            return
+    async def _control(self, space_id: str, intent: str, direction: int = 0) -> None:
+        """Apply one key press. Presses for a room run one at a time, in order, and each
+        computes its target from the room as the previous press left it (two quick ``+``
+        presses from 24 °C reach 25 °C, not 24.5 °C twice)."""
+        async with self._locks.setdefault(space_id, asyncio.Lock()):
+            space = next((s for s in self.snapshot.rooms if s.id == space_id), None)
+            if space is None:
+                return
+            if intent == "mode":
+                changes: dict[str, Any] = {"mode": next_mode(space)}
+            else:
+                change = nudge_setpoint(space, direction, self.use_f)
+                if change is None:
+                    mode = _MODE_WORDS.get(space.controls.hvac_mode, "this mode")
+                    self.notify(f"{space.name} has no setpoint in {mode}. Press m to change mode.")
+                    return
+                changes = {"change": change}
+            try:
+                await send_space_change(self._client, self.snapshot, space, **changes)
+            except Exception as exc:
+                self.notify(f"Couldn't update {space.name}: {exc}", severity="error")
+                return
         self.render_all()
 
     def action_toggle_schedules(self) -> None:
