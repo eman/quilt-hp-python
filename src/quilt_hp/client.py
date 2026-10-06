@@ -29,6 +29,7 @@ from quilt_hp.services.account import AccountService
 from quilt_hp.services.actions import ActionService
 from quilt_hp.services.command import CommandService
 from quilt_hp.services.hds import HomeDatastoreService
+from quilt_hp.services.self_test import SelfTestService
 from quilt_hp.services.streaming import NotifierStream
 from quilt_hp.services.system import SystemInformationService
 from quilt_hp.services.user import DeclaredUserType, User, UserAttributes, UserService
@@ -135,6 +136,7 @@ class QuiltClient:
         self._command: CommandService | None = None
         self._account: AccountService | None = None
         self._actions: ActionService | None = None
+        self._self_test: SelfTestService | None = None
 
         # Snapshot cache
         self._snapshot_cache: SystemSnapshot | None = None
@@ -171,6 +173,7 @@ class QuiltClient:
             self._command = CommandService(self._channel)
             self._account = AccountService(self._channel)
             self._actions = ActionService(self._channel)
+            self._self_test = SelfTestService(self._channel)
         return self._channel
 
     def _require_channel(self) -> grpc.aio.Channel:
@@ -636,6 +639,39 @@ class QuiltClient:
             fan_speed=fan_speed,
         )
 
+    # --- Indoor-unit self-test (DiagnosticService) ---
+
+    def _require_self_test(self) -> SelfTestService:
+        if self._self_test is None:
+            raise QuiltError("Client not connected. Call login() first.")
+        return self._self_test
+
+    async def start_self_test(self, idu: IndoorUnit | str) -> None:
+        """Start an indoor unit's diagnostic self-test (the app's "Run diagnostic test").
+
+        The test takes up to 30 minutes, and the unit's room can't be heated or cooled
+        meanwhile. Quilt (and the home's certified partner, if any) sees the results; the
+        server returns none. Follow progress with ``IndoorUnit.is_under_test``.
+
+        Observed live (2026-10-06): the unit entered ``HEALTH_CHECK`` within 15 s, with
+        ``EXCLUSIVE`` coordination (it was alone on its outdoor unit), ran cooling and then
+        heating (``state.hvac_state``), and returned to normal after about 20 minutes.
+        ``test_state.test_phase`` stayed ``NONE`` throughout.
+        """
+        unit = await self._resolve_snapshot_item(
+            idu, items=lambda snapshot: snapshot.indoor_units, kind="IndoorUnit"
+        )
+        await self._require_self_test().start(unit)
+        self.invalidate_snapshot()
+
+    async def cancel_self_test(self, idu: IndoorUnit | str) -> None:
+        """Cancel a running self-test started with ``start_self_test``."""
+        unit = await self._resolve_snapshot_item(
+            idu, items=lambda snapshot: snapshot.indoor_units, kind="IndoorUnit"
+        )
+        await self._require_self_test().cancel(unit)
+        self.invalidate_snapshot()
+
     # --- Schedules ---
 
     async def create_schedule_day(
@@ -1063,6 +1099,7 @@ class QuiltClient:
         self._command = None
         self._account = None
         self._actions = None
+        self._self_test = None
 
     async def __aenter__(self) -> Self:
         return self
