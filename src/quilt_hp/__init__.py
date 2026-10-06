@@ -4,6 +4,7 @@ from quilt_hp.auth import OtpCallback
 from quilt_hp.client import QuiltClient
 from quilt_hp.const import Environment
 from quilt_hp.exceptions import (
+    QuiltActionError,
     QuiltAuthError,
     QuiltConnectionError,
     QuiltError,
@@ -31,6 +32,7 @@ __all__ = [
     "LegacyTokenStore",
     "NotifierStream",
     "OtpCallback",
+    "QuiltActionError",
     "QuiltAuthError",
     "QuiltClient",
     "QuiltConnectionError",

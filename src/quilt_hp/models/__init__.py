@@ -13,6 +13,7 @@ from quilt_hp.models.account import (
     UserTask,
     UserTaskKind,
 )
+from quilt_hp.models.actions import ActionOutcome, RgbwColor
 from quilt_hp.models.comfort import ComfortSetting
 from quilt_hp.models.controller import Controller
 from quilt_hp.models.diagnostics import (
@@ -22,14 +23,17 @@ from quilt_hp.models.diagnostics import (
 )
 from quilt_hp.models.energy import EnergyBucket, SpaceEnergyMetrics
 from quilt_hp.models.enums import (
+    ActionResult,
     AmbientTemperatureSource,
     BoostMode,
+    ClimateMode,
     ComfortSettingOverride,
     ComfortSettingType,
     ConditionState,
     ControllerOrientation,
     ControllerViewState,
     FallbackControlCommand,
+    FanAngle,
     FanSpeed,
     FastUpdateReason,
     HvacControllerType,
@@ -83,8 +87,11 @@ from quilt_hp.models.system import Location, SystemInfo, SystemSnapshot
 
 __all__ = [
     "AccessRole",
+    "ActionOutcome",
+    "ActionResult",
     "AmbientTemperatureSource",
     "BoostMode",
+    "ClimateMode",
     "ComfortSetting",
     "ComfortSettingOverride",
     "ComfortSettingType",
@@ -97,6 +104,7 @@ __all__ = [
     "DataSharingState",
     "EnergyBucket",
     "FallbackControlCommand",
+    "FanAngle",
     "FanSpeed",
     "FastUpdateReason",
     "HVACMode",
@@ -134,6 +142,7 @@ __all__ = [
     "QuiltSmartModule",
     "RemoteSensor",
     "RemoteSensorControlMode",
+    "RgbwColor",
     "SafetyHeatingMode",
     "ScheduleDay",
     "ScheduleEvent",

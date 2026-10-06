@@ -2,6 +2,11 @@
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from quilt_hp.models.actions import ActionOutcome
+
 
 class QuiltError(Exception):
     """Base exception for all quilt_hp errors."""
@@ -29,3 +34,14 @@ class QuiltPreconditionError(QuiltError):
 
 class QuiltStreamError(QuiltError):
     """Error in the NotifierService bidirectional stream."""
+
+
+class QuiltActionError(QuiltError):
+    """The server reported that an action failed (``ActionResult.FAILED``).
+
+    ``outcome`` holds the server's answer, including ``failure_reason``.
+    """
+
+    def __init__(self, outcome: ActionOutcome) -> None:
+        super().__init__(f"Action failed: {outcome.failure_reason or 'no reason given'}")
+        self.outcome: ActionOutcome = outcome

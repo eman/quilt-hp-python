@@ -546,3 +546,42 @@ class UserTaskKind(IntEnum):
 
     UNSPECIFIED = 0
     DATA_SHARING_CONSENT_BANNER = 1
+
+
+class ClimateMode(IntEnum):
+    """Mode for ``QuiltClient.apply_mode`` (the action API's own numbering, not ``HVACMode``).
+
+    ``AUTO`` keeps the room between its heating and cooling setpoints (the wire calls it
+    ``DUAL_SETPOINT``). ``AWAY`` switches to the room's Away comfort preset.
+    """
+
+    UNSPECIFIED = 0
+    OFF = 1
+    HEAT = 2
+    COOL = 3
+    AUTO = 4
+    FAN = 5
+    DRY = 6
+    AWAY = 7
+
+
+class FanAngle(IntEnum):
+    """Louver position for ``QuiltClient.apply_fan_angle``."""
+
+    UNSPECIFIED = 0
+    AUTO = 1
+    CEILING = 2
+    HIGH = 3
+    MIDDLE = 4
+    LOW = 5
+    FLOOR = 6
+
+
+class ActionResult(IntEnum):
+    """What the server reports for a submitted action."""
+
+    UNSPECIFIED = 0
+    SUCCESS = 1
+    FAILED = 2
+    PARTIAL_FAILURE = 3
+    """A multi-target action applied to only some targets."""
