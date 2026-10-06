@@ -10,6 +10,7 @@ from unittest.mock import patch
 from typer.testing import CliRunner
 
 from quilt_hp.cli import main as cli_main
+from quilt_hp.models import SoftwareUpdateProgressUnit, SoftwareUpdateState, SoftwareUpdateStatus
 from quilt_hp.models.enums import (
     ControllerOrientation,
     ControllerViewState,
@@ -175,13 +176,13 @@ class _FakeSnapshot:
         self.software_update_infos = [
             SimpleNamespace(
                 id="update-software-idu",
-                state=1,
-                status=1,
+                state=SoftwareUpdateState.DOWNLOADING,
+                status=SoftwareUpdateStatus.OK,
                 current_version="1.0.0",
                 target_version="1.1.0",
                 current_progress=0.2,
                 total_progress=1.0,
-                progress_unit=1,
+                progress_unit=SoftwareUpdateProgressUnit.PERCENT,
             )
         ]
 
@@ -230,6 +231,8 @@ def test_info_json_outputs_machine_readable_snapshot() -> None:
     assert payload["version_at"] == "2026-10-05T22:18:18+00:00"
     assert payload["spaces"][0]["occupancy_state"] == "DETECTED"
     assert payload["indoor_units"][0]["occupancy_state"] == "DETECTED"
+    assert payload["software_update_infos"][0]["state"] == "DOWNLOADING"
+    assert payload["software_update_infos"][0]["progress_unit"] == "PERCENT"
     assert payload["indoor_units"][0]["dew_point_c"] == 15.9
     assert payload["indoor_units"][0]["odu_usage_fraction"] == 0.5
     assert payload["indoor_units"][0]["under_test"] is False

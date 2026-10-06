@@ -6,7 +6,8 @@ import pytest
 
 pytest.importorskip("textual")
 
-from quilt_hp.cli.tui import DashboardScreen, RoomScreen, SystemScreen, _id_tokens, _sku_or_none
+from quilt_hp.cli.tui import DashboardScreen, RoomScreen, SystemScreen
+from quilt_hp.cli.tui.format import _id_tokens, _sku_or_none
 
 
 def _key_action_map() -> dict[str, set[str]]:
@@ -89,7 +90,7 @@ def test_setpoint_clamp_constants() -> None:
 def test_patch_schedule_paused_replaces_location_in_place() -> None:
     from dataclasses import dataclass
 
-    from quilt_hp.cli.tui import _patch_schedule_paused
+    from quilt_hp.cli.tui.shared import _patch_schedule_paused
 
     @dataclass
     class _Loc:
@@ -109,7 +110,7 @@ def test_patch_schedule_paused_replaces_location_in_place() -> None:
 
 
 def test_odu_for_space_prefers_idu_link() -> None:
-    from quilt_hp.cli.tui import _odu_for_space
+    from quilt_hp.cli.tui.shared import _odu_for_space
 
     sentinel = object()
 
@@ -125,14 +126,20 @@ def test_odu_for_space_prefers_idu_link() -> None:
 def test_fmt_display_and_detected() -> None:
     from types import SimpleNamespace
 
-    from quilt_hp.cli.tui import _fmt_detected, _fmt_display
+    from quilt_hp.cli.tui.format import _fmt_detected, _fmt_display
     from quilt_hp.models import ControllerViewState
 
-    glance = SimpleNamespace(view_state=ControllerViewState.GLANCE, screen_brightness=0.25)
+    glance = SimpleNamespace(
+        view_state=ControllerViewState.GLANCE, screen_brightness=0.25, is_online=True
+    )
     assert _fmt_display(glance) == ("Glance 25%", "cyan")  # type: ignore[arg-type]
-    asleep = SimpleNamespace(view_state=ControllerViewState.SLEEP, screen_brightness=0.0)
+    asleep = SimpleNamespace(
+        view_state=ControllerViewState.SLEEP, screen_brightness=0.0, is_online=True
+    )
     assert _fmt_display(asleep) == ("Sleep", "dim")  # type: ignore[arg-type]
-    unknown = SimpleNamespace(view_state=ControllerViewState.UNSPECIFIED, screen_brightness=None)
+    unknown = SimpleNamespace(
+        view_state=ControllerViewState.UNSPECIFIED, screen_brightness=None, is_online=True
+    )
     assert _fmt_display(unknown) == ("--", "")  # type: ignore[arg-type]
 
     assert _fmt_detected(True)[0] == "● detected"

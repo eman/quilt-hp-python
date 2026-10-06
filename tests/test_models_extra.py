@@ -27,7 +27,7 @@ from tests.conftest import _make_header, _ns
     ("state", "status", "current_version", "target_version", "current", "total", "unit"),
     [
         (0, 0, "", "", 0.0, 0.0, 0),
-        (2, 3, "1.0.0", "1.1.0", 45.0, 100.0, 1),
+        (2, 1, "1.0.0", "1.1.0", 45.0, 100.0, 1),
     ],
 )
 def test_software_update_info_from_proto(
@@ -62,6 +62,31 @@ def test_software_update_info_from_proto(
     assert info.current_progress == current
     assert info.total_progress == total
     assert info.progress_unit == unit
+
+
+def test_software_update_info_unknown_values_fall_back_to_unspecified() -> None:
+    from quilt_hp.models import (
+        SoftwareUpdateProgressUnit,
+        SoftwareUpdateState,
+        SoftwareUpdateStatus,
+    )
+
+    proto = _ns(
+        header=_make_header("update-1"),
+        attributes=_ns(
+            state=4,
+            status=99,
+            current_version="",
+            target_version="",
+            current_progress=0.0,
+            total_progress=0.0,
+            progress_unit=42,
+        ),
+    )
+    info = SoftwareUpdateInfo.from_proto(proto)
+    assert info.state is SoftwareUpdateState.INSTALLING
+    assert info.status is SoftwareUpdateStatus.UNSPECIFIED
+    assert info.progress_unit is SoftwareUpdateProgressUnit.UNSPECIFIED
 
 
 def test_energy_bucket_is_valid_and_total_kwh() -> None:

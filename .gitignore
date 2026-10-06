@@ -53,3 +53,4 @@ tokens.json
 # pyproject.toml) and CI does not use the lock. Commit it only if dev/CI
 # standardize on `uv sync --locked`.
 uv.lock
+snapshot_report.html
