@@ -69,7 +69,27 @@
   gains `notification_type` (new `NotificationType` enum) and `system_version` (the server
   currently sends 0, so it is None in practice).
 
+- **TUI shows the new telemetry.** Room detail: the Dial panel adds display state and brightness,
+  radar presence, ambient light, humidity, power draw and main/power-board temperatures (the
+  "PCB A / B" row is now labelled "Encoder / SoC"); the sensors panel adds dew point and an
+  indoor-unit test indicator; Energy / Efficiency adds the outdoor-unit share. The System screen's
+  Dials table adds Display, Radar and Light columns, and its header shows when the configuration
+  last changed.
+- **CLI.** `quilt info --output json` adds `version` / `version_at`, and per Dial `display_on`,
+  `presence_detected` and the encoder, SoC, main-board and power-board temperatures; the `info`
+  summary shows the configuration change time and each Dial's display state and offline status.
+  `quilt values` adds `display_on`, `presence_detected` and `power_w`.
+
 ### Fixed
+- `quilt info --output json` reported indoor-unit `occupancy_state` as a raw integer; it is now the
+  enum name (`DETECTED`, `UNDETECTED`), matching spaces.
+- `quilt info` / `quilt values` summaries printed unrounded floats (e.g. `25.73853302001953°C`);
+  temperatures, humidity, power, light and brightness are now formatted.
+- `docs/how-to/cli-scripting.md` documented commands and options that don't exist (`quilt
+  snapshot`, `set-space`, `set-all-spaces`, `logout`, `energy --days`, JSON energy output) and
+  JSON keys the CLI never emitted, and its Prometheus example piped JSON into a heredoc that
+  replaced stdin. It is rewritten against the real CLI, and every example was run against a live
+  system.
 - `docs/reference/models.md` documented several dataclasses with fields that don't exist
   (`IndoorUnit.model_name`, `IndoorUnitState.target_temp_c`, `RemoteSensorState`, renamed
   `IndoorUnitSettings`/`IndoorUnitControls` fields) and omitted many real ones; every documented
