@@ -159,6 +159,18 @@ class FakeClient:
             cooling_setpoint_c=changes.get("cool_setpoint_c") or setting.cooling_setpoint_c,
         )
 
+    async def apply_mode(self, mode: Any, **kwargs: Any) -> Any:
+        from quilt_hp.models import ActionOutcome, ActionResult
+
+        self.calls.append(("apply_mode", (mode,), kwargs))
+        return ActionOutcome(result=ActionResult.SUCCESS, action_id="fake-action")
+
+    async def start_self_test(self, idu: IndoorUnit) -> None:
+        self.calls.append(("start_self_test", (idu,), {}))
+
+    async def cancel_self_test(self, idu: IndoorUnit) -> None:
+        self.calls.append(("cancel_self_test", (idu,), {}))
+
     def __getattr__(self, name: str) -> Callable[..., Any]:
         if not name.startswith("set_"):
             raise AttributeError(name)

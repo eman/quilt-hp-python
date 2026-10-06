@@ -3,17 +3,19 @@
 from __future__ import annotations
 
 import contextlib
+import logging
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any, ClassVar
 
 from rich.text import Text
-from textual import on
+from textual import on, work
 from textual.binding import Binding
 from textual.containers import VerticalScroll
 from textual.screen import Screen
 from textual.widgets import DataTable, Footer, Header, Static
 
 from quilt_hp.cli.tui.base import SnapshotHost
+from quilt_hp.cli.tui.dialogs import ConfirmScreen, TextDialog
 from quilt_hp.cli.tui.format import _tc
 from quilt_hp.cli.tui.views import (
     DeviceKind,
@@ -27,7 +29,11 @@ if TYPE_CHECKING:
     from textual.app import ComposeResult
 
     from quilt_hp.client import QuiltClient
+    from quilt_hp.models.controller import Controller
+    from quilt_hp.models.indoor_unit import IndoorUnit
     from quilt_hp.models.system import SystemSnapshot
+
+logger = logging.getLogger(__name__)
 
 _KIND_LABELS = {
     DeviceKind.INDOOR_UNIT: "Indoor unit",
@@ -44,6 +50,17 @@ def _dial_sensor(uses_dial: bool | None) -> str:
     return "controls the room" if uses_dial else "off (indoor unit's sensor used)"
 
 
+def _self_test(idu: IndoorUnit) -> str:
+    if not idu.is_under_test:
+        return "not running"
+    mode = idu.effective_test_mode.name.replace("_", " ").lower()
+    ts = idu.test_state
+    coordination = ts.test_coordination.name.lower() if ts is not None else ""
+    if coordination in ("", "unspecified", "none"):
+        return f"running ({mode})"
+    return f"running ({mode}, {coordination})"
+
+
 class DevicesScreen(Screen[None]):
     """One row per device, grouped by room; the selected device's details below."""
 
@@ -56,9 +73,18 @@ class DevicesScreen(Screen[None]):
     """
     BINDINGS: ClassVar = [
         Binding("escape,b", "back", "Back"),
+        Binding("t", "self_test", "Self-test"),
+        Binding("s", "dial_sensor", "Dial sensor"),
+        Binding("n", "rename_dial", "Rename Dial"),
         Binding("r", "toggle_raw", "Raw telemetry"),
         Binding("u", "toggle_units", "°C/°F"),
     ]
+    # Actions that only apply to one kind of device; dimmed in the footer otherwise.
+    _ACTION_KINDS: ClassVar = {
+        "self_test": DeviceKind.INDOOR_UNIT,
+        "dial_sensor": DeviceKind.DIAL,
+        "rename_dial": DeviceKind.DIAL,
+    }
 
     def __init__(self, snapshot: SystemSnapshot, client: QuiltClient) -> None:
         super().__init__()
@@ -130,7 +156,7 @@ class DevicesScreen(Screen[None]):
             return
         title = _KIND_LABELS[row.kind] + (f" · {row.room}" if row.room else "")
         wrap.border_title = title + (" · raw telemetry" if self._raw else "")
-        pairs = _details(self.snapshot, row, self.use_f, raw=self._raw)
+        pairs = _details(self.snapshot, row, self.use_f, raw=self._raw, hints=True)
         width = max((len(k) for k, _ in pairs), default=0) + 2
         lines = [Text.assemble((k.ljust(width), "dim"), v) for k, v in pairs]
         if not self._raw:
@@ -140,6 +166,18 @@ class DevicesScreen(Screen[None]):
     @on(DataTable.RowHighlighted, "#devices-table")
     def _on_highlight(self, _event: DataTable.RowHighlighted) -> None:
         self._render_detail()
+        self.refresh_bindings()
+
+    def _selected_row(self) -> DeviceView | None:
+        key = self._selected_key()
+        return next((r for r in self._rows if f"{r.kind.name}:{r.device_id}" == key), None)
+
+    def check_action(self, action: str, parameters: tuple[object, ...]) -> bool | None:
+        kind = self._ACTION_KINDS.get(action)
+        if kind is None:
+            return True
+        row = self._selected_row()
+        return True if row is not None and row.kind == kind else None
 
     # ── Live updates and actions ────────────────────────────────
 
@@ -161,6 +199,154 @@ class DevicesScreen(Screen[None]):
     def action_toggle_raw(self) -> None:
         self._raw = not self._raw
         self._render_detail()
+
+    def _selected_idu(self) -> IndoorUnit | None:
+        row = self._selected_row()
+        if row is None or row.kind != DeviceKind.INDOOR_UNIT:
+            return None
+        return next((u for u in self.snapshot.indoor_units if u.id == row.device_id), None)
+
+    def _selected_dial(self) -> Controller | None:
+        row = self._selected_row()
+        if row is None or row.kind != DeviceKind.DIAL:
+            return None
+        return next((c for c in self.snapshot.controllers if c.id == row.device_id), None)
+
+    def _room_name(self, space_id: str) -> str:
+        return next((s.name for s in self.snapshot.rooms if s.id == space_id), "this room")
+
+    def action_self_test(self) -> None:
+        idu = self._selected_idu()
+        if idu is None:
+            self.notify("Select an indoor unit to run its self-test.")
+            return
+        room = self._room_name(idu.space_id)
+        if idu.is_under_test:
+            question = f"Cancel the self-test on the {room} indoor unit?"
+            detail = f"{room} goes back to its own settings."
+            label = "Cancel test"
+        else:
+            question = f"Run a self-test on the {room} indoor unit?"
+            detail = (
+                f"It takes up to 30 minutes. During this time, {room} won't be available "
+                "for heating or cooling. Quilt (and your certified partner, if you have one) "
+                "will see the results."
+            )
+            odu = self.snapshot.odu_for_idu(idu)
+            sharing = sorted(
+                self._room_name(u.space_id)
+                for u in self.snapshot.indoor_units
+                if u.id != idu.id and odu is not None and self.snapshot.odu_for_idu(u) is odu
+            )
+            if sharing:
+                detail += (
+                    f" {', '.join(sharing)} share{'s' if len(sharing) == 1 else ''} its "
+                    "outdoor unit and may have to wait."
+                )
+            label = "Run test"
+
+        def done(confirmed: bool | None) -> None:
+            if confirmed:
+                self._run_self_test(idu, cancel=idu.is_under_test)
+
+        self.app.push_screen(ConfirmScreen(question, detail, label), done)
+
+    @work(group="devices-control")
+    async def _run_self_test(self, idu: IndoorUnit, *, cancel: bool) -> None:
+        room = self._room_name(idu.space_id)
+        try:
+            if cancel:
+                await self._client.cancel_self_test(idu)
+            else:
+                await self._client.start_self_test(idu)
+        except Exception as exc:
+            self.notify(
+                f"Couldn't {'cancel' if cancel else 'start'} the test: {exc}", severity="error"
+            )
+            return
+        self.notify(
+            f"Cancelling the {room} self-test" if cancel else f"Self-test starting in {room}",
+            timeout=4,
+        )
+        await self._reload()
+
+    def action_dial_sensor(self) -> None:
+        dial = self._selected_dial()
+        if dial is None:
+            self.notify("Select a Dial to change its temperature sensor.")
+            return
+        room = self._room_name(dial.space_id)
+        use_dial = not dial.uses_dial_temperature
+        if use_dial:
+            question = f"Control {room} to its Dial's temperature?"
+            detail = "The room is heated and cooled to what the Dial measures where it's mounted."
+            label = "Use the Dial"
+        else:
+            question = f"Control {room} to the indoor unit's sensor?"
+            detail = (
+                "The room is heated and cooled to the indoor unit's built-in sensor, which "
+                "sits high on the wall and can read a little warm."
+            )
+            label = "Use the indoor unit"
+
+        def done(confirmed: bool | None) -> None:
+            if confirmed:
+                self._update_dial(dial, uses_dial_temperature=use_dial)
+
+        self.app.push_screen(ConfirmScreen(question, detail, label), done)
+
+    def action_rename_dial(self) -> None:
+        dial = self._selected_dial()
+        if dial is None:
+            self.notify("Select a Dial to rename it.")
+            return
+
+        def done(name: str | None) -> None:
+            if name and name != dial.name:
+                self._update_dial(dial, name=name)
+
+        self.app.push_screen(
+            TextDialog(f"Rename the {self._room_name(dial.space_id)} Dial", dial.name), done
+        )
+
+    @work(group="devices-control")
+    async def _update_dial(
+        self,
+        dial: Controller,
+        *,
+        name: str | None = None,
+        uses_dial_temperature: bool | None = None,
+    ) -> None:
+        try:
+            await self._client.set_controller(
+                dial, name=name, uses_dial_temperature=uses_dial_temperature
+            )
+        except Exception as exc:
+            self.notify(f"Couldn't update the Dial: {exc}", severity="error")
+            return
+        if name is not None:
+            self.notify(f"Dial renamed to {name}", timeout=3)
+        else:
+            self.notify(
+                "The room follows its Dial's temperature"
+                if uses_dial_temperature
+                else "The room follows the indoor unit's sensor",
+                timeout=3,
+            )
+        await self._reload()
+
+    async def _reload(self) -> None:
+        """Adopt a fresh snapshot so the change shows without waiting for the stream."""
+        try:
+            snap = await self._client.get_snapshot()
+        except Exception as exc:
+            logger.warning("Devices refresh failed: %s", exc)
+            return
+        self._snapshot = snap
+        app = self.app
+        if isinstance(app, SnapshotHost):
+            app.update_snapshot(snap)
+        self.render_all()
 
     def action_toggle_units(self) -> None:
         app = self.app
@@ -186,9 +372,14 @@ def _cells(row: DeviceView) -> tuple[Text, ...]:
 
 
 def _details(
-    snap: SystemSnapshot, row: DeviceView, use_f: bool, *, raw: bool
+    snap: SystemSnapshot, row: DeviceView, use_f: bool, *, raw: bool, hints: bool = False
 ) -> list[tuple[str, str]]:
-    """Key/value lines for one device; ``raw`` adds diagnostic telemetry."""
+    """Key/value lines for one device; ``raw`` adds diagnostic telemetry, ``hints`` the
+    Devices screen's keys for the settings shown."""
+
+    def hint(text: str) -> str:
+        return f" · {text}" if hints else ""
+
     tz = system_tz(snap)
     now = datetime.now(tz=UTC)
 
@@ -213,6 +404,10 @@ def _details(
             ("Made", _date(idu.manufactured_at)),
             ("Last report", when(idu.state.updated_at)),
             ("Outdoor unit", odu.serial_number or odu.id[:8] if odu else "–"),
+            (
+                "Self-test",
+                _self_test(idu) + (hint("t cancels") if idu.is_under_test else hint("t runs it")),
+            ),
         ]
         if qsm is not None:
             if qsm.hosted_wifi is not None:
@@ -302,7 +497,10 @@ def _details(
                 )
                 + (" (last known)" if not live else ""),
             ),
-            ("Temperature sensor", _dial_sensor(ctrl.uses_dial_temperature)),
+            (
+                "Temperature sensor",
+                _dial_sensor(ctrl.uses_dial_temperature) + hint("s switches, n renames"),
+            ),
         ]
         if raw:
             pairs += [

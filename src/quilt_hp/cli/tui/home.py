@@ -79,6 +79,7 @@ class HomeScreen(Screen[None]):
         Binding("d", "devices", "Devices"),
         Binding("e", "energy", "Energy"),
         Binding("P", "toggle_schedules", "Pause/resume schedules", show=False),
+        Binding("O", "all_off", "Turn every room off", show=False),
         Binding("r", "refresh", "Refresh"),
         Binding("u", "toggle_units", "°C/°F"),
     ]
@@ -370,6 +371,37 @@ class HomeScreen(Screen[None]):
             return
         self.notify("Schedules paused" if paused else "Schedules resumed", timeout=3)
         self.render_all()
+
+    def action_all_off(self) -> None:
+        loc = self.snapshot.primary_location
+        detail = "Every room switches to Off now, in one change."
+        if loc is None or not loc.schedule_paused:
+            detail += (
+                " Schedules are still running, so a room's next scheduled change can turn it "
+                "back on. Press P to pause them too."
+            )
+
+        def done(confirmed: bool | None) -> None:
+            if confirmed:
+                self._all_off()
+
+        self.app.push_screen(ConfirmScreen("Turn every room off?", detail, "All off"), done)
+
+    @work(group="home-control")
+    async def _all_off(self) -> None:
+        from quilt_hp.models import ClimateMode
+
+        try:
+            outcome = await self._client.apply_mode(ClimateMode.OFF, whole_house=True)
+        except Exception as exc:
+            self.notify(f"Couldn't turn the house off: {exc}", severity="error")
+            return
+        if outcome.ok:
+            self.notify("Every room is off", timeout=3)
+        else:
+            reason = outcome.failure_reason or "some rooms didn't change"
+            self.notify(f"Only some rooms turned off: {reason}", severity="warning")
+        self._periodic_refresh()
 
     @work(exclusive=True, group="home-refresh")
     async def action_refresh(self) -> None:

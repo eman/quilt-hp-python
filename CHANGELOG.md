@@ -3,6 +3,11 @@
 ## [Unreleased]
 
 ### Added
+- **TUI controls for the new write APIs:** on the Devices screen, `t` runs (or cancels) an
+  indoor unit's diagnostic self-test, `s` switches a Dial's temperature sensor and `n` renames a
+  Dial, each asking first, with keys that don't apply to the selected device dimmed. On the
+  Home screen, `O` turns every room off in one action. Device details show whether a self-test
+  is running.
 - **Indoor-unit self-test:** `QuiltClient.start_self_test()` and `cancel_self_test()` wrap
   `DiagnosticService`, the app's "Run diagnostic test" (since app 1.0.33). They identify the
   unit as the app does, by its own serial. The test takes up to 30 minutes and its results go

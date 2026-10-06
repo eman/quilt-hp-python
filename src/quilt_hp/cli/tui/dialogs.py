@@ -112,6 +112,47 @@ class ValueDialog(ModalScreen[float | None]):
         self.dismiss(None)
 
 
+class TextDialog(ModalScreen[str | None]):
+    """Ask for one line of text; dismisses with it (trimmed), or None when cancelled."""
+
+    DEFAULT_CSS = """
+    TextDialog { align: center middle; }
+    TextDialog > Vertical {
+        width: 50; height: auto; padding: 1 2;
+        border: round $primary; background: $surface;
+    }
+    TextDialog Input { margin-top: 1; }
+    TextDialog #text-error { color: $error; height: auto; }
+    TextDialog #text-hint { color: $text-muted; }
+    """
+    BINDINGS: ClassVar = [Binding("escape", "cancel", "Cancel")]
+
+    def __init__(self, title: str, current: str) -> None:
+        super().__init__()
+        self._title = title
+        self._current = current
+
+    def compose(self) -> ComposeResult:
+        with Vertical():
+            yield Static(self._title)
+            yield Input(value=self._current, id="text-input")
+            yield Static("enter to save, esc to cancel", id="text-hint")
+            yield Static("", id="text-error")
+
+    def on_mount(self) -> None:
+        self.query_one(Input).focus()
+
+    def on_input_submitted(self, event: Input.Submitted) -> None:
+        value = event.value.strip()
+        if not value:
+            self.query_one("#text-error", Static).update("Enter a name.")
+            return
+        self.dismiss(value)
+
+    def action_cancel(self) -> None:
+        self.dismiss(None)
+
+
 @dataclass(frozen=True, slots=True)
 class SettingField:
     """One editable number in the Room settings dialog."""
