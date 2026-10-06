@@ -18,13 +18,15 @@ import contextlib
 import logging
 import time
 from collections.abc import Callable
-from typing import TYPE_CHECKING, Protocol, Self, TypeVar
+from typing import TYPE_CHECKING, Any, Protocol, Self, TypeVar
 
 from quilt_hp.auth import OtpCallback, authenticate
 from quilt_hp.const import Environment
 from quilt_hp.exceptions import QuiltAuthError, QuiltError, QuiltNotFoundError
 from quilt_hp.models.enums import FastUpdateReason
+from quilt_hp.services import actions as _actions
 from quilt_hp.services.account import AccountService
+from quilt_hp.services.actions import ActionService
 from quilt_hp.services.command import CommandService
 from quilt_hp.services.hds import HomeDatastoreService
 from quilt_hp.services.streaming import NotifierStream
@@ -42,6 +44,7 @@ from quilt_hp.transport import auth_metadata, create_channel
 logger = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
+    from collections.abc import Iterable
     from datetime import datetime
 
     import grpc.aio
@@ -55,11 +58,20 @@ if TYPE_CHECKING:
         SystemUsers,
         UserTask,
     )
+    from quilt_hp.models.actions import ActionOutcome, RgbwColor
     from quilt_hp.models.comfort import ComfortSetting
     from quilt_hp.models.controller import Controller
     from quilt_hp.models.diagnostics import SystemDiagnostics
     from quilt_hp.models.energy import SpaceEnergyMetrics
-    from quilt_hp.models.enums import FanSpeed, HVACMode, LouverMode
+    from quilt_hp.models.enums import (
+        ClimateMode,
+        FanAngle,
+        FanSpeed,
+        HVACMode,
+        LedAnimation,
+        LightPreset,
+        LouverMode,
+    )
     from quilt_hp.models.indoor_unit import IndoorUnit
     from quilt_hp.models.outdoor_unit import OutdoorUnit
     from quilt_hp.models.qsm import QuiltSmartModule
@@ -122,6 +134,7 @@ class QuiltClient:
         self._user_svc: UserService | None = None
         self._command: CommandService | None = None
         self._account: AccountService | None = None
+        self._actions: ActionService | None = None
 
         # Snapshot cache
         self._snapshot_cache: SystemSnapshot | None = None
@@ -157,6 +170,7 @@ class QuiltClient:
             self._user_svc = UserService(self._channel)
             self._command = CommandService(self._channel)
             self._account = AccountService(self._channel)
+            self._actions = ActionService(self._channel)
         return self._channel
 
     def _require_channel(self) -> grpc.aio.Channel:
@@ -797,6 +811,153 @@ class QuiltClient:
             phone_number=phone_number,
         )
 
+    # --- Actions (HomeActionService) ---
+    #
+    # Each action applies to any mix of rooms, indoor units and the whole house in one call.
+    # They return the server's ActionOutcome (``ok`` is False for a partial failure) and raise
+    # QuiltActionError when the server reports the action failed.
+    #
+    # Targets follow the Quilt app: mode and temperatures address rooms; fan speed, fan angle
+    # and light address indoor units (a room expands to its units; the server rejects a room
+    # target for fan speed with INVALID_ARGUMENT, verified live 2026-10-06). "Whole house"
+    # expands to every room or every indoor unit: the wire's system-wide target is not used,
+    # because the app never sends it.
+
+    def _require_actions(self) -> ActionService:
+        if self._actions is None:
+            raise QuiltError("Client not connected. Call login() first.")
+        return self._actions
+
+    async def _submit(
+        self,
+        build: Callable[[list[Any]], Any],
+        rooms: Iterable[Space | str],
+        indoor_units: Iterable[IndoorUnit | str],
+        whole_house: bool,
+        system_id: str | None,
+        *,
+        per_unit: bool = False,
+    ) -> ActionOutcome:
+        sid = await self._resolve_system_id(system_id)
+        room_ids = [r if isinstance(r, str) else r.id for r in rooms]
+        unit_ids = [u if isinstance(u, str) else u.id for u in indoor_units]
+        if whole_house or (per_unit and room_ids):
+            snap = await self.get_snapshot(system_id)
+            if whole_house:
+                room_ids = [r.id for r in snap.rooms]
+            if per_unit:
+                wanted = set(room_ids)
+                unit_ids += [u.id for u in snap.indoor_units if u.space_id in wanted]
+                room_ids = []
+        targets = _actions.build_targets(
+            rooms=list(dict.fromkeys(room_ids)), indoor_units=list(dict.fromkeys(unit_ids))
+        )
+        outcome = await self._require_actions().submit(sid, build(targets))
+        self.invalidate_snapshot()
+        return outcome
+
+    async def apply_mode(
+        self,
+        mode: ClimateMode | HVACMode,
+        *,
+        rooms: Iterable[Space | str] = (),
+        indoor_units: Iterable[IndoorUnit | str] = (),
+        whole_house: bool = False,
+        system_id: str | None = None,
+    ) -> ActionOutcome:
+        """Set the mode of rooms, indoor units or the whole house.
+
+        Accepts ``ClimateMode`` (including ``AWAY``) or the familiar ``HVACMode``
+        (``STANDBY`` means off).
+        """
+        return await self._submit(
+            lambda t: _actions.build_mode(t, mode), rooms, indoor_units, whole_house, system_id
+        )
+
+    async def apply_temperatures(
+        self,
+        *,
+        heat_c: float | None = None,
+        cool_c: float | None = None,
+        rooms: Iterable[Space | str] = (),
+        indoor_units: Iterable[IndoorUnit | str] = (),
+        whole_house: bool = False,
+        system_id: str | None = None,
+    ) -> ActionOutcome:
+        """Set heating and/or cooling setpoints (°C)."""
+        return await self._submit(
+            lambda t: _actions.build_temperatures(t, heat_c, cool_c),
+            rooms,
+            indoor_units,
+            whole_house,
+            system_id,
+        )
+
+    async def apply_fan_speed(
+        self,
+        speed: FanSpeed,
+        *,
+        rooms: Iterable[Space | str] = (),
+        indoor_units: Iterable[IndoorUnit | str] = (),
+        whole_house: bool = False,
+        system_id: str | None = None,
+    ) -> ActionOutcome:
+        """Set the fan speed."""
+        return await self._submit(
+            lambda t: _actions.build_fan_speed(t, speed),
+            rooms,
+            indoor_units,
+            whole_house,
+            system_id,
+            per_unit=True,
+        )
+
+    async def apply_fan_angle(
+        self,
+        angle: FanAngle,
+        *,
+        rooms: Iterable[Space | str] = (),
+        indoor_units: Iterable[IndoorUnit | str] = (),
+        whole_house: bool = False,
+        system_id: str | None = None,
+    ) -> ActionOutcome:
+        """Set the louver position (``FanAngle.AUTO``, ``CEILING`` … ``FLOOR``)."""
+        return await self._submit(
+            lambda t: _actions.build_fan_angle(t, angle),
+            rooms,
+            indoor_units,
+            whole_house,
+            system_id,
+            per_unit=True,
+        )
+
+    async def apply_light(
+        self,
+        *,
+        on: bool | None = None,
+        brightness_percent: float | None = None,
+        color: LightPreset | RgbwColor | None = None,
+        animation: LedAnimation | None = None,
+        rooms: Iterable[Space | str] = (),
+        indoor_units: Iterable[IndoorUnit | str] = (),
+        whole_house: bool = False,
+        system_id: str | None = None,
+    ) -> ActionOutcome:
+        """Set the indoor units' LED ring: power, brightness (0–100), colour and animation.
+
+        ``color`` is a preset or a custom ``RgbwColor``. Settings you leave out are unchanged.
+        """
+        return await self._submit(
+            lambda t: _actions.build_light(
+                t, on=on, brightness_percent=brightness_percent, color=color, animation=animation
+            ),
+            rooms,
+            indoor_units,
+            whole_house,
+            system_id,
+            per_unit=True,
+        )
+
     # --- Account (read-only) ---
 
     async def list_system_users(self, system_id: str | None = None) -> SystemUsers:
@@ -866,6 +1027,7 @@ class QuiltClient:
         self._user_svc = None
         self._command = None
         self._account = None
+        self._actions = None
 
     async def __aenter__(self) -> Self:
         return self

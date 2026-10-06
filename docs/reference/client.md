@@ -17,6 +17,7 @@ from quilt_hp import (
     QuiltConnectionError,
     QuiltNotFoundError,
     QuiltPreconditionError,
+    QuiltActionError,
 )
 ```
 
@@ -66,6 +67,16 @@ class QuiltNotFoundError(QuiltError): ...
 ```
 
 Raised when a requested resource does not exist (gRPC `NOT_FOUND`).
+
+### `QuiltActionError`
+
+```python
+class QuiltActionError(QuiltError):
+    outcome: ActionOutcome
+```
+
+Raised by the `apply_*` action methods when the server reports the action failed; `outcome`
+holds its `failure_reason`.
 
 ### `QuiltPreconditionError`
 
@@ -701,6 +712,46 @@ async def patch_user_attributes(
 ```
 
 Updates user attributes.
+
+---
+
+## Actions
+
+```python
+async def apply_mode(self, mode: ClimateMode | HVACMode, *, rooms=(), indoor_units=(), whole_house=False) -> ActionOutcome
+async def apply_temperatures(self, *, heat_c=None, cool_c=None, rooms=(), indoor_units=(), whole_house=False) -> ActionOutcome
+async def apply_fan_speed(self, speed: FanSpeed, *, rooms=(), indoor_units=(), whole_house=False) -> ActionOutcome
+async def apply_fan_angle(self, angle: FanAngle, *, rooms=(), indoor_units=(), whole_house=False) -> ActionOutcome
+async def apply_light(self, *, on=None, brightness_percent=None, color=None, animation=None,
+                      rooms=(), indoor_units=(), whole_house=False) -> ActionOutcome
+```
+
+One call changes any mix of rooms (`Space` objects or IDs), indoor units, or the whole house,
+through the same action API the Quilt app uses (`HomeActionService/SubmitAction`). Each also
+takes `system_id`.
+
+```python
+from quilt_hp.models import ClimateMode, FanAngle, LightPreset, RgbwColor
+
+await client.apply_mode(ClimateMode.OFF, whole_house=True)          # everything off
+await client.apply_temperatures(cool_c=23.5, rooms=["Office id", den])
+await client.apply_fan_angle(FanAngle.FLOOR, rooms=[den])
+await client.apply_light(on=True, brightness_percent=40, color=RgbwColor(255, 120, 0), rooms=[den])
+```
+
+- **Mode** accepts `ClimateMode` (`OFF`, `HEAT`, `COOL`, `AUTO`, `FAN`, `DRY`, `AWAY`) or the
+  familiar `HVACMode` (`STANDBY` means off). Its numbering differs from `HVACMode` on the wire;
+  the library converts.
+- **Fan speed, fan angle and light** apply to indoor units: a room is expanded to its indoor
+  units, as the app does (the server rejects a room target for these).
+- **Whole house** expands to every room (mode, temperatures) or every indoor unit (fan, louver,
+  light).
+- **Light**: `brightness_percent` is 0–100; `color` is a `LightPreset` or a custom
+  `RgbwColor(red, green, blue, white)` (each 0–255). Settings you leave out are unchanged.
+
+Each call returns an `ActionOutcome` (`result`, `action_id`, `failure_reason`; `ok` is True only
+for `SUCCESS`, so a `PARTIAL_FAILURE` returns with `ok` False) and raises `QuiltActionError`
+when the server reports the action failed. The cached snapshot is invalidated afterwards.
 
 ---
 
