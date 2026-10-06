@@ -515,7 +515,7 @@ Follow progress on the indoor unit:
 await client.start_self_test(unit)
 snapshot = await client.get_snapshot()
 unit = next(u for u in snapshot.indoor_units if u.id == unit.id)
-print(unit.is_under_test, unit.test_state.test_mode, unit.state.hvac_state)
+print(unit.is_under_test, unit.effective_test_mode, unit.state.hvac_state)
 ```
 
 What a run looked like on a live system (2026-10-06), for a unit alone on its outdoor unit:
@@ -529,7 +529,7 @@ What a run looked like on a live system (2026-10-06), for a unit alone on its ou
 
 `test_phase` stayed `NONE` throughout, so use `is_under_test` and `hvac_state` rather than
 the phase. `test_state` cleared about 15 s before `state.test_mode`; `is_under_test` uses the
-newer of the two. Units sharing an outdoor unit presumably take turns
+newer of the two, as does `effective_test_mode` (`test_state` itself can be `None`). Units sharing an outdoor unit presumably take turns
 (`test_state.test_coordination`); this run didn't exercise that. The room's own mode and
 setpoints were unchanged afterwards. The cached snapshot is invalidated after each call.
 
