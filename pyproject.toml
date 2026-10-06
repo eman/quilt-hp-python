@@ -115,10 +115,6 @@ module = "quilt_hp._proto.*"
 ignore_errors = true
 
 [[tool.mypy.overrides]]
-module = "quilt_hp.cli.tui"
-ignore_errors = true
-
-[[tool.mypy.overrides]]
 module = "google.protobuf.*"
 ignore_missing_imports = true
 
@@ -144,7 +140,7 @@ asyncio_mode = "auto"
 # Exclude generated protobuf stubs and the interactive TUI shell from unit-test gating.
 omit = [
     "src/quilt_hp/_proto/*",
-    "src/quilt_hp/cli/tui.py",
+    "src/quilt_hp/cli/tui/*",
 ]
 
 [tool.coverage.report]
