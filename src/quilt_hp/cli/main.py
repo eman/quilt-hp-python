@@ -271,6 +271,11 @@ def _snapshot_payload(snap: SystemSnapshot) -> dict[str, Any]:
                 ),
                 "occupancy_state": _occupancy_name(idu.effective_occupancy_state),
                 "dew_point_c": idu.dew_point_c,
+                "unit_serial_number": idu.unit_serial_number,
+                "smart_module_serial_number": idu.smart_module_serial_number,
+                "manufactured_at": idu.manufactured_at.isoformat()
+                if idu.manufactured_at
+                else None,
                 "odu_usage_fraction": (
                     idu.performance_metrics.odu_usage_fraction if idu.performance_metrics else None
                 ),
@@ -286,6 +291,10 @@ def _snapshot_payload(snap: SystemSnapshot) -> dict[str, Any]:
                 "space_name": space_names.get(odu.space_id),
                 "model_sku": odu.model_sku,
                 "serial_number": odu.serial_number,
+                "port_count": odu.port_count,
+                "manufactured_at": odu.manufactured_at.isoformat()
+                if odu.manufactured_at
+                else None,
                 "firmware_version": odu.firmware_version,
                 "firmware_update_info_id": odu.firmware_update_info_id,
                 "performance_data": (
@@ -328,6 +337,9 @@ def _snapshot_payload(snap: SystemSnapshot) -> dict[str, Any]:
                 "software_update_info_id": ctrl.software_update_info_id,
                 "firmware_update_info_id": ctrl.firmware_update_info_id,
                 "serial_number": ctrl.serial_number,
+                "manufactured_at": ctrl.manufactured_at.isoformat()
+                if ctrl.manufactured_at
+                else None,
                 "model_sku": ctrl.model_sku,
             }
             for ctrl in snap.controllers

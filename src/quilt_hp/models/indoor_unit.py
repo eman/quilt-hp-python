@@ -332,10 +332,20 @@ class IndoorUnit:
     firmware_update_info_id: str | None = None
     commands: IndoorUnitCommands | None = None
     model_sku: str | None = None  # IndoorUnitHardware.attributes.model_sku
-    serial_number: str | None = None  # IndoorUnitHardware.attributes.serial_number
+    serial_number: str | None = (
+        None  # IndoorUnitHardware serial: the built-in Smart Module's (QS1-…)
+    )
     firmware_version: str | None = None  # IndoorUnitHardware.attributes.firmware_version
     climate: IndoorUnitClimate | None = None
     test_state: IndoorUnitTestState | None = None
+    unit_serial_number: str | None = None
+    """The indoor unit's own serial (``QN1-…``). ``serial_number`` is its Smart Module's."""
+    smart_module_serial_number: str | None = None
+    """The serial of the Smart Module built into the unit (``QS1-…``)."""
+    manufactured_at: datetime | None = None
+    """``IndoorUnitHardware.production_ts``."""
+    created_at: datetime | None = None
+    """When this indoor unit was added to the system."""
 
     @property
     def dew_point_c(self) -> float | None:
@@ -664,6 +674,7 @@ def _idu_from_proto(proto: object, hw_map: dict[str, object] | None = None) -> I
     model_sku: str | None = None
     serial_number: str | None = None
     firmware_version: str | None = None
+    hardware: dict[str, Any] = {}
     if hw_map and rel is not None:
         hw = lookup_hardware(hw_map, rel.hardware_id)
         if hw is not None:
@@ -671,6 +682,12 @@ def _idu_from_proto(proto: object, hw_map: dict[str, object] | None = None) -> I
             model_sku = a.model_sku or None
             serial_number = a.serial_number or None
             firmware_version = a.firmware_version or None
+            hardware = {
+                "unit_serial_number": getattr(a, "indoor_unit_serial_number", "") or None,
+                "smart_module_serial_number": getattr(a, "quilt_smart_module_serial_number", "")
+                or None,
+                "manufactured_at": timestamp_or_none(getattr(a, "production_ts", None)),
+            }
 
     return IndoorUnit(
         id=p.header.object_id,
@@ -697,4 +714,6 @@ def _idu_from_proto(proto: object, hw_map: dict[str, object] | None = None) -> I
         firmware_version=firmware_version,
         climate=climate,
         test_state=test_state,
+        created_at=timestamp_or_none(getattr(p.header, "created_ts", None)),
+        **hardware,
     )

@@ -10,7 +10,12 @@ from typing import Any, cast
 import grpc
 import grpc.aio
 
-from quilt_hp.exceptions import QuiltConnectionError, QuiltError, QuiltNotFoundError
+from quilt_hp.exceptions import (
+    QuiltConnectionError,
+    QuiltError,
+    QuiltNotFoundError,
+    QuiltPreconditionError,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -90,6 +95,8 @@ class _GrpcCallContext:
                 return QuiltConnectionError(f"{self._operation} failed: {exc.details()}")
             if exc.code() == grpc.StatusCode.NOT_FOUND:
                 return QuiltNotFoundError(f"{self._operation} failed: {exc.details()}")
+            if exc.code() == grpc.StatusCode.FAILED_PRECONDITION:
+                return QuiltPreconditionError(f"{self._operation} failed: {exc.details()}")
             return QuiltError(f"{self._operation} failed: {exc.details()}")
         logger.debug("Unexpected error in %s: %s", self._operation, exc)
         return QuiltError(f"{self._operation} failed: {exc}")

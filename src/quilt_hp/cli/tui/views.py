@@ -303,7 +303,7 @@ def device_views(snap: SystemSnapshot, now: datetime | None = None) -> list[Devi
                 idu.is_online,
                 None if idu.is_online else age_text(idu.state.updated_at, now),
                 _link(signal, mesh) if idu.is_online else "",
-                idu.serial_number,
+                idu.unit_serial_number or idu.serial_number,
                 _known(idu.firmware_version),
                 _update(updates, idu.firmware_update_info_id),
             )

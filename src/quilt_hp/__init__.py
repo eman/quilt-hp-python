@@ -8,6 +8,7 @@ from quilt_hp.exceptions import (
     QuiltConnectionError,
     QuiltError,
     QuiltNotFoundError,
+    QuiltPreconditionError,
     QuiltStreamError,
 )
 from quilt_hp.services.streaming import NotifierStream, StreamEvent
@@ -35,6 +36,7 @@ __all__ = [
     "QuiltConnectionError",
     "QuiltError",
     "QuiltNotFoundError",
+    "QuiltPreconditionError",
     "QuiltStreamError",
     "RefreshFailureAction",
     "StreamEvent",

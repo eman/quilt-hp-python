@@ -175,6 +175,8 @@ class Space:
     # None if the space was received via a stream update without enrichment.
     active_comfort_setting_type: ComfortSettingType | None = field(default=None)
     occupancy: SpaceOccupancy | None = None
+    created_at: datetime | None = None
+    """When this room was added to the system."""
 
     @property
     def occupancy_state(self) -> OccupancyState | None:
@@ -322,4 +324,5 @@ def _space_from_proto(proto: object) -> Space:
         controls=controls,
         state=state,
         occupancy=occupancy,
+        created_at=timestamp_or_none(getattr(p.header, "created_ts", None)),
     )

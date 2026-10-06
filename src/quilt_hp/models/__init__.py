@@ -1,5 +1,18 @@
 """Pythonic data models wrapping protobuf messages."""
 
+from quilt_hp.models.account import (
+    AccessRole,
+    DataSharingSetting,
+    DataSharingState,
+    Invitation,
+    PartnerDetails,
+    PartnerProfile,
+    SystemDataSharing,
+    SystemUser,
+    SystemUsers,
+    UserTask,
+    UserTaskKind,
+)
 from quilt_hp.models.comfort import ComfortSetting
 from quilt_hp.models.controller import Controller
 from quilt_hp.models.diagnostics import (
@@ -37,6 +50,7 @@ from quilt_hp.models.enums import (
     OccupancyState,
     RemoteSensorControlMode,
     SafetyHeatingMode,
+    WifiConnectionState,
 )
 from quilt_hp.models.indoor_unit import (
     IndoorUnit,
@@ -49,6 +63,7 @@ from quilt_hp.models.indoor_unit import (
     IndoorUnitTestState,
 )
 from quilt_hp.models.outdoor_unit import OutdoorUnit
+from quilt_hp.models.qsm import QsmSensors, QuiltSmartModule, WifiInfo
 from quilt_hp.models.schedule import ScheduleDay, ScheduleEvent, ScheduleWeek
 from quilt_hp.models.sensor import ControllerRemoteSensor, RemoteSensor
 from quilt_hp.models.software_update import (
@@ -67,6 +82,7 @@ from quilt_hp.models.space import (
 from quilt_hp.models.system import Location, SystemInfo, SystemSnapshot
 
 __all__ = [
+    "AccessRole",
     "AmbientTemperatureSource",
     "BoostMode",
     "ComfortSetting",
@@ -77,6 +93,8 @@ __all__ = [
     "ControllerOrientation",
     "ControllerRemoteSensor",
     "ControllerViewState",
+    "DataSharingSetting",
+    "DataSharingState",
     "EnergyBucket",
     "FallbackControlCommand",
     "FanSpeed",
@@ -96,6 +114,7 @@ __all__ = [
     "IndoorUnitTestMode",
     "IndoorUnitTestPhase",
     "IndoorUnitTestState",
+    "Invitation",
     "LedAnimation",
     "LightPreset",
     "LocalCommsHealthReason",
@@ -109,6 +128,10 @@ __all__ = [
     "OccupancyState",
     "OutdoorUnit",
     "OutdoorUnitDiagnostics",
+    "PartnerDetails",
+    "PartnerProfile",
+    "QsmSensors",
+    "QuiltSmartModule",
     "RemoteSensor",
     "RemoteSensorControlMode",
     "SafetyHeatingMode",
@@ -125,7 +148,14 @@ __all__ = [
     "SpaceOccupancy",
     "SpaceSettings",
     "SpaceState",
+    "SystemDataSharing",
     "SystemDiagnostics",
     "SystemInfo",
     "SystemSnapshot",
+    "SystemUser",
+    "SystemUsers",
+    "UserTask",
+    "UserTaskKind",
+    "WifiConnectionState",
+    "WifiInfo",
 ]

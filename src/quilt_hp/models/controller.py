@@ -109,6 +109,12 @@ class Controller:
     power_board_temperature_c: float | None = None
     accelerometer_raw: tuple[int, int, int] | None = None
     """Raw accelerometer X/Y/Z counts."""
+    hosted_wifi: WifiInfo | None = None
+    """The home-network Wi-Fi link in full (the ``wifi_*`` fields are the common parts of it)."""
+    manufactured_at: datetime | None = None
+    """``ControllerHardware.production_ts``."""
+    created_at: datetime | None = None
+    """When this Dial was added to the system."""
 
     @property
     def ambient_temperature_c(self) -> float | None:
@@ -182,7 +188,7 @@ class Controller:
             if wstate is None:
                 return None
             info = WifiInfo.from_proto(wstate)
-            return info if info.connected else None
+            return info if info.reported else None  # keeps DISCONNECTED, SCANNING, …
 
         if w is not None:
             wifi_ssid, wifi_ip, wifi_signal_dbm, wifi_bssid, wifi_freq_mhz = parse_wifi_state(w)
@@ -197,6 +203,7 @@ class Controller:
         serial: str | None = None
         model_sku: str | None = None
         fw_ver: str | None = None
+        manufactured_at: datetime | None = None
         if hw_map and rel is not None:
             hw = lookup_hardware(hw_map, rel.hardware_id)
             if hw is not None:
@@ -204,12 +211,16 @@ class Controller:
                 serial = a.serial_number or None
                 model_sku = a.model_sku or None
                 fw_ver = a.firmware_version or None
+                manufactured_at = timestamp_or_none(getattr(a, "production_ts", None))
 
         return cls(
             id=p.header.object_id,
             system_id=p.header.system_id,
             space_id=rel.space_id if rel is not None else "",
             name=settings.name if settings is not None else "",
+            hosted_wifi=_wifi(w),
+            manufactured_at=manufactured_at,
+            created_at=timestamp_or_none(getattr(p.header, "created_ts", None)),
             raw_thermistor_c=st.sht4x_temperature_c if st is not None else None,
             pcb_temperature_a_c=st.encoder_temperature_c if st is not None else None,
             pcb_temperature_b_c=st.soc_temperature_c if st is not None else None,
