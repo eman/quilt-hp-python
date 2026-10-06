@@ -2,6 +2,11 @@
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from quilt_hp.models.actions import ActionOutcome
+
 
 class QuiltError(Exception):
     """Base exception for all quilt_hp errors."""
@@ -37,7 +42,6 @@ class QuiltActionError(QuiltError):
     ``outcome`` holds the server's answer, including ``failure_reason``.
     """
 
-    def __init__(self, outcome: object) -> None:
-        reason = getattr(outcome, "failure_reason", None) or "no reason given"
-        super().__init__(f"Action failed: {reason}")
-        self.outcome = outcome
+    def __init__(self, outcome: ActionOutcome) -> None:
+        super().__init__(f"Action failed: {outcome.failure_reason or 'no reason given'}")
+        self.outcome: ActionOutcome = outcome
