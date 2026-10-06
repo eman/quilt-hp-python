@@ -512,6 +512,10 @@ class QuiltClient:
         controller = await self._resolve_snapshot_item(
             controller, items=lambda snapshot: snapshot.controllers, kind="Controller"
         )
+        if name is not None and controller.description is None:
+            # A partial Controller (e.g. a stream diff) doesn't know its description; fetch it
+            # so the rename doesn't erase it.
+            controller = await hds.get_controller(controller.id)
         updated = await hds.update_controller(
             controller, name=name, uses_dial_temperature=uses_dial_temperature
         )
