@@ -3,6 +3,17 @@
 ## [Unreleased]
 
 ### Added
+- **TUI Home screen** (replaces the dashboard). A rooms table (temperature, humidity, target,
+  what the room is doing, occupancy, today's energy, alerts), a summary of the selected room
+  (dew point, fan, power, COP, outdoor-unit share, Dial display and radar), and a **Needs
+  attention** panel listing offline devices, faults, tests in progress, firmware updates and
+  paused schedules. `m` cycles the selected room's mode and `+`/`−` adjust the setpoint the
+  mode uses (in Auto, the one nearer the room temperature) without opening the room.
+- **TUI Devices screen** (replaces the System screen, `d` from Home). Every indoor unit, Dial,
+  remote sensor and outdoor unit grouped by room, with online status (offline devices show how
+  long ago they last reported, and no stale link data), Wi-Fi signal and mesh health,
+  firmware and update progress. The selected device's details are shown below; `r` adds its
+  raw telemetry (radar channels, light and accelerometer readings, board temperatures).
 - **Typed enums for raw integers.** `IndoorUnitHvacInputs.ambient_temperature_source` is now
   an `AmbientTemperatureSource` (`DEFAULT` = the indoor unit's own sensor, `CONTROL` = the
   Dial). `SoftwareUpdateInfo.state`, `.status` and `.progress_unit` are now
@@ -92,6 +103,9 @@
   `quilt values` adds `display_on`, `presence_detected` and `power_w`.
 
 ### Changed
+- **TUI keys:** `d` opens Devices (it toggled the theme; change the theme from the command
+  palette, `ctrl+p`, and the choice is still remembered). Pausing schedules for the whole house
+  moved from `p` on the Room and System screens to `P` on Home, and now asks for confirmation.
 - The TUI moved from `quilt_hp/cli/tui.py` into a `quilt_hp/cli/tui/` package (one module per
   screen, plus formatting and view helpers) and is now type-checked and included in test
   coverage. `from quilt_hp.cli.tui import QuiltApp` is unchanged. `QuiltApp` accepts optional
@@ -115,6 +129,8 @@
 - `quilt info --output json` reports software-update `state`, `status` and `progress_unit` as
   names instead of integers.
 - Two tests used real device serial numbers; they now use test values.
+- A comment on `WifiState.ssid` in `quilt_hds.proto` (and the generated stub docstring) named
+  a real Wi-Fi network; it now just says "network name".
 - `quilt info --output json` reported indoor-unit `occupancy_state` as a raw integer; it is now the
   enum name (`DETECTED`, `UNDETECTED`), matching spaces.
 - `quilt info` / `quilt values` summaries printed unrounded floats (e.g. `25.73853302001953°C`);

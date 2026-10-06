@@ -6,7 +6,7 @@ import pytest
 
 pytest.importorskip("textual")
 
-from quilt_hp.cli.tui import DashboardScreen, RoomScreen, SystemScreen
+from quilt_hp.cli.tui import DevicesScreen, HomeScreen, RoomScreen
 from quilt_hp.cli.tui.format import _id_tokens, _sku_or_none
 
 
@@ -26,19 +26,31 @@ def test_fan_key_does_not_overlap_with_fence_adjustment() -> None:
     assert keymap["ctrl+up"] == {"fence_fwd_inc"}
 
 
-def test_system_bindings_map_units_and_schedule_actions() -> None:
+def _keymap(screen: type) -> dict[str, set[str]]:
     keymap: dict[str, set[str]] = {}
-    for binding in SystemScreen.BINDINGS:
+    for binding in screen.BINDINGS:
         for key in binding.key.split(","):
             keymap.setdefault(key, set()).add(binding.action)
+    return keymap
 
+
+def test_home_bindings() -> None:
+    keymap = _keymap(HomeScreen)
+    assert keymap["enter"] == {"open_room"}
+    assert keymap["m"] == {"cycle_mode"}
+    assert keymap["plus"] == keymap["equals_sign"] == {"setpoint(1)"}
+    assert keymap["minus"] == {"setpoint(-1)"}
+    assert keymap["d"] == {"devices"}
     assert keymap["u"] == {"toggle_units"}
-    assert keymap["p"] == {"toggle_schedule"}
+    # Pausing every room's schedule takes a capital P and a confirmation, never a stray p.
+    assert keymap["P"] == {"toggle_schedules"}
+    assert "p" not in keymap
 
 
-def test_system_screen_accepts_initial_unit_preference() -> None:
-    screen = SystemScreen(snapshot=object(), client=object(), use_f=True)
-    assert screen.use_f is True
+def test_devices_bindings() -> None:
+    keymap = _keymap(DevicesScreen)
+    assert keymap["r"] == {"toggle_raw"}
+    assert keymap["escape"] == {"back"}
 
 
 def test_sku_or_none_filters_empty_and_placeholder_values() -> None:
@@ -60,7 +72,9 @@ def test_id_tokens_normalizes_prefixed_ids() -> None:
     assert _id_tokens(None) == set()
 
 
-def test_dashboard_odu_for_falls_back_to_space_id_match() -> None:
+def test_odu_for_space_falls_back_to_space_id_match() -> None:
+    from quilt_hp.cli.tui.shared import _odu_for_space
+
     class _Snap:
         def __init__(self) -> None:
             self.outdoor_units = [type("Odu", (), {"space_id": "space-1"})()]
@@ -68,9 +82,7 @@ def test_dashboard_odu_for_falls_back_to_space_id_match() -> None:
         def odu_for_idu(self, _idu: object) -> object | None:
             return None
 
-    screen = DashboardScreen(snapshot=_Snap(), client=object())
-    odu = screen._odu_for("space/space-1", idu=object())
-    assert odu is not None
+    assert _odu_for_space(_Snap(), "space/space-1", idu=object()) is not None  # type: ignore[arg-type]
 
 
 def test_room_screen_has_no_occupancy_cycle_binding() -> None:
