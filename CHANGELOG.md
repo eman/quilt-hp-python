@@ -3,6 +3,13 @@
 ## [Unreleased]
 
 ### Added
+- **TUI Energy screen** (`e` from Home): the whole house today by hour and over the last week,
+  and each room's use today, yesterday, over 7 and 30 days, with its share of the house.
+- **TUI help** (`?` anywhere): every key for every screen, generated from the screens' key
+  bindings so it stays accurate.
+- **[Use the terminal UI](docs/how-to/use-the-tui.md)**, a tour of every screen and key.
+  Its screenshots are the render-test snapshots, kept in sync by
+  `scripts/update_tui_screenshots.py` and checked by a test.
 - **TUI Room screen, redesigned.** Five tabs, switched with `1`–`5`; `[` and `]` move to the
   previous or next room on the same tab.
   - *Overview*: the room's temperature and what it's doing, humidity, power, Dial state,

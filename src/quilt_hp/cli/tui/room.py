@@ -92,7 +92,7 @@ class RoomScreen(RoomPanels):
         Binding("v", "cycle_louver", "Louver"),
         Binding("l", "toggle_light", "Light"),
         Binding("s", "settings", "Settings"),
-        Binding("r", "toggle_raw", "Raw"),
+        Binding("r", "toggle_raw", "Raw telemetry"),
         Binding("left_square_bracket", "switch_room(-1)", "Previous room", show=False),
         Binding("right_square_bracket", "switch_room(1)", "Next room", show=False),
         Binding("left", "adjust(-1)", "Less", show=False),
@@ -177,6 +177,14 @@ class RoomScreen(RoomPanels):
     # ── Live updates ────────────────────────────────────────────
 
     def snapshot_changed(self, kind: str, _entity: object) -> None:
+        self._reconcile()
+
+    def on_screen_resume(self) -> None:
+        """Catch up after a dialog (help, settings, a setpoint) closes: while one is open,
+        live updates go to the dialog, not to this screen."""
+        self._reconcile()
+
+    def _reconcile(self) -> None:
         if self.space is None:
             self.notify("This room was removed from the system.")
             self.app.pop_screen()
