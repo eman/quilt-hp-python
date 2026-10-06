@@ -408,3 +408,134 @@ async def test_room_removed_while_help_is_open_closes_after_help(
         assert isinstance(pilot.app.screen, HelpScreen)  # the dialog isn't closed for it
         await pilot.press("escape")
         await _wait_for(pilot, lambda: isinstance(pilot.app.screen, HomeScreen))
+
+
+async def _devices_on(pilot: Pilot[Any], kind: str, room: str) -> DevicesScreen:
+    await _wait_for(pilot, lambda: isinstance(pilot.app.screen, HomeScreen))
+    await pilot.press("d")
+    await _wait_for(pilot, lambda: isinstance(pilot.app.screen, DevicesScreen))
+    screen = pilot.app.screen
+    assert isinstance(screen, DevicesScreen)
+    rows = screen._rows
+    index = next(i for i, r in enumerate(rows) if r.kind.name == kind and r.room == room)
+    screen.query_one("#devices-table", DataTable).move_cursor(row=index)
+    await pilot.pause()
+    return screen
+
+
+async def test_t_runs_a_self_test_after_confirming(tmp_path: Path, frozen: Any) -> None:
+    client = FakeClient()
+    async with make_app(tmp_path, client).run_test(size=(100, 30)) as pilot:
+        await _devices_on(pilot, "INDOOR_UNIT", "Family Room")
+        await pilot.press("t")
+        await _wait_for(pilot, lambda: isinstance(pilot.app.screen, ConfirmScreen))
+        assert "30 minutes" in str(pilot.app.screen.query_one("#confirm-detail").render())
+        await pilot.press("y")
+        await _wait_for(pilot, lambda: client.calls)
+    name, (idu,), _ = client.calls[0]
+    family = next(s for s in client.snapshot.rooms if s.name == "Family Room")
+    assert name == "start_self_test" and idu.space_id == family.id
+
+
+async def test_dial_keys_only_act_on_a_dial(tmp_path: Path, frozen: Any) -> None:
+    client = FakeClient()
+    async with make_app(tmp_path, client).run_test(size=(100, 30)) as pilot:
+        screen = await _devices_on(pilot, "INDOOR_UNIT", "Dining Room")
+        assert screen.check_action("dial_sensor", ()) is None  # dimmed in the footer
+        await pilot.press("s")
+        await pilot.pause()
+        assert isinstance(pilot.app.screen, DevicesScreen) and not client.calls
+
+        dining = next(s for s in client.snapshot.rooms if s.name == "Dining Room")
+        dial = next(c for c in client.snapshot.controllers if c.space_id == dining.id)
+        index = next(i for i, r in enumerate(screen._rows) if r.device_id == dial.id)
+        screen.query_one("#devices-table", DataTable).move_cursor(row=index)
+        await pilot.pause()
+        await pilot.press("s")
+        await _wait_for(pilot, lambda: isinstance(pilot.app.screen, ConfirmScreen))
+        await pilot.press("y")
+        await _wait_for(pilot, lambda: client.calls)
+        assert client.calls[-1] == (
+            "set_controller",
+            (dial,),
+            {"name": None, "uses_dial_temperature": not dial.uses_dial_temperature},
+        )
+
+        await pilot.press("n")
+        await _wait_for(pilot, lambda: pilot.app.screen.__class__.__name__ == "TextDialog")
+        field = pilot.app.screen.query_one("#text-input")
+        field.value = "Dining Dial"  # type: ignore[attr-defined]
+        await pilot.press("enter")
+        await _wait_for(pilot, lambda: len(client.calls) == 2)
+        assert client.calls[-1][2] == {"name": "Dining Dial", "uses_dial_temperature": None}
+
+
+async def test_shift_o_turns_the_whole_house_off(tmp_path: Path, frozen: Any) -> None:
+    from quilt_hp.models import ClimateMode
+
+    client = FakeClient()
+    async with make_app(tmp_path, client).run_test(size=(100, 30)) as pilot:
+        await _home_on(pilot, "Family Room")
+        await pilot.press("O")
+        await _wait_for(pilot, lambda: isinstance(pilot.app.screen, ConfirmScreen))
+        await pilot.press("y")
+        await _wait_for(pilot, lambda: client.calls)
+    assert client.calls[0] == ("apply_mode", (ClimateMode.OFF,), {"whole_house": True})
+
+
+def _under_test(idu: Any, mode: Any, coordination: Any, state_mode: Any = None) -> Any:
+    from quilt_hp.models.enums import IndoorUnitTestPhase
+    from quilt_hp.models.indoor_unit import IndoorUnitTestState
+
+    test_state = IndoorUnitTestState(
+        test_mode=mode,
+        test_coordination=coordination,
+        test_phase=IndoorUnitTestPhase.NONE,
+        updated_at=FROZEN_NOW - timedelta(seconds=30),
+    )
+    state = replace(idu.state, test_mode=state_mode or mode, updated_at=FROZEN_NOW)
+    return replace(idu, test_state=test_state, state=state)
+
+
+async def test_t_cancels_a_running_self_test(tmp_path: Path, frozen: Any) -> None:
+    from quilt_hp.models.enums import IndoorUnitTestCoordination, IndoorUnitTestMode
+
+    client = FakeClient()
+    snap = client.snapshot
+    family = next(s for s in snap.rooms if s.name == "Family Room")
+    i = next(i for i, u in enumerate(snap.indoor_units) if u.space_id == family.id)
+    snap.indoor_units[i] = _under_test(
+        snap.indoor_units[i], IndoorUnitTestMode.HEALTH_CHECK, IndoorUnitTestCoordination.EXCLUSIVE
+    )
+    async with make_app(tmp_path, client).run_test(size=(100, 30)) as pilot:
+        await _devices_on(pilot, "INDOOR_UNIT", "Family Room")
+        await pilot.press("t")
+        await _wait_for(pilot, lambda: isinstance(pilot.app.screen, ConfirmScreen))
+        assert "Cancel the self-test" in str(
+            pilot.app.screen.query_one("#confirm-question").render()
+        )
+        await pilot.press("y")
+        await _wait_for(pilot, lambda: client.calls)
+    name, (idu,), _ = client.calls[0]
+    assert name == "cancel_self_test" and idu.space_id == family.id
+
+
+def test_self_test_text_skips_stale_coordination() -> None:
+    from quilt_hp.cli.tui.devices import _self_test
+    from quilt_hp.models.enums import IndoorUnitTestCoordination, IndoorUnitTestMode
+    from tests.tui_harness import load_snapshot
+
+    idu = load_snapshot().indoor_units[0]
+    current = _under_test(
+        idu, IndoorUnitTestMode.HEALTH_CHECK, IndoorUnitTestCoordination.EXCLUSIVE
+    )
+    assert _self_test(current) == "running (health check, exclusive)"
+    # state.test_mode is newer and reports a different test: drop the old coordination.
+    stale = _under_test(
+        idu,
+        IndoorUnitTestMode.HEALTH_CHECK,
+        IndoorUnitTestCoordination.EXCLUSIVE,
+        state_mode=IndoorUnitTestMode.COMMISSIONING,
+    )
+    assert stale.effective_test_mode is IndoorUnitTestMode.COMMISSIONING
+    assert _self_test(stale) == "running (commissioning)"

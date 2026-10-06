@@ -33,6 +33,7 @@ they last reported), faults, tests in progress, firmware updates and paused sche
 | `d` | Devices |
 | `e` | Energy |
 | `P` | Pause or resume schedules for the whole house (asks first) |
+| `O` | Turn every room off (asks first; schedules can turn rooms back on unless paused) |
 | `r` | Refresh |
 
 Quick presses build on each other: two `+` presses from 24 °C send 24.5 °C and then 25 °C.
@@ -78,6 +79,20 @@ Every indoor unit, Dial, remote sensor and outdoor unit, grouped by room, with o
 Wi-Fi signal, mesh health, firmware and update progress. An offline device shows how long ago
 it last reported instead of stale readings. The selected device's details are shown below;
 `r` adds its raw telemetry.
+
+| Key | Action |
+|-----|--------|
+| `t` | Indoor unit: run its diagnostic self-test, or cancel a running one (asks first) |
+| `s` | Dial: control the room to the Dial's temperature or to the indoor unit's sensor (asks first) |
+| `n` | Dial: rename it |
+| `r` | Show raw telemetry |
+
+Keys that don't apply to the selected device are dimmed in the footer.
+
+A self-test is the app's **Run diagnostic test**: it takes up to 30 minutes, during which the
+room can't be heated or cooled, and its results go to Quilt (and your certified partner, if
+you have one). The unit's details show whether a test is running, and **Needs attention** on
+the Home screen lists it while it does.
 
 ---
 
