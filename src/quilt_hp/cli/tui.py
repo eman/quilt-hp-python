@@ -54,6 +54,7 @@ from quilt_hp.client import QuiltClient
 from quilt_hp.exceptions import QuiltAuthError
 from quilt_hp.models.controller import Controller
 from quilt_hp.models.enums import (
+    ControllerViewState,
     FanSpeed,
     HVACMode,
     HVACState,
@@ -188,6 +189,28 @@ def _tc(val_c: float | None, use_f: bool) -> str:
     if use_f:
         return f"{val_c * 9 / 5 + 32:.1f}°F"
     return f"{val_c:.1f}°C"
+
+
+def _fmt_display(ctrl: Controller) -> tuple[str, str]:
+    """Dial screen: view state plus brightness, e.g. ``GLANCE 25%``."""
+    if ctrl.view_state == ControllerViewState.UNSPECIFIED:
+        return "--", ""
+    label = ctrl.view_state.name.title()
+    if ctrl.screen_brightness:
+        label += f" {ctrl.screen_brightness:.0%}"
+    style = {
+        ControllerViewState.SLEEP: "dim",
+        ControllerViewState.GLANCE: "cyan",
+        ControllerViewState.ACTIVE: "bold green",
+    }.get(ctrl.view_state, "")
+    return label, style
+
+
+def _fmt_detected(value: bool | None) -> tuple[str, str]:
+    """Presence from a radar: detected / clear / unknown."""
+    if value is None:
+        return "--", ""
+    return ("● detected", "bold green") if value else ("○ clear", "dim")
 
 
 def _fmt_timeout(seconds: float) -> str:
@@ -1053,6 +1076,8 @@ class RoomScreen(Screen):
                 yield _KVStatic(id="sen-idu-mode")
                 yield _KVStatic(id="sen-idu-name")
                 yield _KVStatic(id="sen-idu-light-default")
+                yield _KVStatic(id="sen-dew-point")
+                yield _KVStatic(id="sen-test")
         yield Rule(classes="section-rule")
         # Dial and QSM panels side by side
         with Horizontal(classes="controls-sensors-row"):
@@ -1065,6 +1090,12 @@ class RoomScreen(Screen):
                 yield _KVStatic(id="dial-ambient")
                 yield _KVStatic(id="dial-calib")
                 yield _KVStatic(id="dial-pcb")
+                yield _KVStatic(id="dial-boards")
+                yield _KVStatic(id="dial-humidity")
+                yield _KVStatic(id="dial-display")
+                yield _KVStatic(id="dial-radar")
+                yield _KVStatic(id="dial-light")
+                yield _KVStatic(id="dial-power")
                 yield _KVStatic(id="dial-wifi")
                 yield _KVStatic(id="dial-wifi-ip")
                 yield _KVStatic(id="dial-wifi-last")
@@ -1129,6 +1160,7 @@ class RoomScreen(Screen):
                 yield _KVStatic(id="p-cop")
                 yield _KVStatic(id="p-hvac-power")
                 yield _KVStatic(id="p-led-power")
+                yield _KVStatic(id="p-odu-share")
                 yield _KVStatic(id="p-pm-mode")
                 yield _KVStatic(id="p-pm-state")
                 yield _KVStatic(id="p-pm-duration")
@@ -1514,6 +1546,15 @@ class RoomScreen(Screen):
         else:
             self._kv("sen-idu-name", "IDU Name", "--")
             self._kv("sen-idu-light-default", "Default Brightness", "--")
+        self._kv("sen-dew-point", "Dew Point", _tc(idu.dew_point_c if idu else None, use_f))
+        if idu and idu.is_under_test:
+            test = idu.effective_test_mode.name.replace("_", " ").title()
+            phase = idu.test_state.test_phase if idu.test_state else None
+            if phase is not None and phase.name not in ("UNSPECIFIED", "NONE"):
+                test += f" · {phase.name.replace('_', ' ').lower()}"
+            self._kv("sen-test", "Test", f"⚠ {test}", "bold yellow")
+        else:
+            self._kv("sen-test", "Test", "none" if idu else "--", "dim")
 
         # Dial / Controller
         def _wifi_str(w: object | None) -> str:
@@ -1545,9 +1586,34 @@ class RoomScreen(Screen):
             )
             self._kv(
                 "dial-pcb",
-                "PCB A / B",
+                "Encoder / SoC",
                 f"{_tc(ctrl.pcb_temperature_a_c, use_f)}  /  "
                 f"{_tc(ctrl.pcb_temperature_b_c, use_f)}",
+            )
+            self._kv(
+                "dial-boards",
+                "Main / Power Board",
+                f"{_tc(ctrl.main_board_temperature_c, use_f)}  /  "
+                f"{_tc(ctrl.power_board_temperature_c, use_f)}",
+            )
+            self._kv(
+                "dial-humidity",
+                "Humidity",
+                f"{ctrl.humidity_percent:.0f}%" if ctrl.humidity_percent is not None else "--",
+            )
+            disp, disp_style = _fmt_display(ctrl)
+            self._kv("dial-display", "Display", disp, disp_style)
+            radar, radar_style = _fmt_detected(ctrl.presence_detected)
+            self._kv("dial-radar", "Radar Presence", radar, radar_style)
+            self._kv(
+                "dial-light",
+                "Ambient Light",
+                f"{ctrl.ambient_light_lux:.0f} lx" if ctrl.ambient_light_lux is not None else "--",
+            )
+            self._kv(
+                "dial-power",
+                "Power Draw",
+                f"{ctrl.power_w:.2f} W" if ctrl.power_w is not None else "--",
             )
             # Wi-Fi status: SSID, band, signal
             wifi_parts = []
@@ -1620,6 +1686,12 @@ class RoomScreen(Screen):
                 "dial-ambient",
                 "dial-calib",
                 "dial-pcb",
+                "dial-boards",
+                "dial-humidity",
+                "dial-display",
+                "dial-radar",
+                "dial-light",
+                "dial-power",
                 "dial-wifi",
                 "dial-wifi-ip",
                 "dial-wifi-last",
@@ -1762,6 +1834,11 @@ class RoomScreen(Screen):
             self._kv("p-hvac-power", "HVAC Power", f"{pm.hvac_power_w:.0f} W")
             self._kv("p-led-power", "LED Power", f"{pm.led_power_w:.1f} W")
             self._kv(
+                "p-odu-share",
+                "Outdoor-Unit Share",
+                f"{pm.odu_usage_fraction:.0%}" if pm.odu_usage_fraction else "--",
+            )
+            self._kv(
                 "p-pm-mode",
                 "Mode (metrics)",
                 pm.hvac_mode.name,
@@ -1788,6 +1865,7 @@ class RoomScreen(Screen):
                 ("p-cop", "COP"),
                 ("p-hvac-power", "HVAC Power"),
                 ("p-led-power", "LED Power"),
+                ("p-odu-share", "Outdoor-Unit Share"),
                 ("p-pm-mode", "Mode (metrics)"),
                 ("p-pm-state", "State (metrics)"),
                 ("p-pm-duration", "Window"),
@@ -2591,6 +2669,9 @@ class SystemScreen(Screen):
             header_parts.append(f"[bold]{loc_name}[/bold]")
         header_parts.append(f"[bold]Timezone:[/bold] {tz}")
         header_parts.append(f"[bold]Schedule:[/bold] {sched}")
+        if snap.version_at is not None:
+            changed = snap.version_at.astimezone().strftime("%Y-%m-%d %H:%M:%S")
+            header_parts.append(f"[bold]Config changed:[/bold] {changed}")
         self.query_one("#sys-header", Static).update("   ".join(header_parts))
 
         # ODU panels — one per unit
@@ -2626,8 +2707,11 @@ class SystemScreen(Screen):
                 "Serial",
                 "Ambient",
                 "Raw Thermistor",
-                "PCB-A",
-                "PCB-B",
+                "Encoder",
+                "SoC",
+                "Display",
+                "Radar",
+                "Light",
                 "WiFi SSID",
                 "IP",
                 "Signal",
@@ -2642,6 +2726,9 @@ class SystemScreen(Screen):
                 _tc(ctrl.raw_thermistor_c, use_f),
                 _tc(ctrl.pcb_temperature_a_c, use_f),
                 _tc(ctrl.pcb_temperature_b_c, use_f),
+                _fmt_display(ctrl)[0],
+                _fmt_detected(ctrl.presence_detected)[0],
+                f"{ctrl.ambient_light_lux:.0f} lx" if ctrl.ambient_light_lux is not None else "--",
                 ctrl.wifi_ssid or "--",
                 ctrl.wifi_ip or "--",
                 f"{ctrl.wifi_signal_dbm} dBm" if ctrl.wifi_signal_dbm else "--",

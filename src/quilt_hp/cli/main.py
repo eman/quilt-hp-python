@@ -25,7 +25,7 @@ from quilt_hp.cli.settings import SettingsStore
 from quilt_hp.cli.store import FileStore
 from quilt_hp.client import QuiltClient
 from quilt_hp.exceptions import QuiltAuthError, QuiltError
-from quilt_hp.models.enums import FanSpeed, HVACMode
+from quilt_hp.models.enums import FanSpeed, HVACMode, OccupancyState
 from quilt_hp.models.system import SystemSnapshot
 
 app = typer.Typer(help="Quilt HVAC command-line interface.")
@@ -159,6 +159,16 @@ def _space_name_by_id(snap: SystemSnapshot) -> dict[str, str]:
     return {space.id: space.name for space in snap.spaces}
 
 
+def _occupancy_name(value: int | None) -> str | None:
+    """Occupancy proto value as an enum name (None when unknown, e.g. the IDU is offline)."""
+    if value is None:
+        return None
+    try:
+        return OccupancyState(value).name
+    except ValueError:
+        return OccupancyState.UNSPECIFIED.name
+
+
 def _fmt_c(value: float | None) -> str:
     return "n/a" if value is None else f"{value:.1f}°C"
 
@@ -169,6 +179,14 @@ def _fmt_pct(value: float | None) -> str:
 
 def _fmt_w(value: float | None) -> str:
     return "n/a" if value is None else f"{value:.2f}W"
+
+
+def _fmt_lx(value: float | None) -> str:
+    return "n/a" if value is None else f"{value:.0f}lx"
+
+
+def _fmt_frac(value: float | None) -> str:
+    return "n/a" if value is None else f"{value:.0%}"
 
 
 def _snapshot_payload(snap: SystemSnapshot) -> dict[str, Any]:
@@ -192,6 +210,9 @@ def _snapshot_payload(snap: SystemSnapshot) -> dict[str, Any]:
 
     return {
         "timezone": snap.timezone,
+        # metadata.version: epoch-ns of the last controls/settings/configuration write
+        "version": snap.version,
+        "version_at": snap.version_at.isoformat() if snap.version_at else None,
         "spaces": [
             {
                 "id": s.id,
@@ -248,7 +269,7 @@ def _snapshot_payload(snap: SystemSnapshot) -> dict[str, Any]:
                     if idu.performance_data
                     else None
                 ),
-                "occupancy_state": idu.effective_occupancy_state,
+                "occupancy_state": _occupancy_name(idu.effective_occupancy_state),
                 "dew_point_c": idu.dew_point_c,
                 "odu_usage_fraction": (
                     idu.performance_metrics.odu_usage_fraction if idu.performance_metrics else None
@@ -287,11 +308,17 @@ def _snapshot_payload(snap: SystemSnapshot) -> dict[str, Any]:
                 "name": ctrl.name,
                 "ambient_temperature_c": ctrl.ambient_temperature_c,
                 "raw_thermistor_c": ctrl.raw_thermistor_c,
+                "encoder_temperature_c": ctrl.pcb_temperature_a_c,
+                "soc_temperature_c": ctrl.pcb_temperature_b_c,
+                "main_board_temperature_c": ctrl.main_board_temperature_c,
+                "power_board_temperature_c": ctrl.power_board_temperature_c,
                 "remote_sensor_mode": ctrl.remote_sensor_mode.name,
                 "local_comms_health": ctrl.local_comms_health.name,
                 "is_online": ctrl.is_online,
                 "view_state": ctrl.view_state.name,
                 "screen_brightness": ctrl.screen_brightness,
+                "display_on": ctrl.display_on,
+                "presence_detected": ctrl.presence_detected,
                 "radar_target_detected": ctrl.radar_target_detected,
                 "radar_phase_detected": ctrl.radar_phase_detected,
                 "ambient_light_lux": ctrl.ambient_light_lux,
@@ -372,6 +399,8 @@ def _snapshot_payload(snap: SystemSnapshot) -> dict[str, Any]:
 
 
 def _print_snapshot_summary(data: dict[str, Any]) -> None:
+    if data.get("version_at"):
+        console.print(f"[bold]Configuration last changed[/bold] {data['version_at']}\n")
     console.print("[bold]Spaces[/bold]")
     for space in data["spaces"]:
         controls = space["controls"]
@@ -380,7 +409,7 @@ def _print_snapshot_summary(data: dict[str, Any]) -> None:
             f"  {space['name']} ({space['id']}) "
             f"mode={controls['hvac_mode']} "
             f"setpoint={controls['display_setpoint']} "
-            f"ambient={state['ambient_temperature_c']}°C"
+            f"ambient={_fmt_c(state['ambient_temperature_c'])}"
         )
 
     console.print("\n[bold]Indoor Units[/bold]")
@@ -389,8 +418,8 @@ def _print_snapshot_summary(data: dict[str, Any]) -> None:
         console.print(
             f"  {idu['id']} space={idu['space_name'] or idu['space_id']} "
             f"mode={st['hvac_mode']}/{st['hvac_state']} "
-            f"ambient={st['ambient_temperature_c']}°C "
-            f"humidity={st['ambient_humidity_percent']}%"
+            f"ambient={_fmt_c(st['ambient_temperature_c'])} "
+            f"humidity={_fmt_pct(st['ambient_humidity_percent'])}"
         )
 
     console.print("\n[bold]Outdoor Units[/bold]")
@@ -405,21 +434,22 @@ def _print_snapshot_summary(data: dict[str, Any]) -> None:
         lc_str = f" local={lc}" if lc not in ("UNSPECIFIED", "HEALTHY") else ""
         console.print(
             f"  {ctrl['name']} ({ctrl['id']}) space={ctrl['space_name'] or ctrl['space_id']} "
-            f"ambient={ctrl['ambient_temperature_c']}°C{lc_str}"
+            f"ambient={_fmt_c(ctrl['ambient_temperature_c'])} display={ctrl['view_state']}{lc_str}"
+            + ("" if ctrl["is_online"] else " [OFFLINE]")
         )
 
     console.print("\n[bold]Remote Sensors[/bold]")
     for rs in data["remote_sensors"]:
         console.print(
             f"  {rs['id']} idu={rs['indoor_unit_id']} "
-            f"temp={rs['ambient_temperature_c']}°C humidity={rs['humidity_percent']}%"
+            f"temp={_fmt_c(rs['ambient_temperature_c'])} humidity={_fmt_pct(rs['humidity_percent'])}"
         )
 
     console.print("\n[bold]Controller Remote Sensors[/bold]")
     for rs in data["controller_remote_sensors"]:
         console.print(
             f"  {rs['id']} controller={rs['controller_id']} "
-            f"temp={rs['ambient_temperature_c']}°C humidity={rs['humidity_percent']}%"
+            f"temp={_fmt_c(rs['ambient_temperature_c'])} humidity={_fmt_pct(rs['humidity_percent'])}"
         )
 
     console.print("\n[bold]QSMs[/bold]")
@@ -611,9 +641,12 @@ def values(
                         "is_online": c["is_online"],
                         "view_state": c["view_state"],
                         "screen_brightness": c["screen_brightness"],
+                        "display_on": c["display_on"],
+                        "presence_detected": c["presence_detected"],
                         "radar_target_detected": c["radar_target_detected"],
                         "ambient_light_lux": c["ambient_light_lux"],
                         "humidity_percent": c["humidity_percent"],
+                        "power_w": c["power_w"],
                     }
                     for c in payload["controllers"]
                 ],
@@ -632,7 +665,7 @@ def values(
             for space in value_payload["spaces"]:
                 console.print(
                     f"  {space['name']} ({space['id']}) "
-                    f"ambient={space['ambient_temperature_c']}°C "
+                    f"ambient={_fmt_c(space['ambient_temperature_c'])} "
                     f"setpoint={space['display_setpoint']} "
                     f"mode/state={space['hvac_mode']}/{space['hvac_state']}"
                 )
@@ -640,9 +673,9 @@ def values(
             for idu in value_payload["indoor_units"]:
                 console.print(
                     f"  {idu['id']} space={idu['space_id']} "
-                    f"ambient={idu['ambient_temperature_c']}°C "
-                    f"humidity={idu['ambient_humidity_percent']}% "
-                    f"setpoint={idu['temperature_setpoint_c']}°C "
+                    f"ambient={_fmt_c(idu['ambient_temperature_c'])} "
+                    f"humidity={_fmt_pct(idu['ambient_humidity_percent'])} "
+                    f"setpoint={_fmt_c(idu['temperature_setpoint_c'])} "
                     f"fan={idu['fan_speed']}"
                 )
 
@@ -651,17 +684,17 @@ def values(
                 perf = odu["performance_data"] or {}
                 console.print(
                     f"  {odu['id']} compressor={perf.get('compressor_frequency_hz')}Hz "
-                    f"ambient={perf.get('ambient_temperature_c')}°C "
-                    f"coil={perf.get('coil_temperature_c')}°C"
+                    f"ambient={_fmt_c(perf.get('ambient_temperature_c'))} "
+                    f"coil={_fmt_c(perf.get('coil_temperature_c'))}"
                 )
 
             console.print("\n[bold]Controllers[/bold]")
             for ctrl in value_payload["controllers"]:
                 console.print(
-                    f"  {ctrl['name']} ({ctrl['id']}) ambient={ctrl['ambient_temperature_c']}°C "
-                    f"thermistor={ctrl['raw_thermistor_c']}°C display={ctrl['view_state']} "
-                    f"brightness={ctrl['screen_brightness']} radar={ctrl['radar_target_detected']} "
-                    f"light={ctrl['ambient_light_lux']}lx"
+                    f"  {ctrl['name']} ({ctrl['id']}) ambient={_fmt_c(ctrl['ambient_temperature_c'])} "
+                    f"thermistor={_fmt_c(ctrl['raw_thermistor_c'])} display={ctrl['view_state']} "
+                    f"brightness={_fmt_frac(ctrl['screen_brightness'])} presence={ctrl['presence_detected']} "
+                    f"light={_fmt_lx(ctrl['ambient_light_lux'])} power={_fmt_w(ctrl['power_w'])}"
                     + ("" if ctrl["is_online"] else " [OFFLINE]")
                 )
 
@@ -669,14 +702,14 @@ def values(
             for rs in value_payload["remote_sensors"]:
                 console.print(
                     f"  {rs['id']} idu={rs['indoor_unit_id']} "
-                    f"temp={rs['ambient_temperature_c']}°C humidity={rs['humidity_percent']}%"
+                    f"temp={_fmt_c(rs['ambient_temperature_c'])} humidity={_fmt_pct(rs['humidity_percent'])}"
                 )
 
             console.print("\n[bold]Controller Remote Sensors[/bold]")
             for rs in value_payload["controller_remote_sensors"]:
                 console.print(
                     f"  {rs['id']} controller={rs['controller_id']} "
-                    f"temp={rs['ambient_temperature_c']}°C humidity={rs['humidity_percent']}%"
+                    f"temp={_fmt_c(rs['ambient_temperature_c'])} humidity={_fmt_pct(rs['humidity_percent'])}"
                 )
 
             console.print("\n[bold]QSM Sensors[/bold]")
