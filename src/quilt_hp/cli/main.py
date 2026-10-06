@@ -212,6 +212,9 @@ def _snapshot_payload(snap: SystemSnapshot) -> dict[str, Any]:
                     "hvac_state": s.state.hvac_state.name,
                     "comfort_setting_id": s.state.comfort_setting_id,
                 },
+                "occupancy_state": s.occupancy_state.name
+                if s.occupancy_state is not None
+                else None,
             }
             for s in snap.spaces
         ],
@@ -246,6 +249,12 @@ def _snapshot_payload(snap: SystemSnapshot) -> dict[str, Any]:
                     else None
                 ),
                 "occupancy_state": idu.effective_occupancy_state,
+                "dew_point_c": idu.dew_point_c,
+                "odu_usage_fraction": (
+                    idu.performance_metrics.odu_usage_fraction if idu.performance_metrics else None
+                ),
+                "under_test": idu.is_under_test,
+                "test_mode": idu.effective_test_mode.name,
             }
             for idu in snap.indoor_units
         ],
@@ -280,6 +289,15 @@ def _snapshot_payload(snap: SystemSnapshot) -> dict[str, Any]:
                 "raw_thermistor_c": ctrl.raw_thermistor_c,
                 "remote_sensor_mode": ctrl.remote_sensor_mode.name,
                 "local_comms_health": ctrl.local_comms_health.name,
+                "is_online": ctrl.is_online,
+                "view_state": ctrl.view_state.name,
+                "screen_brightness": ctrl.screen_brightness,
+                "radar_target_detected": ctrl.radar_target_detected,
+                "radar_phase_detected": ctrl.radar_phase_detected,
+                "ambient_light_lux": ctrl.ambient_light_lux,
+                "orientation": ctrl.orientation.name,
+                "humidity_percent": ctrl.humidity_percent,
+                "power_w": ctrl.power_w,
                 "software_update_info_id": ctrl.software_update_info_id,
                 "firmware_update_info_id": ctrl.firmware_update_info_id,
                 "serial_number": ctrl.serial_number,
@@ -590,6 +608,12 @@ def values(
                         "name": c["name"],
                         "ambient_temperature_c": c["ambient_temperature_c"],
                         "raw_thermistor_c": c["raw_thermistor_c"],
+                        "is_online": c["is_online"],
+                        "view_state": c["view_state"],
+                        "screen_brightness": c["screen_brightness"],
+                        "radar_target_detected": c["radar_target_detected"],
+                        "ambient_light_lux": c["ambient_light_lux"],
+                        "humidity_percent": c["humidity_percent"],
                     }
                     for c in payload["controllers"]
                 ],
@@ -635,7 +659,10 @@ def values(
             for ctrl in value_payload["controllers"]:
                 console.print(
                     f"  {ctrl['name']} ({ctrl['id']}) ambient={ctrl['ambient_temperature_c']}°C "
-                    f"thermistor={ctrl['raw_thermistor_c']}°C"
+                    f"thermistor={ctrl['raw_thermistor_c']}°C display={ctrl['view_state']} "
+                    f"brightness={ctrl['screen_brightness']} radar={ctrl['radar_target_detected']} "
+                    f"light={ctrl['ambient_light_lux']}lx"
+                    + ("" if ctrl["is_online"] else " [OFFLINE]")
                 )
 
             console.print("\n[bold]Remote Sensors[/bold]")
@@ -728,9 +755,19 @@ def diagnostics(
                     f"liquid={_fmt_c(d.liquid_pipe_temperature_c)} "
                     f"inlet={_fmt_c(d.inlet_temperature_c)} "
                     f"outlet={_fmt_c(d.outlet_temperature_c)} "
-                    f"humidity={_fmt_pct(d.inlet_humidity_pct)}"
+                    f"humidity={_fmt_pct(d.inlet_humidity_pct)} "
+                    f"dew_point={_fmt_c(d.inlet_dew_point_c)}"
                 )
-                console.print(f"    power: {_fmt_w(d.hvac_power_w)}\n")
+                share = (
+                    f" (outdoor-unit share {d.odu_usage_fraction:.0%})"
+                    if d.odu_usage_fraction is not None
+                    else ""
+                )
+                console.print(f"    power: {_fmt_w(d.hvac_power_w)}{share}")
+                if d.under_test:
+                    detail = " ".join(f"{k}={v}" for k, v in d.test.items())
+                    console.print(f"    [yellow]under test: {detail}[/yellow]")
+                console.print()
 
             console.print("[bold]Outdoor Units[/bold]")
             for o in diag.outdoor_units:

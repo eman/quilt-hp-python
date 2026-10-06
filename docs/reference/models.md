@@ -22,7 +22,7 @@ service = HomeDatastoreService(channel)
 |--------|-------------|
 | `get_snapshot(system_id)` | Fetches a complete `SystemSnapshot` for the given system. |
 | `update_space(space_proto)` | Sends an `UpdateSpace` request with the given space proto. Used by `QuiltClient.set_space()`. |
-| `list_comfort_settings(location_id)` | Lists comfort setting protos for a location. |
+| `list_comfort_settings(system_id)` | Lists a system's comfort settings (server-side filter on `header.system_id`). |
 | `update_comfort_setting(cs_proto)` | Updates a comfort setting proto. |
 | `create_schedule_day(...)` | Creates a new schedule day program. |
 | `update_schedule_day(...)` | Updates an existing schedule day. |
@@ -155,9 +155,15 @@ class SystemSnapshot:
     software_update_infos: list[SoftwareUpdateInfo]
     locations: list[Location]
     timezone: str | None
+    version: int | None  # last configuration write, epoch ns
 ```
 
 `SystemSnapshot` is the root object returned by `get_snapshot()`. Child collections are stored as lists, not dicts. Look up objects by iterating, with helpers like `space_by_name()`, or by merging stream diffs in place with the `apply_*()` methods.
+
+`version` (and `version_at`, the same instant as a UTC `datetime`) advances whenever controls,
+settings or configuration are written, including automatic writes such as auto-away switching a
+comfort setting. Telemetry does not advance it. Compare it with `client.get_system_version()` to
+tell whether a snapshot's configuration is stale without refetching the whole snapshot.
 
 Useful helper properties and methods:
 
@@ -197,9 +203,24 @@ class Space:
     settings: SpaceSettings
     controls: SpaceControls
     state: SpaceState
+    active_comfort_setting_type: ComfortSettingType | None  # resolved from controls.comfort_setting_id
+    occupancy: SpaceOccupancy | None  # room auto-away decision; see SpaceOccupancy
 ```
 
 A single room or floor zone. `parent_space_id is None` for floor-level spaces; leaf rooms always have a parent.
+
+`space.occupancy_state` is the room's auto-away decision (`OccupancyState.DETECTED` /
+`UNDETECTED`), the value its away/return setback acts on, or `None` when the server hasn't
+evaluated the space (the home's root space, or a room whose radar isn't reporting).
+
+#### `SpaceOccupancy`
+
+```python
+@dataclass
+class SpaceOccupancy:
+    occupancy_state: OccupancyState
+    updated_at: datetime | None
+```
 
 #### `SpaceControls`
 
@@ -254,15 +275,27 @@ Read-only live state derived from sensor telemetry and current control state.
 @dataclass
 class IndoorUnit:
     id: str
-    space_id: str
     system_id: str
-    serial_number: str | None
-    model_sku: str | None
-    firmware_version: str | None
-    model_name: str | None
-    controls: IndoorUnitControls
+    space_id: str
+    outdoor_unit_id: str | None
+    hardware_id: str
+    qsm_id: str | None
     settings: IndoorUnitSettings
+    controls: IndoorUnitControls
     state: IndoorUnitState
+    hvac_inputs: IndoorUnitHvacInputs | None
+    conditions: IndoorUnitConditions | None
+    performance_data: IndoorUnitPerformanceData | None
+    performance_metrics: IndoorUnitPerformanceMetrics | None
+    presence: IndoorUnitPresence | None
+    occupancy: IndoorUnitOccupancy | None  # this unit's auto-away occupancy; see below
+    firmware_update_info_id: str | None
+    commands: IndoorUnitCommands | None
+    model_sku: str | None
+    serial_number: str | None
+    firmware_version: str | None
+    climate: IndoorUnitClimate | None  # dew point etc.; see IndoorUnitClimate
+    test_state: IndoorUnitTestState | None  # health check / commissioning; see IndoorUnitTestState
 ```
 
 #### `IndoorUnitControls`
@@ -272,10 +305,13 @@ class IndoorUnit:
 class IndoorUnitControls:
     fan_speed: FanSpeed
     louver_mode: LouverMode
-    louver_position: float  # 0.0–1.0 when FIXED
-    led_color_code: int     # RGBW packed int32
-    led_brightness: float   # 0.0–1.0
-    led_animation: int
+    louver_fixed_position: float  # 0.0–1.0 when FIXED
+    led_color_code: int  # RGBW packed int32
+    led_brightness: float  # 0.0–1.0
+    led_animation: LedAnimation
+    led_state: LightState
+    fan_speed_mode_raw: int
+    fan_speed_percent_raw: float
 ```
 
 #### `IndoorUnitSettings`
@@ -283,11 +319,13 @@ class IndoorUnitControls:
 ```python
 @dataclass
 class IndoorUnitSettings:
-    fence_left_m: float   # 0 = unconfigured / max range
-    fence_right_m: float
-    fence_forward_m: float
-    radar_height_m: float
-    light_brightness_default: float
+    name: str
+    description: str
+    light_brightness_default_percent: float
+    presence_fence_left_m: float  # 0 = unconfigured / max range
+    presence_fence_right_m: float
+    presence_fence_forward_m: float
+    radar_sensor_distance_from_floor_m: float
 ```
 
 Radar presence detection calibration. Fence values of `0.0` mean unconfigured (uses hardware maximum range).
@@ -297,14 +335,74 @@ Radar presence detection calibration. Fence values of `0.0` mean unconfigured (u
 ```python
 @dataclass
 class IndoorUnitState:
+    hvac_mode: HVACMode
+    hvac_state: HVACState
+    ambient_temperature_c: float
+    ambient_humidity_percent: float
+    fan_speed_rpm: float
+    fan_speed_setpoint_rpm: float
+    presence_detection_level: float
+    temperature_setpoint_c: float
+    light_brightness_percent: float
+    inlet_temperature_c: float
+    outlet_temperature_c: float
+    calculated_ambient_temperature_c: float
+    louver_angle_up_down_degrees: float
     updated_at: datetime | None
-    target_temp_c: float | None
-    actual_temp_c: float | None
-    is_online: bool         # updated_at within last 5 minutes
-    led_on: bool            # True only when is_online
+    test_mode: IndoorUnitTestMode  # see IndoorUnit.effective_test_mode
 ```
 
-`is_online` is computed locally from `updated_at`: `datetime.now(UTC) - updated_at < timedelta(minutes=5)`. `led_on` returns `False` whenever `is_online` is `False`, even if `led_color_code` is non-zero.
+`IndoorUnit.is_online` is computed locally from `state.updated_at`
+(`datetime.now(UTC) - updated_at < timedelta(minutes=5)`), and `IndoorUnit.led_on` returns `False`
+whenever `is_online` is `False`, even if `led_color_code` is non-zero.
+
+#### `IndoorUnitPerformanceMetrics`
+
+```python
+@dataclass
+class IndoorUnitPerformanceMetrics:
+    capacity_w: float
+    coefficient_of_performance: float
+    hvac_power_w: float
+    led_power_w: float
+    hvac_mode: HVACMode
+    hvac_state: HVACState
+    measurement_duration_s: float
+    energy_total_j: float
+    hvac_energy_j: float
+    led_energy_j: float
+    odu_usage_fraction: float  # share of the outdoor unit attributed to this unit, 0.0–1.0
+```
+
+`odu_usage_fraction` apportions an outdoor unit across the indoor units it serves; in standby it
+is an even split (0.5 / 0.5 for two units, 1.0 for one). `capacity_w` and
+`coefficient_of_performance` are 0 unless the unit is actively heating or cooling.
+
+#### `IndoorUnitClimate` and `IndoorUnitTestState`
+
+```python
+@dataclass
+class IndoorUnitClimate:
+    is_valid: bool
+    inlet_dew_point_c: float
+    calculated_ambient_temperature_c: float
+    updated_at: datetime | None
+
+@dataclass
+class IndoorUnitTestState:
+    test_mode: IndoorUnitTestMode            # INACTIVE in normal operation
+    test_coordination: IndoorUnitTestCoordination
+    test_phase: IndoorUnitTestPhase
+    updated_at: datetime | None
+```
+
+`idu.dew_point_c` is the inlet dew point, or `None` when the climate reading is absent or flagged
+invalid; the unit updates it every few seconds. `idu.effective_test_mode` is
+the mode from whichever of `test_state` and `state` was updated more recently (the server reports
+it in both, and a snapshot merged from sparse diffs can hold a stale copy of either); a source
+reporting `UNSPECIFIED` is ignored. `idu.is_under_test` is `True` while that mode is anything but `INACTIVE` (health
+check, commissioning or another test), during which the unit's behaviour is driven by the test
+rather than the room's controls.
 
 #### `IndoorUnitPresence` and `IndoorUnitOccupancy` — realtime vs derived
 
@@ -325,6 +423,7 @@ Occupancy data comes in three tiers — don't treat them as interchangeable:
 |---|---|---|---|
 | Raw radar channels | `idu.presence.sensor0_presence` / `sensor1_presence` | seconds | The two detection channels of the IDU's single mm-wave radar. Channel semantics are unconfirmed and they move in lockstep in practice — avoid labeling them "motion" vs "presence". |
 | Realtime presence | `idu.presence_detected` | seconds | OR of both channels — the value the vendor app uses. `True`/`False`, or `None` when offline or unreported. |
+| Room occupancy | `space.occupancy_state` | minutes | The space's own auto-away decision, which its setback acts on. In live data it matches the room's IDU value. |
 | Derived occupancy | `idu.effective_occupancy_state` | minutes | The server's auto-away decision: ~3 min of sustained presence to set, ~20 min of absence to clear (configurable via `SpaceSettings.occupied_timeout_s` / `unoccupied_timeout_s`). |
 
 Use `presence_detected` for "is someone in the room right now" and `effective_occupancy_state` for "does Quilt consider the room occupied for away/return setback". Both return `None` for offline IDUs so stale data is never presented as current.
@@ -373,7 +472,7 @@ class Controller:
     system_id: str
     space_id: str
     name: str
-    raw_thermistor_c: float | None      # None when no state reading available
+    raw_thermistor_c: float | None  # None when no state reading available
     pcb_temperature_a_c: float | None
     pcb_temperature_b_c: float | None
     calibrated_ambient_c: float | None  # exposed as ambient_temperature_c
@@ -381,6 +480,7 @@ class Controller:
     wifi_ip: str | None
     wifi_signal_dbm: int | None
     wifi_freq_mhz: int | None
+    wifi_bssid: str | None
     wifi_last_seen: datetime | None
     ap_wifi: WifiInfo | None
     p2p_wifi: WifiInfo | None
@@ -392,10 +492,29 @@ class Controller:
     firmware_version: str | None
     state_updated_at: datetime | None
     local_comms_health: LocalCommsHealthStatus
+    local_comms_visible_devices: int | None
+    local_comms_expected_devices: int | None
+    local_comms_reason: LocalCommsHealthReason
+    local_comms_last_session_change: datetime | None
+    view_state: ControllerViewState  # SLEEP, GLANCE, ACTIVE, INTERACTING
+    screen_brightness: float | None  # 0.0–1.0
+    radar_target_detected: bool | None  # the Dial's own mmWave radar
+    radar_phase_detected: bool | None
+    ambient_light_lux: float | None
+    orientation: ControllerOrientation  # VERTICAL (wall) or HORIZONTAL (flat)
+    humidity_percent: float | None  # SHT4x; None on Dials that don't report it
+    power_w: float | None
+    main_board_temperature_c: float | None
+    power_board_temperature_c: float | None
+    accelerometer_raw: tuple[int, int, int] | None
+    # display, radar and light telemetry (None / UNSPECIFIED when no state reading)
 ```
 
 Useful properties: `ambient_temperature_c` (→ `calibrated_ambient_c`, `None`
-when no state reading is available), `wifi_band`, `is_online`.
+when no state reading is available), `wifi_band`, `is_online` (state reported within
+the last 5 minutes; online Dials report about every 10 s), `display_on` (`False` while
+asleep, `None` when unknown) and `presence_detected` (the Dial radar sees someone; this
+is independent of the indoor unit's radar).
 
 ---
 
@@ -405,21 +524,13 @@ when no state reading is available), `wifi_band`, `is_online`.
 @dataclass
 class RemoteSensor:
     id: str
-    space_id: str
-    system_id: str
-    name: str | None
-    state: RemoteSensorState
-```
-
-#### `RemoteSensorState`
-
-```python
-@dataclass
-class RemoteSensorState:
-    updated_at: datetime | None
-    temp_c: float | None
-    humidity_pct: float | None
-    is_online: bool
+    indoor_unit_id: str
+    mac: str | None
+    ambient_temperature_c: float | None
+    humidity_percent: float | None
+    battery_level_percent: float | None
+    signal_level_dbm: int | None
+    control_mode: RemoteSensorControlMode
 ```
 
 ---
@@ -440,6 +551,8 @@ class ComfortSetting:
     fan_speed: FanSpeed
     louver_mode: LouverMode
     louver_fixed_position: float
+    fan_speed_mode_raw: int
+    fan_speed_percent_raw: float
 ```
 
 A named HVAC preset. Spaces reference comfort settings by `controls.comfort_setting_id`.
@@ -452,8 +565,8 @@ A named HVAC preset. Spaces reference comfort settings by `controls.comfort_sett
 @dataclass
 class ScheduleDay:
     id: str
-    space_id: str
     name: str
+    space_id: str
     events: list[ScheduleEvent]
 ```
 
@@ -462,7 +575,7 @@ class ScheduleDay:
 ```python
 @dataclass
 class ScheduleEvent:
-    start_s: int                # seconds from midnight
+    start_s: int  # seconds from midnight
     comfort_setting_id: str
     hvac_mode: HVACMode
     heating_setpoint_c: float
@@ -487,7 +600,7 @@ class ScheduleWeek:
 ```python
 @dataclass
 class ScheduleWeekDay:
-    weekday: int                # 1 = Monday, 7 = Sunday
+    weekday: int  # 1 = Monday, 7 = Sunday
     day_id: str
 ```
 
@@ -617,8 +730,8 @@ class IndoorUnitDiagnostics:
     space_name: str
     online: bool
     hvac_state: HVACState
-    active_faults: list[str]                 # condition names currently ACTIVE
-    conditions: dict[str, ConditionState]    # every condition → state (empty if none reported)
+    active_faults: list[str]  # condition names currently ACTIVE
+    conditions: dict[str, ConditionState]  # every condition → state (empty if none reported)
     coil_temperature_c: float | None
     gas_pipe_temperature_c: float | None
     liquid_pipe_temperature_c: float | None
@@ -626,6 +739,10 @@ class IndoorUnitDiagnostics:
     outlet_temperature_c: float | None
     inlet_humidity_pct: float | None
     hvac_power_w: float | None
+    inlet_dew_point_c: float | None
+    odu_usage_fraction: float | None
+    under_test: bool
+    test: dict[str, str]
 ```
 
 Per-indoor-unit diagnostics. The condition matrix includes the outdoor-unit and
@@ -677,6 +794,12 @@ All enums live in `quilt_hp.models.enums` and subclass `IntEnum`, mirroring Quil
 | `SafetyHeatingMode` | Freeze-protection setting | `DISABLED`, `ENABLED` |
 | `ConditionState` | Diagnostic condition status | `INACTIVE`, `ACTIVE` |
 | `HvacControllerType` | Controller algorithm variant | `PASS_THROUGH_TEMPERATURE`, `INTEGRAL_TEMPERATURE_V1`, `INTEGRAL_TEMPERATURE_V2` |
+| `ControllerViewState` | Dial display state | `SLEEP`, `GLANCE`, `ACTIVE`, `INTERACTING` |
+| `ControllerOrientation` | Dial mounting | `INDETERMINATE`, `VERTICAL`, `HORIZONTAL` |
+| `IndoorUnitTestMode` | IDU test mode | `INACTIVE`, `HEALTH_CHECK`, `REQUEST_TEST`, `STANDBY`, `COMMISSIONING` |
+| `IndoorUnitTestCoordination` | How IDUs on one ODU sequence tests | `NONE`, `REQUESTING`, `STANDBY`, `PARALLEL`, `WAITING`, `EXCLUSIVE`, `DONE` |
+| `IndoorUnitTestPhase` | IDU test phase | `NONE`, `SELF_TEST`, `HEATING`, `COOLING` |
+| `NotificationType` | Stream event kind | `UPDATED`, `DELETED`, `CREATED`, `CHILD_CREATED`, `CHILD_DELETED` |
 | `FallbackControlCommand` | Offline fallback command sent to an IDU | `COMPLETE`, `EXIT` |
 | `RemoteSensorControlMode` | Whether a remote sensor participates in control | `DISABLED`, `ENABLED` |
 | `FastUpdateReason` | Why `request_fast_updates()` is asking the cloud to raise the telemetry cadence | `UNSPECIFIED`, `LOCAL_COMMS_UNHEALTHY`, `USER_ACTIVITY` |

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import math
 from dataclasses import dataclass, field
+from datetime import datetime
 from typing import Any, cast
 
 from quilt_hp.const import (
@@ -11,7 +12,7 @@ from quilt_hp.const import (
     STANDBY_COOL_SENTINEL_C,
     STANDBY_HEAT_SENTINEL_C,
 )
-from quilt_hp.models._helpers import present_submsg
+from quilt_hp.models._helpers import present_submsg, timestamp_or_none
 from quilt_hp.models.enums import (
     BoostMode,
     ComfortSettingOverride,
@@ -20,6 +21,7 @@ from quilt_hp.models.enums import (
     HVACMode,
     HVACState,
     OccupancyMode,
+    OccupancyState,
     SafetyHeatingMode,
 )
 
@@ -145,6 +147,20 @@ class SpaceState:
 
 
 @dataclass(slots=True)
+class SpaceOccupancy:
+    """The room's auto-away decision (``Space.occupancy``, proto field 76).
+
+    This is the value the space's away/return setback acts on: DETECTED after
+    ``occupied_timeout_s`` of sustained presence, UNDETECTED after ``unoccupied_timeout_s`` of
+    absence. It matches the room's indoor-unit occupancy in live data and is absent for spaces
+    the engine hasn't evaluated (the home's root space, rooms whose radar isn't reporting).
+    """
+
+    occupancy_state: OccupancyState
+    updated_at: datetime | None = None
+
+
+@dataclass(slots=True)
 class Space:
     """A Quilt space (room / zone)."""
 
@@ -158,6 +174,12 @@ class Space:
     # Resolved from controls.comfort_setting_id at snapshot build time.
     # None if the space was received via a stream update without enrichment.
     active_comfort_setting_type: ComfortSettingType | None = field(default=None)
+    occupancy: SpaceOccupancy | None = None
+
+    @property
+    def occupancy_state(self) -> OccupancyState | None:
+        """The room's auto-away occupancy (DETECTED / UNDETECTED), or None if not reported."""
+        return self.occupancy.occupancy_state if self.occupancy is not None else None
 
     @property
     def is_room(self) -> bool:
@@ -267,7 +289,7 @@ def _space_from_proto(proto: object) -> Space:
         state = SpaceState(
             ambient_temperature_c=st.ambient_temperature_c,
             hvac_state=HVACState(st.hvac_state),
-            setpoint_c=st.setpoint_temperature_c,
+            setpoint_c=st.temperature_setpoint_c,
             comfort_setting_id=st.comfort_setting_id,
         )
     else:
@@ -276,6 +298,18 @@ def _space_from_proto(proto: object) -> Space:
             hvac_state=HVACState.UNSPECIFIED,
             setpoint_c=None,
             comfort_setting_id="",
+        )
+
+    occ = cast("Any", present_submsg(p, "occupancy"))
+    occupancy = None
+    if occ is not None:
+        try:
+            occupancy_state = OccupancyState(occ.occupancy_state)
+        except ValueError:
+            occupancy_state = OccupancyState.UNSPECIFIED
+        occupancy = SpaceOccupancy(
+            occupancy_state=occupancy_state,
+            updated_at=timestamp_or_none(getattr(occ, "updated_ts", None)),
         )
 
     rel = cast("Any", present_submsg(p, "relationships"))
@@ -287,4 +321,5 @@ def _space_from_proto(proto: object) -> Space:
         settings=settings,
         controls=controls,
         state=state,
+        occupancy=occupancy,
     )

@@ -22,9 +22,10 @@ _runtime_version.ValidateProtobufRuntimeVersion(
 _sym_db = _symbol_database.Default()
 
 
+from google.protobuf import any_pb2 as google_dot_protobuf_dot_any__pb2
 
 
-DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\x14quilt_notifier.proto\x12\x14\x63ore.protos.notifier\"\x1d\n\x0cSubscription\x12\r\n\x05topic\x18\x01 \x01(\t\"J\n\rTopicsMessage\x12\x39\n\rsubscriptions\x18\x01 \x03(\x0b\x32\".core.protos.notifier.Subscription\"\x8b\x01\n\x10SubscribeRequest\x12\x35\n\x06\x61ppend\x18\x02 \x01(\x0b\x32#.core.protos.notifier.TopicsMessageH\x00\x12\x35\n\x06remove\x18\x03 \x01(\x0b\x32#.core.protos.notifier.TopicsMessageH\x00\x42\t\n\x07message\"/\n\rNotifierEvent\x12\r\n\x05topic\x18\x01 \x01(\x0c\x12\x0f\n\x07payload\x18\x02 \x01(\x0c\"T\n\x0c\x43ontrolEvent\x12\x0e\n\x06topics\x18\x01 \x03(\t\x12\x34\n\x04type\x18\x02 \x01(\x0e\x32&.core.protos.notifier.ControlEventType\"B\n\x0bSystemEvent\x12\x33\n\x04type\x18\x01 \x01(\x0e\x32%.core.protos.notifier.SystemEventType\"\xc7\x01\n\x11SubscribeResponse\x12<\n\x0fnotifier_events\x18\x01 \x03(\x0b\x32#.core.protos.notifier.NotifierEvent\x12:\n\x0e\x63ontrol_events\x18\x02 \x03(\x0b\x32\".core.protos.notifier.ControlEvent\x12\x38\n\rsystem_events\x18\x03 \x03(\x0b\x32!.core.protos.notifier.SystemEvent*\xb1\x02\n\x10\x43ontrolEventType\x12\"\n\x1e\x43ONTROL_EVENT_TYPE_UNSPECIFIED\x10\x00\x12%\n!CONTROL_EVENT_TYPE_TOPIC_APPENDED\x10\x01\x12$\n CONTROL_EVENT_TYPE_TOPIC_REMOVED\x10\x02\x12+\n\'CONTROL_EVENT_TYPE_INVALID_APPEND_TOPIC\x10\x03\x12+\n\'CONTROL_EVENT_TYPE_INVALID_REMOVE_TOPIC\x10\x04\x12(\n$CONTROL_EVENT_TYPE_RECONNECT_REQUEST\x10\x05\x12(\n$CONTROL_EVENT_TYPE_PERMISSION_DENIED\x10\x06*W\n\x0fSystemEventType\x12\x1d\n\x19SYSTEM_EVENT_TYPE_UNKNOWN\x10\x00\x12%\n!SYSTEM_EVENT_TYPE_SOFTWARE_UPDATE\x10\x01\x32s\n\x0fNotifierService\x12`\n\tSubscribe\x12&.core.protos.notifier.SubscribeRequest\x1a\'.core.protos.notifier.SubscribeResponse(\x01\x30\x01\x42\"\n\x18\x63om.quilt.proto.notifier\xba\x02\x05Quiltb\x06proto3')
+DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\x14quilt_notifier.proto\x12\x14\x63ore.protos.notifier\x1a\x19google/protobuf/any.proto\"\x1d\n\x0cSubscription\x12\r\n\x05topic\x18\x01 \x01(\t\"J\n\rTopicsMessage\x12\x39\n\rsubscriptions\x18\x01 \x03(\x0b\x32\".core.protos.notifier.Subscription\"\x8b\x01\n\x10SubscribeRequest\x12\x35\n\x06\x61ppend\x18\x02 \x01(\x0b\x32#.core.protos.notifier.TopicsMessageH\x00\x12\x35\n\x06remove\x18\x03 \x01(\x0b\x32#.core.protos.notifier.TopicsMessageH\x00\x42\t\n\x07message\"E\n\rNotifierEvent\x12\r\n\x05topic\x18\x01 \x01(\t\x12%\n\x07payload\x18\x02 \x01(\x0b\x32\x14.google.protobuf.Any\"T\n\x0c\x43ontrolEvent\x12\x0e\n\x06topics\x18\x01 \x03(\t\x12\x34\n\x04type\x18\x02 \x01(\x0e\x32&.core.protos.notifier.ControlEventType\"O\n\x0bSystemEvent\x12@\n\x11system_event_type\x18\x01 \x01(\x0e\x32%.core.protos.notifier.SystemEventType\"\xc4\x01\n\x0eSubscribeEvent\x12<\n\x0fnotifier_events\x18\x01 \x03(\x0b\x32#.core.protos.notifier.NotifierEvent\x12:\n\x0e\x63ontrol_events\x18\x02 \x03(\x0b\x32\".core.protos.notifier.ControlEvent\x12\x38\n\rsystem_events\x18\x03 \x03(\x0b\x32!.core.protos.notifier.SystemEvent\"H\n\x11SubscribeResponse\x12\x33\n\x05\x65vent\x18\x01 \x01(\x0b\x32$.core.protos.notifier.SubscribeEvent*\xb1\x02\n\x10\x43ontrolEventType\x12\"\n\x1e\x43ONTROL_EVENT_TYPE_UNSPECIFIED\x10\x00\x12%\n!CONTROL_EVENT_TYPE_TOPIC_APPENDED\x10\x01\x12$\n CONTROL_EVENT_TYPE_TOPIC_REMOVED\x10\x02\x12+\n\'CONTROL_EVENT_TYPE_INVALID_APPEND_TOPIC\x10\x03\x12+\n\'CONTROL_EVENT_TYPE_INVALID_REMOVE_TOPIC\x10\x04\x12(\n$CONTROL_EVENT_TYPE_RECONNECT_REQUEST\x10\x05\x12(\n$CONTROL_EVENT_TYPE_PERMISSION_DENIED\x10\x06*U\n\x0fSystemEventType\x12!\n\x1dSYSTEM_EVENT_TYPE_UNSPECIFIED\x10\x00\x12\x1f\n\x1bSYSTEM_EVENT_TYPE_SW_UPDATE\x10\x01\x32s\n\x0fNotifierService\x12`\n\tSubscribe\x12&.core.protos.notifier.SubscribeRequest\x1a\'.core.protos.notifier.SubscribeResponse(\x01\x30\x01\x42\"\n\x18\x63om.quilt.proto.notifier\xba\x02\x05Quiltb\x06proto3')
 
 _globals = globals()
 _builder.BuildMessageAndEnumDescriptors(DESCRIPTOR, _globals)
@@ -32,24 +33,26 @@ _builder.BuildTopDescriptorsAndMessages(DESCRIPTOR, 'quilt_notifier_pb2', _globa
 if not _descriptor._USE_C_DESCRIPTORS:
   _globals['DESCRIPTOR']._loaded_options = None
   _globals['DESCRIPTOR']._serialized_options = b'\n\030com.quilt.proto.notifier\272\002\005Quilt'
-  _globals['_CONTROLEVENTTYPE']._serialized_start=701
-  _globals['_CONTROLEVENTTYPE']._serialized_end=1006
-  _globals['_SYSTEMEVENTTYPE']._serialized_start=1008
-  _globals['_SYSTEMEVENTTYPE']._serialized_end=1095
-  _globals['_SUBSCRIPTION']._serialized_start=46
-  _globals['_SUBSCRIPTION']._serialized_end=75
-  _globals['_TOPICSMESSAGE']._serialized_start=77
-  _globals['_TOPICSMESSAGE']._serialized_end=151
-  _globals['_SUBSCRIBEREQUEST']._serialized_start=154
-  _globals['_SUBSCRIBEREQUEST']._serialized_end=293
-  _globals['_NOTIFIEREVENT']._serialized_start=295
-  _globals['_NOTIFIEREVENT']._serialized_end=342
-  _globals['_CONTROLEVENT']._serialized_start=344
-  _globals['_CONTROLEVENT']._serialized_end=428
-  _globals['_SYSTEMEVENT']._serialized_start=430
-  _globals['_SYSTEMEVENT']._serialized_end=496
-  _globals['_SUBSCRIBERESPONSE']._serialized_start=499
-  _globals['_SUBSCRIBERESPONSE']._serialized_end=698
-  _globals['_NOTIFIERSERVICE']._serialized_start=1097
-  _globals['_NOTIFIERSERVICE']._serialized_end=1212
+  _globals['_CONTROLEVENTTYPE']._serialized_start=834
+  _globals['_CONTROLEVENTTYPE']._serialized_end=1139
+  _globals['_SYSTEMEVENTTYPE']._serialized_start=1141
+  _globals['_SYSTEMEVENTTYPE']._serialized_end=1226
+  _globals['_SUBSCRIPTION']._serialized_start=73
+  _globals['_SUBSCRIPTION']._serialized_end=102
+  _globals['_TOPICSMESSAGE']._serialized_start=104
+  _globals['_TOPICSMESSAGE']._serialized_end=178
+  _globals['_SUBSCRIBEREQUEST']._serialized_start=181
+  _globals['_SUBSCRIBEREQUEST']._serialized_end=320
+  _globals['_NOTIFIEREVENT']._serialized_start=322
+  _globals['_NOTIFIEREVENT']._serialized_end=391
+  _globals['_CONTROLEVENT']._serialized_start=393
+  _globals['_CONTROLEVENT']._serialized_end=477
+  _globals['_SYSTEMEVENT']._serialized_start=479
+  _globals['_SYSTEMEVENT']._serialized_end=558
+  _globals['_SUBSCRIBEEVENT']._serialized_start=561
+  _globals['_SUBSCRIBEEVENT']._serialized_end=757
+  _globals['_SUBSCRIBERESPONSE']._serialized_start=759
+  _globals['_SUBSCRIBERESPONSE']._serialized_end=831
+  _globals['_NOTIFIERSERVICE']._serialized_start=1228
+  _globals['_NOTIFIERSERVICE']._serialized_end=1343
 # @@protoc_insertion_point(module_scope)

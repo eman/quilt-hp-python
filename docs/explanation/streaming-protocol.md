@@ -33,19 +33,33 @@ In practice, most clients subscribe to all topics for their system using `snapsh
 
 ---
 
-## The wire format parsing challenge
+## The wire format
 
-The `NotifierEvent.topic` field carries binary data, not a plain string. The payload is a nested protobuf envelope, not a `google.protobuf.Any` message that Python's protobuf library can decode directly.
+Each `SubscribeResponse` carries one `SubscribeEvent` batch:
 
-`NotifierStream._parse_event()` walks this structure manually:
+```text
+SubscribeResponse { event = 1: SubscribeEvent {
+  repeated NotifierEvent notifier_events = 1;   // data events
+  repeated ControlEvent  control_events  = 2;   // subscription bookkeeping
+  repeated SystemEvent   system_events   = 3;
+}}
+NotifierEvent { string topic = 1; google.protobuf.Any payload = 2; }
+```
 
-1. If `evt.topic == b""`, the event is a heartbeat. Ignore it.
-2. Parse `evt.topic` as a length-delimited protobuf message. Field 1 is the topic string (e.g., `"hds/space/..."`) and field 2 is the notification payload.
-3. From field 2, extract nested field 2 (`HdsNotification` bytes).
-4. From `HdsNotification`, extract field 2 (`HomeDatastoreObjectDiff` bytes).
-5. From `HomeDatastoreObjectDiff`, extract the entity by field number (field 3 = Space, field 9 = IndoorUnit, etc.).
+The `Any` is a standard one: its type URL is
+`type.googleapis.com/core.protos.home_datastore.Notification` and its value is a
+`Notification { notification_type, payload: HomeDatastoreObjectDiff, system_version }`. The
+`HomeDatastoreObjectDiff` is a oneof holding exactly one changed entity (a `Space`, an
+`IndoorUnit`, a `Controller`, and so on).
 
-The reason for this manual walk is that `google.protobuf.Any` requires the full type URL (`type.googleapis.com/...`) to decode, and the server uses a custom nesting structure rather than the standard `Any` wrapper. This is a trade-off in the Quilt API design. It is not a deficiency in the library.
+`NotifierStream._parse_event()` decodes this with the generated messages and builds the matching
+model. Diffs for entity types the library does not model (automations, ducted zones, demand-response
+events) arrive as `StreamEvent.raw_bytes`: the `Notification` bytes, ready for
+`Notification.FromString()`.
+
+The server answers every subscription `append` with a `ControlEvent` of type `TOPIC_APPENDED`.
+Earlier releases described these as "heartbeats" and parsed the stream byte by byte against a model
+that was one nesting level off; the generated messages now match the wire exactly.
 
 ---
 

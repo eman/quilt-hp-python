@@ -24,6 +24,107 @@
   device's local mesh is degraded; the effect is a faster stream of updates over
   `NotifierStream`. New `FastUpdateReason` enum (`UNSPECIFIED`,
   `LOCAL_COMMS_UNHEALTHY`, `USER_ACTIVITY`) in `quilt_hp.models.enums`.
+- **Dial display, radar and light telemetry on `Controller`**: `view_state`
+  (`ControllerViewState`: SLEEP / GLANCE / ACTIVE / INTERACTING), `screen_brightness`,
+  `radar_target_detected` / `radar_phase_detected` (the Dial's own mmWave radar, separate
+  from the indoor unit's), `ambient_light_lux`, `orientation` (`ControllerOrientation`),
+  `humidity_percent`, `power_w`, board temperatures and `accelerometer_raw`, plus the
+  `display_on` and `presence_detected` properties. The server has always sent these; the old
+  protos dropped them. Shown by `quilt values` and in `quilt info --output json`.
+- The vendored protos (`quilt_hp._proto`) were audited against the Quilt app 1.0.33 and
+  validated against the live server: every server response decodes with no unknown fields.
+  New: `quilt_actions.proto` (`HomeActionService/SubmitAction`), `quilt_device_config.proto`
+  (`DeviceConfigurationService`), IDU test/commissioning and climate state, demand-response,
+  ducted-zone, air-handler and automation entities, and the notifier payload
+  (`Notification` / `HomeDatastoreObjectDiff`). `HomeDatastoreService` now declares the full
+  Get/Create/Update/Delete/List set the server implements for every entity (105 methods; the
+  app uses 32); `core.protos.system.SystemService` likewise. `List*` requests take an
+  AIP-160 filter such as `header.system_id="<uuid>"`.
+  `scripts/sync_protos_from_parent.py` documents how the protos are refreshed.
+
+- **Room occupancy:** `Space.occupancy` (`SpaceOccupancy`) and the `Space.occupancy_state`
+  property: the room's own auto-away decision, the value its away/return setback acts on.
+- **Outdoor-unit share:** `IndoorUnitPerformanceMetrics.odu_usage_fraction`, the share of the
+  outdoor unit attributed to each indoor unit, for apportioning energy per room.
+- **Indoor-unit climate:** `IndoorUnit.climate` (`IndoorUnitClimate`: inlet dew point, validity,
+  calculated ambient) and the `IndoorUnit.dew_point_c` property.
+- **Indoor-unit test state:** `IndoorUnit.test_state` (`IndoorUnitTestState` with the new
+  `IndoorUnitTestMode` / `IndoorUnitTestCoordination` / `IndoorUnitTestPhase` enums),
+  `IndoorUnitState.test_mode`, and the `IndoorUnit.effective_test_mode` / `is_under_test`
+  properties (health check, commissioning), which use whichever of `test_state` and
+  `state.test_mode` was updated more recently. `quilt diagnostics` shows dew point, outdoor-unit share and any active test;
+  `quilt info --output json` includes all four.
+- **Single-object fetches:** `QuiltClient.get_space` / `get_indoor_unit` / `get_outdoor_unit` /
+  `get_controller` / `get_quilt_smart_module` / `get_comfort_setting` / `get_remote_sensor` /
+  `get_controller_remote_sensor` / `get_schedule_day` / `get_schedule_week` /
+  `get_software_update_info`, and per-system `list_*` on `HomeDatastoreService` (filtered
+  server-side).
+  They use Get/List RPCs the Quilt app never calls but the server implements; results lack
+  hardware attributes, so merge them into a snapshot with `apply_*`.
+- **Configuration version:** `SystemSnapshot.version` / `version_at` and
+  `QuiltClient.get_system_version()` (a metadata-only fetch, ~14 bytes). The version advances on
+  writes to controls, settings or configuration (including auto-away switching a comfort
+  setting), not on telemetry, so it cheaply detects a snapshot whose configuration is stale.
+- `NotifierStream.on_delete(callback)` and `SystemSnapshot.remove(kind, entity_id)`; `StreamEvent`
+  gains `notification_type` (new `NotificationType` enum) and `system_version` (the server
+  currently sends 0, so it is None in practice).
+
+### Fixed
+- `docs/reference/models.md` documented several dataclasses with fields that don't exist
+  (`IndoorUnit.model_name`, `IndoorUnitState.target_temp_c`, `RemoteSensorState`, renamed
+  `IndoorUnitSettings`/`IndoorUnitControls` fields) and omitted many real ones; every documented
+  dataclass now matches the code.
+- Deleted objects are no longer delivered as updates: `NotifierStream` ignored the notification
+  type, so a DELETED event reached `on_*_update` callbacks and `snapshot.apply_*` re-added the
+  object. Deletions (DELETED, and CHILD_DELETED, which carries the removed child on its parent's
+  topic) now go only to `on_delete`, and cancel any pending debounced update for the object.
+  `SystemSnapshot.remove` also ignores later `apply_*` calls for the removed object, so an update
+  callback already in flight cannot re-add it. The TUI drops deleted objects from its snapshot.
+- `Controller.is_online` now works: it read `ControllerState.updated_ts` from field 1, which the
+  server never sends, so it always returned True. The timestamp is field 15. A Dial that has
+  stopped reporting for 5 minutes now reads offline.
+- `UserService.get_user_attributes()` always returned `DeclaredUserType.UNSPECIFIED`: the RPC
+  wraps the attributes (`GetUserAttributesResponse{user_attributes}`), which the old proto
+  did not model.
+- `NotifierStream` now decodes events with the generated messages
+  (`SubscribeResponse.event` → `NotifierEvent{topic, payload: Any}` → `Notification`; the Any
+  type URL is `type.googleapis.com/core.protos.home_datastore.Notification`) instead of
+  hand-parsing bytes against a schema that was one nesting level off. Callbacks and
+  `StreamEvent` are unchanged; events for entity types without a model (e.g. automations)
+  still arrive with `raw_bytes`, now the `Notification` bytes.
+
+### Migration (raw `quilt_hp._proto` users only — the `quilt_hp.models` API is unchanged)
+Field and enum-value names in the vendored protos now use the app's names. Wire format is
+unchanged except where noted.
+
+| Where | Old | New |
+|---|---|---|
+| `UpdateSpaceRequest` / `UpdateIndoorUnitRequest` | `diff` | `space` / `indoor_unit` |
+| `Get*`/`Delete*` request ids | `id`, `remote_sensor_id`, `schedule_day_id`, `schedule_week_id`, ... | `object_id` |
+| `SpaceState` | `setpoint_temperature_c` | `temperature_setpoint_c` |
+| `IndoorUnitPresenceState` | `sensor0_presence` / `sensor1_presence` | `sensor_0_presence` / `sensor_1_presence` |
+| `ControllerState` | `ambient_temperature_c`, `temperature_f3`/`f4`/`f5` | `sht4x_temperature_c`, `encoder_temperature_c`, `soc_temperature_c`, `calculated_ambient_temperature_c` |
+| `ControllerState.updated_ts` | field 1 (never sent) | field 15 (**wire**) |
+| `Controller` / `QuiltSmartModule` | `local_comms_status` | `local_comms_health` |
+| `PartnerDetails` | `organization_id` / `organization_name` | `partner_organization_id` / `partner_organization_name` (+ `partner_tier`) |
+| `OccupancyState` values | `OCCUPANCY_STATE_*` | `OCCUPANCY_*` |
+| `LightState` / `LightAnimation` values | `LIGHT_STATE_*` / `LIGHT_ANIMATION_*` | `LED_STATE_*` / `INDOOR_UNIT_LED_ANIMATION_*` |
+| `ConditionState` | one shared proto enum | one enum per condition field (e.g. `DefrostCycleState`), same 0/1/2 values; `quilt_hp.models.ConditionState` is unchanged |
+| `SubscribeResponse` | `notifier_events`/`control_events`/`system_events` on the response | on `response.event`; `NotifierEvent.topic` is a string, `.payload` an `Any` (**wire layout clarified**) |
+| `GetUserAttributes` | returned `UserAttributes` | returns `GetUserAttributesResponse` (**wire**) |
+| `JoinPartnerOrganization` / `LeavePartnerOrganization` | `*Response` wrappers | `PartnerDetails` / `Empty` (**wire**) |
+| `LedScheduleEvent` | fields 3–5 color/brightness/animation | `schedule_execution=3, led_state=4, led_brightness_percent=5, led_color_code=6, led_animation=7` (**wire**) |
+| `Get{IndoorUnitHardware,ControllerHardware,QuiltSmartModule}Request.field_mask` | `google.protobuf.FieldMask` | per-entity `include_*` mask messages (**wire**) |
+| `List*Request` | `filter = 1` | `filter = 2` (field 1 is ignored by the server) (**wire**) |
+| `system.System` | `{ id = 1; created_ts = 2 }` | `{ EntityMetadata header = 1; ... }` (**wire**) |
+| `DeviceType` (pairing) | CONTROLLER=5, ... | `DEVICE_TYPE_CONTROLLER=6`, renumbered from 4 up (**wire**) |
+| `WifiScan`/`WifiConfiguration.security_type`; `DeviceConfigurationRequest.request_timestamp`/`device_configuration` | | `key_mgmt`; `request_ts` / `device_config` |
+| `Address` | `address_line_1` / `address_line_2`, `region_code` | `address_line1` / `address_line2`, `state_province_region` |
+| `Address` | `latitude`/`longitude` double; `geocode_source = 10`, `geocode_override = 11` | `float` (**wire**); `geocode_override = 10`, `raw_geocoded_response = 11`, `geocode_source = 12` (**wire**) |
+| `GeocodeSource` enum | `GeocodeSource`, `GEOCODE_SOURCE_*` | `GeocodeService`, `GEOCODE_SERVICE_*` |
+| `SetAddressResponse` | `bool success = 1` | empty message (success is a non-error status) |
+| `SystemEvent` (notifier) | `type` | `system_event_type` |
+| `core.protos.app.SystemService` | declared | removed: the server answers UNIMPLEMENTED (use `core.protos.system.SystemService`) |
 
 ## [0.5.7] - 2026-07-20
 

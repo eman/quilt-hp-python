@@ -51,7 +51,7 @@ Do not regenerate just for comment or whitespace changes. The generated output w
 
 ## What the script does
 
-The script runs `python -m grpc_tools.protoc` against all five proto files in `proto/cleaned/`, generating `*_pb2.py`, `*_pb2_grpc.py`, and `*_pb2.pyi` files. It then rewrites absolute package imports to relative imports (for example, `import quilt_hds_pb2` becomes `from . import quilt_hds_pb2`) using `sed`, so the stubs work inside the `_proto` sub-package.
+The script runs `python -m grpc_tools.protoc` against all seven proto files in `proto/cleaned/`, generating `*_pb2.py`, `*_pb2_grpc.py`, and `*_pb2.pyi` files. It then rewrites absolute package imports in the `.py` and `.pyi` files to relative imports (for example, `import quilt_hds_pb2` becomes `from . import quilt_hds_pb2`) using `sed`, so the stubs work inside the `_proto` sub-package.
 
 For a detailed description of what the script does step by step, see [gRPC and protobuf](../explanation/grpc-and-protobuf.md).
 

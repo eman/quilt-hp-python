@@ -2947,6 +2947,7 @@ class QuiltApp(App[None]):
         stream.on_controller_update(self._dispatch_ctrl)
         stream.on_qsm_update(self._dispatch_qsm)
         stream.on_remote_sensor_update(self._dispatch_remote_sensor)
+        stream.on_delete(self._dispatch_delete)
         stream.on_error(self._on_stream_error)
 
         try:
@@ -3001,6 +3002,12 @@ class QuiltApp(App[None]):
         )
 
     # ── Stream event dispatchers ─────────────────────────────────
+
+    def _dispatch_delete(self, kind: str, entity_id: str) -> None:
+        if self._snapshot and self._snapshot.remove(kind, entity_id):
+            self.notify(
+                f"A {kind.replace('_', ' ')} was removed from this system; press r to refresh."
+            )
 
     def _dispatch_space(self, space: Space) -> None:
         if self._snapshot:

@@ -27,7 +27,13 @@ if _version_not_supported:
 
 
 class HomeDatastoreServiceStub(object):
-    """Missing associated documentation comment in .proto file."""
+    """HomeDatastoreService is generic CRUD over every HDS entity. The app (1.0.33) calls 30 of these
+    the server implements all 105 (existence confirmed live 2026-10-05: an unknown method answers
+    UNIMPLEMENTED, an implemented one fails to parse a malformed body). Tags: `app` = in the app's
+    stub registry; `server-only` = not used by the app. Ducted zones are normally created through
+    core.protos.app.MobileAppService/CreateAndConfigureDuctedZone, spaces/systems through
+    CreateAndConfigureSpace/System.
+    """
 
     def __init__(self, channel):
         """Constructor.
@@ -60,6 +66,21 @@ class HomeDatastoreServiceStub(object):
                 request_serializer=quilt__hds__pb2.DeleteSpaceRequest.SerializeToString,
                 response_deserializer=google_dot_protobuf_dot_empty__pb2.Empty.FromString,
                 _registered_method=True)
+        self.ListSpaces = channel.unary_unary(
+                '/core.protos.home_datastore.HomeDatastoreService/ListSpaces',
+                request_serializer=quilt__hds__pb2.ListSpacesRequest.SerializeToString,
+                response_deserializer=quilt__hds__pb2.ListSpacesResponse.FromString,
+                _registered_method=True)
+        self.GetIndoorUnit = channel.unary_unary(
+                '/core.protos.home_datastore.HomeDatastoreService/GetIndoorUnit',
+                request_serializer=quilt__hds__pb2.GetIndoorUnitRequest.SerializeToString,
+                response_deserializer=quilt__hds__pb2.IndoorUnit.FromString,
+                _registered_method=True)
+        self.CreateIndoorUnit = channel.unary_unary(
+                '/core.protos.home_datastore.HomeDatastoreService/CreateIndoorUnit',
+                request_serializer=quilt__hds__pb2.CreateIndoorUnitRequest.SerializeToString,
+                response_deserializer=quilt__hds__pb2.IndoorUnit.FromString,
+                _registered_method=True)
         self.UpdateIndoorUnit = channel.unary_unary(
                 '/core.protos.home_datastore.HomeDatastoreService/UpdateIndoorUnit',
                 request_serializer=quilt__hds__pb2.UpdateIndoorUnitRequest.SerializeToString,
@@ -70,15 +91,45 @@ class HomeDatastoreServiceStub(object):
                 request_serializer=quilt__hds__pb2.DeleteIndoorUnitRequest.SerializeToString,
                 response_deserializer=google_dot_protobuf_dot_empty__pb2.Empty.FromString,
                 _registered_method=True)
-        self.GetIndoorUnitHardware = channel.unary_unary(
-                '/core.protos.home_datastore.HomeDatastoreService/GetIndoorUnitHardware',
-                request_serializer=quilt__hds__pb2.GetIndoorUnitHardwareRequest.SerializeToString,
-                response_deserializer=quilt__hds__pb2.IndoorUnitHardware.FromString,
+        self.ListIndoorUnits = channel.unary_unary(
+                '/core.protos.home_datastore.HomeDatastoreService/ListIndoorUnits',
+                request_serializer=quilt__hds__pb2.ListIndoorUnitsRequest.SerializeToString,
+                response_deserializer=quilt__hds__pb2.ListIndoorUnitsResponse.FromString,
                 _registered_method=True)
-        self.GetQuiltSmartModule = channel.unary_unary(
-                '/core.protos.home_datastore.HomeDatastoreService/GetQuiltSmartModule',
-                request_serializer=quilt__hds__pb2.GetQuiltSmartModuleRequest.SerializeToString,
-                response_deserializer=quilt__hds__pb2.QuiltSmartModule.FromString,
+        self.GetOutdoorUnit = channel.unary_unary(
+                '/core.protos.home_datastore.HomeDatastoreService/GetOutdoorUnit',
+                request_serializer=quilt__hds__pb2.GetOutdoorUnitRequest.SerializeToString,
+                response_deserializer=quilt__hds__pb2.OutdoorUnit.FromString,
+                _registered_method=True)
+        self.CreateOutdoorUnit = channel.unary_unary(
+                '/core.protos.home_datastore.HomeDatastoreService/CreateOutdoorUnit',
+                request_serializer=quilt__hds__pb2.CreateOutdoorUnitRequest.SerializeToString,
+                response_deserializer=quilt__hds__pb2.OutdoorUnit.FromString,
+                _registered_method=True)
+        self.UpdateOutdoorUnit = channel.unary_unary(
+                '/core.protos.home_datastore.HomeDatastoreService/UpdateOutdoorUnit',
+                request_serializer=quilt__hds__pb2.UpdateOutdoorUnitRequest.SerializeToString,
+                response_deserializer=quilt__hds__pb2.OutdoorUnit.FromString,
+                _registered_method=True)
+        self.DeleteOutdoorUnit = channel.unary_unary(
+                '/core.protos.home_datastore.HomeDatastoreService/DeleteOutdoorUnit',
+                request_serializer=quilt__hds__pb2.DeleteOutdoorUnitRequest.SerializeToString,
+                response_deserializer=google_dot_protobuf_dot_empty__pb2.Empty.FromString,
+                _registered_method=True)
+        self.ListOutdoorUnits = channel.unary_unary(
+                '/core.protos.home_datastore.HomeDatastoreService/ListOutdoorUnits',
+                request_serializer=quilt__hds__pb2.ListOutdoorUnitsRequest.SerializeToString,
+                response_deserializer=quilt__hds__pb2.ListOutdoorUnitsResponse.FromString,
+                _registered_method=True)
+        self.GetController = channel.unary_unary(
+                '/core.protos.home_datastore.HomeDatastoreService/GetController',
+                request_serializer=quilt__hds__pb2.GetControllerRequest.SerializeToString,
+                response_deserializer=quilt__hds__pb2.Controller.FromString,
+                _registered_method=True)
+        self.CreateController = channel.unary_unary(
+                '/core.protos.home_datastore.HomeDatastoreService/CreateController',
+                request_serializer=quilt__hds__pb2.CreateControllerRequest.SerializeToString,
+                response_deserializer=quilt__hds__pb2.Controller.FromString,
                 _registered_method=True)
         self.UpdateController = channel.unary_unary(
                 '/core.protos.home_datastore.HomeDatastoreService/UpdateController',
@@ -90,15 +141,40 @@ class HomeDatastoreServiceStub(object):
                 request_serializer=quilt__hds__pb2.DeleteControllerRequest.SerializeToString,
                 response_deserializer=google_dot_protobuf_dot_empty__pb2.Empty.FromString,
                 _registered_method=True)
-        self.GetControllerHardware = channel.unary_unary(
-                '/core.protos.home_datastore.HomeDatastoreService/GetControllerHardware',
-                request_serializer=quilt__hds__pb2.GetControllerHardwareRequest.SerializeToString,
-                response_deserializer=quilt__hds__pb2.ControllerHardware.FromString,
+        self.ListControllers = channel.unary_unary(
+                '/core.protos.home_datastore.HomeDatastoreService/ListControllers',
+                request_serializer=quilt__hds__pb2.ListControllersRequest.SerializeToString,
+                response_deserializer=quilt__hds__pb2.ListControllersResponse.FromString,
                 _registered_method=True)
-        self.DeleteOutdoorUnit = channel.unary_unary(
-                '/core.protos.home_datastore.HomeDatastoreService/DeleteOutdoorUnit',
-                request_serializer=quilt__hds__pb2.DeleteOutdoorUnitRequest.SerializeToString,
+        self.GetQuiltSmartModule = channel.unary_unary(
+                '/core.protos.home_datastore.HomeDatastoreService/GetQuiltSmartModule',
+                request_serializer=quilt__hds__pb2.GetQuiltSmartModuleRequest.SerializeToString,
+                response_deserializer=quilt__hds__pb2.QuiltSmartModule.FromString,
+                _registered_method=True)
+        self.CreateQuiltSmartModule = channel.unary_unary(
+                '/core.protos.home_datastore.HomeDatastoreService/CreateQuiltSmartModule',
+                request_serializer=quilt__hds__pb2.CreateQuiltSmartModuleRequest.SerializeToString,
+                response_deserializer=quilt__hds__pb2.QuiltSmartModule.FromString,
+                _registered_method=True)
+        self.UpdateQuiltSmartModule = channel.unary_unary(
+                '/core.protos.home_datastore.HomeDatastoreService/UpdateQuiltSmartModule',
+                request_serializer=quilt__hds__pb2.UpdateQuiltSmartModuleRequest.SerializeToString,
+                response_deserializer=quilt__hds__pb2.QuiltSmartModule.FromString,
+                _registered_method=True)
+        self.DeleteQuiltSmartModule = channel.unary_unary(
+                '/core.protos.home_datastore.HomeDatastoreService/DeleteQuiltSmartModule',
+                request_serializer=quilt__hds__pb2.DeleteQuiltSmartModuleRequest.SerializeToString,
                 response_deserializer=google_dot_protobuf_dot_empty__pb2.Empty.FromString,
+                _registered_method=True)
+        self.ListQuiltSmartModules = channel.unary_unary(
+                '/core.protos.home_datastore.HomeDatastoreService/ListQuiltSmartModules',
+                request_serializer=quilt__hds__pb2.ListQuiltSmartModulesRequest.SerializeToString,
+                response_deserializer=quilt__hds__pb2.ListQuiltSmartModulesResponse.FromString,
+                _registered_method=True)
+        self.GetRemoteSensor = channel.unary_unary(
+                '/core.protos.home_datastore.HomeDatastoreService/GetRemoteSensor',
+                request_serializer=quilt__hds__pb2.GetRemoteSensorRequest.SerializeToString,
+                response_deserializer=quilt__hds__pb2.RemoteSensor.FromString,
                 _registered_method=True)
         self.CreateRemoteSensor = channel.unary_unary(
                 '/core.protos.home_datastore.HomeDatastoreService/CreateRemoteSensor',
@@ -115,6 +191,16 @@ class HomeDatastoreServiceStub(object):
                 request_serializer=quilt__hds__pb2.DeleteRemoteSensorRequest.SerializeToString,
                 response_deserializer=google_dot_protobuf_dot_empty__pb2.Empty.FromString,
                 _registered_method=True)
+        self.ListRemoteSensors = channel.unary_unary(
+                '/core.protos.home_datastore.HomeDatastoreService/ListRemoteSensors',
+                request_serializer=quilt__hds__pb2.ListRemoteSensorsRequest.SerializeToString,
+                response_deserializer=quilt__hds__pb2.ListRemoteSensorsResponse.FromString,
+                _registered_method=True)
+        self.GetControllerRemoteSensor = channel.unary_unary(
+                '/core.protos.home_datastore.HomeDatastoreService/GetControllerRemoteSensor',
+                request_serializer=quilt__hds__pb2.GetControllerRemoteSensorRequest.SerializeToString,
+                response_deserializer=quilt__hds__pb2.ControllerRemoteSensor.FromString,
+                _registered_method=True)
         self.CreateControllerRemoteSensor = channel.unary_unary(
                 '/core.protos.home_datastore.HomeDatastoreService/CreateControllerRemoteSensor',
                 request_serializer=quilt__hds__pb2.CreateControllerRemoteSensorRequest.SerializeToString,
@@ -130,64 +216,19 @@ class HomeDatastoreServiceStub(object):
                 request_serializer=quilt__hds__pb2.DeleteControllerRemoteSensorRequest.SerializeToString,
                 response_deserializer=google_dot_protobuf_dot_empty__pb2.Empty.FromString,
                 _registered_method=True)
-        self.CreateScheduleDay = channel.unary_unary(
-                '/core.protos.home_datastore.HomeDatastoreService/CreateScheduleDay',
-                request_serializer=quilt__hds__pb2.CreateScheduleDayRequest.SerializeToString,
-                response_deserializer=quilt__hds__pb2.ScheduleDay.FromString,
-                _registered_method=True)
-        self.GetScheduleDay = channel.unary_unary(
-                '/core.protos.home_datastore.HomeDatastoreService/GetScheduleDay',
-                request_serializer=quilt__hds__pb2.GetScheduleDayRequest.SerializeToString,
-                response_deserializer=quilt__hds__pb2.ScheduleDay.FromString,
-                _registered_method=True)
-        self.UpdateScheduleDay = channel.unary_unary(
-                '/core.protos.home_datastore.HomeDatastoreService/UpdateScheduleDay',
-                request_serializer=quilt__hds__pb2.UpdateScheduleDayRequest.SerializeToString,
-                response_deserializer=quilt__hds__pb2.ScheduleDay.FromString,
-                _registered_method=True)
-        self.DeleteScheduleDay = channel.unary_unary(
-                '/core.protos.home_datastore.HomeDatastoreService/DeleteScheduleDay',
-                request_serializer=quilt__hds__pb2.DeleteScheduleDayRequest.SerializeToString,
-                response_deserializer=google_dot_protobuf_dot_empty__pb2.Empty.FromString,
-                _registered_method=True)
-        self.ListScheduleDays = channel.unary_unary(
-                '/core.protos.home_datastore.HomeDatastoreService/ListScheduleDays',
-                request_serializer=quilt__hds__pb2.ListScheduleDaysRequest.SerializeToString,
-                response_deserializer=quilt__hds__pb2.ListScheduleDaysResponse.FromString,
-                _registered_method=True)
-        self.CreateScheduleWeek = channel.unary_unary(
-                '/core.protos.home_datastore.HomeDatastoreService/CreateScheduleWeek',
-                request_serializer=quilt__hds__pb2.CreateScheduleWeekRequest.SerializeToString,
-                response_deserializer=quilt__hds__pb2.ScheduleWeek.FromString,
-                _registered_method=True)
-        self.GetScheduleWeek = channel.unary_unary(
-                '/core.protos.home_datastore.HomeDatastoreService/GetScheduleWeek',
-                request_serializer=quilt__hds__pb2.GetScheduleWeekRequest.SerializeToString,
-                response_deserializer=quilt__hds__pb2.ScheduleWeek.FromString,
-                _registered_method=True)
-        self.UpdateScheduleWeek = channel.unary_unary(
-                '/core.protos.home_datastore.HomeDatastoreService/UpdateScheduleWeek',
-                request_serializer=quilt__hds__pb2.UpdateScheduleWeekRequest.SerializeToString,
-                response_deserializer=quilt__hds__pb2.ScheduleWeek.FromString,
-                _registered_method=True)
-        self.DeleteScheduleWeek = channel.unary_unary(
-                '/core.protos.home_datastore.HomeDatastoreService/DeleteScheduleWeek',
-                request_serializer=quilt__hds__pb2.DeleteScheduleWeekRequest.SerializeToString,
-                response_deserializer=google_dot_protobuf_dot_empty__pb2.Empty.FromString,
-                _registered_method=True)
-        self.ListScheduleWeeks = channel.unary_unary(
-                '/core.protos.home_datastore.HomeDatastoreService/ListScheduleWeeks',
-                request_serializer=quilt__hds__pb2.ListScheduleWeeksRequest.SerializeToString,
-                response_deserializer=quilt__hds__pb2.ListScheduleWeeksResponse.FromString,
-                _registered_method=True)
-        self.CreateComfortSetting = channel.unary_unary(
-                '/core.protos.home_datastore.HomeDatastoreService/CreateComfortSetting',
-                request_serializer=quilt__hds__pb2.CreateComfortSettingRequest.SerializeToString,
-                response_deserializer=quilt__hds__pb2.ComfortSetting.FromString,
+        self.ListControllerRemoteSensors = channel.unary_unary(
+                '/core.protos.home_datastore.HomeDatastoreService/ListControllerRemoteSensors',
+                request_serializer=quilt__hds__pb2.ListControllerRemoteSensorsRequest.SerializeToString,
+                response_deserializer=quilt__hds__pb2.ListControllerRemoteSensorsResponse.FromString,
                 _registered_method=True)
         self.GetComfortSetting = channel.unary_unary(
                 '/core.protos.home_datastore.HomeDatastoreService/GetComfortSetting',
                 request_serializer=quilt__hds__pb2.GetComfortSettingRequest.SerializeToString,
+                response_deserializer=quilt__hds__pb2.ComfortSetting.FromString,
+                _registered_method=True)
+        self.CreateComfortSetting = channel.unary_unary(
+                '/core.protos.home_datastore.HomeDatastoreService/CreateComfortSetting',
+                request_serializer=quilt__hds__pb2.CreateComfortSettingRequest.SerializeToString,
                 response_deserializer=quilt__hds__pb2.ComfortSetting.FromString,
                 _registered_method=True)
         self.UpdateComfortSetting = channel.unary_unary(
@@ -205,14 +246,64 @@ class HomeDatastoreServiceStub(object):
                 request_serializer=quilt__hds__pb2.ListComfortSettingsRequest.SerializeToString,
                 response_deserializer=quilt__hds__pb2.ListComfortSettingsResponse.FromString,
                 _registered_method=True)
-        self.CreateLocation = channel.unary_unary(
-                '/core.protos.home_datastore.HomeDatastoreService/CreateLocation',
-                request_serializer=quilt__hds__pb2.CreateLocationRequest.SerializeToString,
-                response_deserializer=quilt__hds__pb2.Location.FromString,
+        self.GetScheduleDay = channel.unary_unary(
+                '/core.protos.home_datastore.HomeDatastoreService/GetScheduleDay',
+                request_serializer=quilt__hds__pb2.GetScheduleDayRequest.SerializeToString,
+                response_deserializer=quilt__hds__pb2.ScheduleDay.FromString,
+                _registered_method=True)
+        self.CreateScheduleDay = channel.unary_unary(
+                '/core.protos.home_datastore.HomeDatastoreService/CreateScheduleDay',
+                request_serializer=quilt__hds__pb2.CreateScheduleDayRequest.SerializeToString,
+                response_deserializer=quilt__hds__pb2.ScheduleDay.FromString,
+                _registered_method=True)
+        self.UpdateScheduleDay = channel.unary_unary(
+                '/core.protos.home_datastore.HomeDatastoreService/UpdateScheduleDay',
+                request_serializer=quilt__hds__pb2.UpdateScheduleDayRequest.SerializeToString,
+                response_deserializer=quilt__hds__pb2.ScheduleDay.FromString,
+                _registered_method=True)
+        self.DeleteScheduleDay = channel.unary_unary(
+                '/core.protos.home_datastore.HomeDatastoreService/DeleteScheduleDay',
+                request_serializer=quilt__hds__pb2.DeleteScheduleDayRequest.SerializeToString,
+                response_deserializer=google_dot_protobuf_dot_empty__pb2.Empty.FromString,
+                _registered_method=True)
+        self.ListScheduleDays = channel.unary_unary(
+                '/core.protos.home_datastore.HomeDatastoreService/ListScheduleDays',
+                request_serializer=quilt__hds__pb2.ListScheduleDaysRequest.SerializeToString,
+                response_deserializer=quilt__hds__pb2.ListScheduleDaysResponse.FromString,
+                _registered_method=True)
+        self.GetScheduleWeek = channel.unary_unary(
+                '/core.protos.home_datastore.HomeDatastoreService/GetScheduleWeek',
+                request_serializer=quilt__hds__pb2.GetScheduleWeekRequest.SerializeToString,
+                response_deserializer=quilt__hds__pb2.ScheduleWeek.FromString,
+                _registered_method=True)
+        self.CreateScheduleWeek = channel.unary_unary(
+                '/core.protos.home_datastore.HomeDatastoreService/CreateScheduleWeek',
+                request_serializer=quilt__hds__pb2.CreateScheduleWeekRequest.SerializeToString,
+                response_deserializer=quilt__hds__pb2.ScheduleWeek.FromString,
+                _registered_method=True)
+        self.UpdateScheduleWeek = channel.unary_unary(
+                '/core.protos.home_datastore.HomeDatastoreService/UpdateScheduleWeek',
+                request_serializer=quilt__hds__pb2.UpdateScheduleWeekRequest.SerializeToString,
+                response_deserializer=quilt__hds__pb2.ScheduleWeek.FromString,
+                _registered_method=True)
+        self.DeleteScheduleWeek = channel.unary_unary(
+                '/core.protos.home_datastore.HomeDatastoreService/DeleteScheduleWeek',
+                request_serializer=quilt__hds__pb2.DeleteScheduleWeekRequest.SerializeToString,
+                response_deserializer=google_dot_protobuf_dot_empty__pb2.Empty.FromString,
+                _registered_method=True)
+        self.ListScheduleWeeks = channel.unary_unary(
+                '/core.protos.home_datastore.HomeDatastoreService/ListScheduleWeeks',
+                request_serializer=quilt__hds__pb2.ListScheduleWeeksRequest.SerializeToString,
+                response_deserializer=quilt__hds__pb2.ListScheduleWeeksResponse.FromString,
                 _registered_method=True)
         self.GetLocation = channel.unary_unary(
                 '/core.protos.home_datastore.HomeDatastoreService/GetLocation',
                 request_serializer=quilt__hds__pb2.GetLocationRequest.SerializeToString,
+                response_deserializer=quilt__hds__pb2.Location.FromString,
+                _registered_method=True)
+        self.CreateLocation = channel.unary_unary(
+                '/core.protos.home_datastore.HomeDatastoreService/CreateLocation',
+                request_serializer=quilt__hds__pb2.CreateLocationRequest.SerializeToString,
                 response_deserializer=quilt__hds__pb2.Location.FromString,
                 _registered_method=True)
         self.UpdateLocation = channel.unary_unary(
@@ -230,241 +321,1005 @@ class HomeDatastoreServiceStub(object):
                 request_serializer=quilt__hds__pb2.ListLocationsRequest.SerializeToString,
                 response_deserializer=quilt__hds__pb2.ListLocationsResponse.FromString,
                 _registered_method=True)
+        self.GetSoftwareUpdateInfo = channel.unary_unary(
+                '/core.protos.home_datastore.HomeDatastoreService/GetSoftwareUpdateInfo',
+                request_serializer=quilt__hds__pb2.GetSoftwareUpdateInfoRequest.SerializeToString,
+                response_deserializer=quilt__hds__pb2.SoftwareUpdateInfo.FromString,
+                _registered_method=True)
+        self.CreateSoftwareUpdateInfo = channel.unary_unary(
+                '/core.protos.home_datastore.HomeDatastoreService/CreateSoftwareUpdateInfo',
+                request_serializer=quilt__hds__pb2.CreateSoftwareUpdateInfoRequest.SerializeToString,
+                response_deserializer=quilt__hds__pb2.SoftwareUpdateInfo.FromString,
+                _registered_method=True)
+        self.UpdateSoftwareUpdateInfo = channel.unary_unary(
+                '/core.protos.home_datastore.HomeDatastoreService/UpdateSoftwareUpdateInfo',
+                request_serializer=quilt__hds__pb2.UpdateSoftwareUpdateInfoRequest.SerializeToString,
+                response_deserializer=quilt__hds__pb2.SoftwareUpdateInfo.FromString,
+                _registered_method=True)
+        self.DeleteSoftwareUpdateInfo = channel.unary_unary(
+                '/core.protos.home_datastore.HomeDatastoreService/DeleteSoftwareUpdateInfo',
+                request_serializer=quilt__hds__pb2.DeleteSoftwareUpdateInfoRequest.SerializeToString,
+                response_deserializer=google_dot_protobuf_dot_empty__pb2.Empty.FromString,
+                _registered_method=True)
+        self.ListSoftwareUpdateInfos = channel.unary_unary(
+                '/core.protos.home_datastore.HomeDatastoreService/ListSoftwareUpdateInfos',
+                request_serializer=quilt__hds__pb2.ListSoftwareUpdateInfosRequest.SerializeToString,
+                response_deserializer=quilt__hds__pb2.ListSoftwareUpdateInfosResponse.FromString,
+                _registered_method=True)
+        self.GetAirHandlingUnit = channel.unary_unary(
+                '/core.protos.home_datastore.HomeDatastoreService/GetAirHandlingUnit',
+                request_serializer=quilt__hds__pb2.GetAirHandlingUnitRequest.SerializeToString,
+                response_deserializer=quilt__hds__pb2.AirHandlingUnit.FromString,
+                _registered_method=True)
+        self.CreateAirHandlingUnit = channel.unary_unary(
+                '/core.protos.home_datastore.HomeDatastoreService/CreateAirHandlingUnit',
+                request_serializer=quilt__hds__pb2.CreateAirHandlingUnitRequest.SerializeToString,
+                response_deserializer=quilt__hds__pb2.AirHandlingUnit.FromString,
+                _registered_method=True)
+        self.UpdateAirHandlingUnit = channel.unary_unary(
+                '/core.protos.home_datastore.HomeDatastoreService/UpdateAirHandlingUnit',
+                request_serializer=quilt__hds__pb2.UpdateAirHandlingUnitRequest.SerializeToString,
+                response_deserializer=quilt__hds__pb2.AirHandlingUnit.FromString,
+                _registered_method=True)
+        self.DeleteAirHandlingUnit = channel.unary_unary(
+                '/core.protos.home_datastore.HomeDatastoreService/DeleteAirHandlingUnit',
+                request_serializer=quilt__hds__pb2.DeleteAirHandlingUnitRequest.SerializeToString,
+                response_deserializer=google_dot_protobuf_dot_empty__pb2.Empty.FromString,
+                _registered_method=True)
+        self.ListAirHandlingUnits = channel.unary_unary(
+                '/core.protos.home_datastore.HomeDatastoreService/ListAirHandlingUnits',
+                request_serializer=quilt__hds__pb2.ListAirHandlingUnitsRequest.SerializeToString,
+                response_deserializer=quilt__hds__pb2.ListAirHandlingUnitsResponse.FromString,
+                _registered_method=True)
+        self.GetDuctedZone = channel.unary_unary(
+                '/core.protos.home_datastore.HomeDatastoreService/GetDuctedZone',
+                request_serializer=quilt__hds__pb2.GetDuctedZoneRequest.SerializeToString,
+                response_deserializer=quilt__hds__pb2.DuctedZone.FromString,
+                _registered_method=True)
+        self.CreateDuctedZone = channel.unary_unary(
+                '/core.protos.home_datastore.HomeDatastoreService/CreateDuctedZone',
+                request_serializer=quilt__hds__pb2.CreateDuctedZoneRequest.SerializeToString,
+                response_deserializer=quilt__hds__pb2.DuctedZone.FromString,
+                _registered_method=True)
+        self.UpdateDuctedZone = channel.unary_unary(
+                '/core.protos.home_datastore.HomeDatastoreService/UpdateDuctedZone',
+                request_serializer=quilt__hds__pb2.UpdateDuctedZoneRequest.SerializeToString,
+                response_deserializer=quilt__hds__pb2.DuctedZone.FromString,
+                _registered_method=True)
+        self.DeleteDuctedZone = channel.unary_unary(
+                '/core.protos.home_datastore.HomeDatastoreService/DeleteDuctedZone',
+                request_serializer=quilt__hds__pb2.DeleteDuctedZoneRequest.SerializeToString,
+                response_deserializer=google_dot_protobuf_dot_empty__pb2.Empty.FromString,
+                _registered_method=True)
+        self.ListDuctedZones = channel.unary_unary(
+                '/core.protos.home_datastore.HomeDatastoreService/ListDuctedZones',
+                request_serializer=quilt__hds__pb2.ListDuctedZonesRequest.SerializeToString,
+                response_deserializer=quilt__hds__pb2.ListDuctedZonesResponse.FromString,
+                _registered_method=True)
+        self.GetDuctedZoneMembership = channel.unary_unary(
+                '/core.protos.home_datastore.HomeDatastoreService/GetDuctedZoneMembership',
+                request_serializer=quilt__hds__pb2.GetDuctedZoneMembershipRequest.SerializeToString,
+                response_deserializer=quilt__hds__pb2.DuctedZoneMembership.FromString,
+                _registered_method=True)
+        self.CreateDuctedZoneMembership = channel.unary_unary(
+                '/core.protos.home_datastore.HomeDatastoreService/CreateDuctedZoneMembership',
+                request_serializer=quilt__hds__pb2.CreateDuctedZoneMembershipRequest.SerializeToString,
+                response_deserializer=quilt__hds__pb2.DuctedZoneMembership.FromString,
+                _registered_method=True)
+        self.UpdateDuctedZoneMembership = channel.unary_unary(
+                '/core.protos.home_datastore.HomeDatastoreService/UpdateDuctedZoneMembership',
+                request_serializer=quilt__hds__pb2.UpdateDuctedZoneMembershipRequest.SerializeToString,
+                response_deserializer=quilt__hds__pb2.DuctedZoneMembership.FromString,
+                _registered_method=True)
+        self.DeleteDuctedZoneMembership = channel.unary_unary(
+                '/core.protos.home_datastore.HomeDatastoreService/DeleteDuctedZoneMembership',
+                request_serializer=quilt__hds__pb2.DeleteDuctedZoneMembershipRequest.SerializeToString,
+                response_deserializer=google_dot_protobuf_dot_empty__pb2.Empty.FromString,
+                _registered_method=True)
+        self.ListDuctedZoneMemberships = channel.unary_unary(
+                '/core.protos.home_datastore.HomeDatastoreService/ListDuctedZoneMemberships',
+                request_serializer=quilt__hds__pb2.ListDuctedZoneMembershipsRequest.SerializeToString,
+                response_deserializer=quilt__hds__pb2.ListDuctedZoneMembershipsResponse.FromString,
+                _registered_method=True)
+        self.GetAutomation = channel.unary_unary(
+                '/core.protos.home_datastore.HomeDatastoreService/GetAutomation',
+                request_serializer=quilt__hds__pb2.GetAutomationRequest.SerializeToString,
+                response_deserializer=quilt__hds__pb2.Automation.FromString,
+                _registered_method=True)
+        self.CreateAutomation = channel.unary_unary(
+                '/core.protos.home_datastore.HomeDatastoreService/CreateAutomation',
+                request_serializer=quilt__hds__pb2.CreateAutomationRequest.SerializeToString,
+                response_deserializer=quilt__hds__pb2.Automation.FromString,
+                _registered_method=True)
+        self.UpdateAutomation = channel.unary_unary(
+                '/core.protos.home_datastore.HomeDatastoreService/UpdateAutomation',
+                request_serializer=quilt__hds__pb2.UpdateAutomationRequest.SerializeToString,
+                response_deserializer=quilt__hds__pb2.Automation.FromString,
+                _registered_method=True)
+        self.DeleteAutomation = channel.unary_unary(
+                '/core.protos.home_datastore.HomeDatastoreService/DeleteAutomation',
+                request_serializer=quilt__hds__pb2.DeleteAutomationRequest.SerializeToString,
+                response_deserializer=google_dot_protobuf_dot_empty__pb2.Empty.FromString,
+                _registered_method=True)
+        self.ListAutomations = channel.unary_unary(
+                '/core.protos.home_datastore.HomeDatastoreService/ListAutomations',
+                request_serializer=quilt__hds__pb2.ListAutomationsRequest.SerializeToString,
+                response_deserializer=quilt__hds__pb2.ListAutomationsResponse.FromString,
+                _registered_method=True)
+        self.GetDemandResponseEvent = channel.unary_unary(
+                '/core.protos.home_datastore.HomeDatastoreService/GetDemandResponseEvent',
+                request_serializer=quilt__hds__pb2.GetDemandResponseEventRequest.SerializeToString,
+                response_deserializer=quilt__hds__pb2.DemandResponseEvent.FromString,
+                _registered_method=True)
+        self.CreateDemandResponseEvent = channel.unary_unary(
+                '/core.protos.home_datastore.HomeDatastoreService/CreateDemandResponseEvent',
+                request_serializer=quilt__hds__pb2.CreateDemandResponseEventRequest.SerializeToString,
+                response_deserializer=quilt__hds__pb2.DemandResponseEvent.FromString,
+                _registered_method=True)
+        self.UpdateDemandResponseEvent = channel.unary_unary(
+                '/core.protos.home_datastore.HomeDatastoreService/UpdateDemandResponseEvent',
+                request_serializer=quilt__hds__pb2.UpdateDemandResponseEventRequest.SerializeToString,
+                response_deserializer=quilt__hds__pb2.DemandResponseEvent.FromString,
+                _registered_method=True)
+        self.DeleteDemandResponseEvent = channel.unary_unary(
+                '/core.protos.home_datastore.HomeDatastoreService/DeleteDemandResponseEvent',
+                request_serializer=quilt__hds__pb2.DeleteDemandResponseEventRequest.SerializeToString,
+                response_deserializer=google_dot_protobuf_dot_empty__pb2.Empty.FromString,
+                _registered_method=True)
+        self.ListDemandResponseEvents = channel.unary_unary(
+                '/core.protos.home_datastore.HomeDatastoreService/ListDemandResponseEvents',
+                request_serializer=quilt__hds__pb2.ListDemandResponseEventsRequest.SerializeToString,
+                response_deserializer=quilt__hds__pb2.ListDemandResponseEventsResponse.FromString,
+                _registered_method=True)
+        self.GetIndoorUnitHardware = channel.unary_unary(
+                '/core.protos.home_datastore.HomeDatastoreService/GetIndoorUnitHardware',
+                request_serializer=quilt__hds__pb2.GetIndoorUnitHardwareRequest.SerializeToString,
+                response_deserializer=quilt__hds__pb2.IndoorUnitHardware.FromString,
+                _registered_method=True)
+        self.CreateIndoorUnitHardware = channel.unary_unary(
+                '/core.protos.home_datastore.HomeDatastoreService/CreateIndoorUnitHardware',
+                request_serializer=quilt__hds__pb2.CreateIndoorUnitHardwareRequest.SerializeToString,
+                response_deserializer=quilt__hds__pb2.IndoorUnitHardware.FromString,
+                _registered_method=True)
+        self.UpdateIndoorUnitHardware = channel.unary_unary(
+                '/core.protos.home_datastore.HomeDatastoreService/UpdateIndoorUnitHardware',
+                request_serializer=quilt__hds__pb2.UpdateIndoorUnitHardwareRequest.SerializeToString,
+                response_deserializer=quilt__hds__pb2.IndoorUnitHardware.FromString,
+                _registered_method=True)
+        self.DeleteIndoorUnitHardware = channel.unary_unary(
+                '/core.protos.home_datastore.HomeDatastoreService/DeleteIndoorUnitHardware',
+                request_serializer=quilt__hds__pb2.DeleteIndoorUnitHardwareRequest.SerializeToString,
+                response_deserializer=google_dot_protobuf_dot_empty__pb2.Empty.FromString,
+                _registered_method=True)
+        self.ListIndoorUnitHardware = channel.unary_unary(
+                '/core.protos.home_datastore.HomeDatastoreService/ListIndoorUnitHardware',
+                request_serializer=quilt__hds__pb2.ListIndoorUnitHardwareRequest.SerializeToString,
+                response_deserializer=quilt__hds__pb2.ListIndoorUnitHardwareResponse.FromString,
+                _registered_method=True)
+        self.GetOutdoorUnitHardware = channel.unary_unary(
+                '/core.protos.home_datastore.HomeDatastoreService/GetOutdoorUnitHardware',
+                request_serializer=quilt__hds__pb2.GetOutdoorUnitHardwareRequest.SerializeToString,
+                response_deserializer=quilt__hds__pb2.OutdoorUnitHardware.FromString,
+                _registered_method=True)
+        self.CreateOutdoorUnitHardware = channel.unary_unary(
+                '/core.protos.home_datastore.HomeDatastoreService/CreateOutdoorUnitHardware',
+                request_serializer=quilt__hds__pb2.CreateOutdoorUnitHardwareRequest.SerializeToString,
+                response_deserializer=quilt__hds__pb2.OutdoorUnitHardware.FromString,
+                _registered_method=True)
+        self.UpdateOutdoorUnitHardware = channel.unary_unary(
+                '/core.protos.home_datastore.HomeDatastoreService/UpdateOutdoorUnitHardware',
+                request_serializer=quilt__hds__pb2.UpdateOutdoorUnitHardwareRequest.SerializeToString,
+                response_deserializer=quilt__hds__pb2.OutdoorUnitHardware.FromString,
+                _registered_method=True)
+        self.DeleteOutdoorUnitHardware = channel.unary_unary(
+                '/core.protos.home_datastore.HomeDatastoreService/DeleteOutdoorUnitHardware',
+                request_serializer=quilt__hds__pb2.DeleteOutdoorUnitHardwareRequest.SerializeToString,
+                response_deserializer=google_dot_protobuf_dot_empty__pb2.Empty.FromString,
+                _registered_method=True)
+        self.ListOutdoorUnitHardware = channel.unary_unary(
+                '/core.protos.home_datastore.HomeDatastoreService/ListOutdoorUnitHardware',
+                request_serializer=quilt__hds__pb2.ListOutdoorUnitHardwareRequest.SerializeToString,
+                response_deserializer=quilt__hds__pb2.ListOutdoorUnitHardwareResponse.FromString,
+                _registered_method=True)
+        self.GetControllerHardware = channel.unary_unary(
+                '/core.protos.home_datastore.HomeDatastoreService/GetControllerHardware',
+                request_serializer=quilt__hds__pb2.GetControllerHardwareRequest.SerializeToString,
+                response_deserializer=quilt__hds__pb2.ControllerHardware.FromString,
+                _registered_method=True)
+        self.CreateControllerHardware = channel.unary_unary(
+                '/core.protos.home_datastore.HomeDatastoreService/CreateControllerHardware',
+                request_serializer=quilt__hds__pb2.CreateControllerHardwareRequest.SerializeToString,
+                response_deserializer=quilt__hds__pb2.ControllerHardware.FromString,
+                _registered_method=True)
+        self.UpdateControllerHardware = channel.unary_unary(
+                '/core.protos.home_datastore.HomeDatastoreService/UpdateControllerHardware',
+                request_serializer=quilt__hds__pb2.UpdateControllerHardwareRequest.SerializeToString,
+                response_deserializer=quilt__hds__pb2.ControllerHardware.FromString,
+                _registered_method=True)
+        self.DeleteControllerHardware = channel.unary_unary(
+                '/core.protos.home_datastore.HomeDatastoreService/DeleteControllerHardware',
+                request_serializer=quilt__hds__pb2.DeleteControllerHardwareRequest.SerializeToString,
+                response_deserializer=google_dot_protobuf_dot_empty__pb2.Empty.FromString,
+                _registered_method=True)
+        self.ListControllerHardware = channel.unary_unary(
+                '/core.protos.home_datastore.HomeDatastoreService/ListControllerHardware',
+                request_serializer=quilt__hds__pb2.ListControllerHardwareRequest.SerializeToString,
+                response_deserializer=quilt__hds__pb2.ListControllerHardwareResponse.FromString,
+                _registered_method=True)
+        self.GetAirHandlingUnitHardware = channel.unary_unary(
+                '/core.protos.home_datastore.HomeDatastoreService/GetAirHandlingUnitHardware',
+                request_serializer=quilt__hds__pb2.GetAirHandlingUnitHardwareRequest.SerializeToString,
+                response_deserializer=quilt__hds__pb2.AirHandlingUnitHardware.FromString,
+                _registered_method=True)
+        self.CreateAirHandlingUnitHardware = channel.unary_unary(
+                '/core.protos.home_datastore.HomeDatastoreService/CreateAirHandlingUnitHardware',
+                request_serializer=quilt__hds__pb2.CreateAirHandlingUnitHardwareRequest.SerializeToString,
+                response_deserializer=quilt__hds__pb2.AirHandlingUnitHardware.FromString,
+                _registered_method=True)
+        self.UpdateAirHandlingUnitHardware = channel.unary_unary(
+                '/core.protos.home_datastore.HomeDatastoreService/UpdateAirHandlingUnitHardware',
+                request_serializer=quilt__hds__pb2.UpdateAirHandlingUnitHardwareRequest.SerializeToString,
+                response_deserializer=quilt__hds__pb2.AirHandlingUnitHardware.FromString,
+                _registered_method=True)
+        self.DeleteAirHandlingUnitHardware = channel.unary_unary(
+                '/core.protos.home_datastore.HomeDatastoreService/DeleteAirHandlingUnitHardware',
+                request_serializer=quilt__hds__pb2.DeleteAirHandlingUnitHardwareRequest.SerializeToString,
+                response_deserializer=google_dot_protobuf_dot_empty__pb2.Empty.FromString,
+                _registered_method=True)
+        self.ListAirHandlingUnitHardware = channel.unary_unary(
+                '/core.protos.home_datastore.HomeDatastoreService/ListAirHandlingUnitHardware',
+                request_serializer=quilt__hds__pb2.ListAirHandlingUnitHardwareRequest.SerializeToString,
+                response_deserializer=quilt__hds__pb2.ListAirHandlingUnitHardwareResponse.FromString,
+                _registered_method=True)
 
 
 class HomeDatastoreServiceServicer(object):
-    """Missing associated documentation comment in .proto file."""
+    """HomeDatastoreService is generic CRUD over every HDS entity. The app (1.0.33) calls 30 of these
+    the server implements all 105 (existence confirmed live 2026-10-05: an unknown method answers
+    UNIMPLEMENTED, an implemented one fails to parse a malformed body). Tags: `app` = in the app's
+    stub registry; `server-only` = not used by the app. Ducted zones are normally created through
+    core.protos.app.MobileAppService/CreateAndConfigureDuctedZone, spaces/systems through
+    CreateAndConfigureSpace/System.
+    """
 
     def GetHomeDatastoreSystem(self, request, context):
-        """Missing associated documentation comment in .proto file."""
+        """called by the Quilt app
+        """
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
 
     def GetSpace(self, request, context):
-        """Missing associated documentation comment in .proto file."""
+        """called by the Quilt app
+        """
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
 
     def CreateSpace(self, request, context):
-        """Missing associated documentation comment in .proto file."""
+        """server-only; exists (probe), request shape by convention
+        """
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
 
     def UpdateSpace(self, request, context):
-        """Missing associated documentation comment in .proto file."""
+        """called by the Quilt app
+        """
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
 
     def DeleteSpace(self, request, context):
-        """Missing associated documentation comment in .proto file."""
+        """called by the Quilt app
+        """
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def ListSpaces(self, request, context):
+        """server-only; shape verified live
+        """
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def GetIndoorUnit(self, request, context):
+        """server-only; shape verified live
+        """
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def CreateIndoorUnit(self, request, context):
+        """server-only; exists (probe), request shape by convention
+        """
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
 
     def UpdateIndoorUnit(self, request, context):
-        """Missing associated documentation comment in .proto file."""
+        """called by the Quilt app
+        """
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
 
     def DeleteIndoorUnit(self, request, context):
-        """Missing associated documentation comment in .proto file."""
+        """called by the Quilt app
+        """
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
 
-    def GetIndoorUnitHardware(self, request, context):
-        """Missing associated documentation comment in .proto file."""
+    def ListIndoorUnits(self, request, context):
+        """server-only; shape verified live
+        """
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
 
-    def GetQuiltSmartModule(self, request, context):
-        """Missing associated documentation comment in .proto file."""
+    def GetOutdoorUnit(self, request, context):
+        """server-only; shape verified live
+        """
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
 
-    def UpdateController(self, request, context):
-        """Missing associated documentation comment in .proto file."""
+    def CreateOutdoorUnit(self, request, context):
+        """server-only; exists (probe), request shape by convention
+        """
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
 
-    def DeleteController(self, request, context):
-        """Missing associated documentation comment in .proto file."""
-        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
-        context.set_details('Method not implemented!')
-        raise NotImplementedError('Method not implemented!')
-
-    def GetControllerHardware(self, request, context):
-        """Missing associated documentation comment in .proto file."""
+    def UpdateOutdoorUnit(self, request, context):
+        """server-only; exists (probe), request shape by convention
+        """
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
 
     def DeleteOutdoorUnit(self, request, context):
-        """Missing associated documentation comment in .proto file."""
+        """called by the Quilt app
+        """
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def ListOutdoorUnits(self, request, context):
+        """server-only; shape verified live
+        """
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def GetController(self, request, context):
+        """server-only; shape verified live
+        """
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def CreateController(self, request, context):
+        """server-only; exists (probe), request shape by convention
+        """
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def UpdateController(self, request, context):
+        """called by the Quilt app
+        """
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def DeleteController(self, request, context):
+        """called by the Quilt app
+        """
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def ListControllers(self, request, context):
+        """server-only; shape verified live
+        """
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def GetQuiltSmartModule(self, request, context):
+        """called by the Quilt app
+        """
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def CreateQuiltSmartModule(self, request, context):
+        """server-only; exists (probe), request shape by convention
+        """
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def UpdateQuiltSmartModule(self, request, context):
+        """server-only; exists (probe), request shape by convention
+        """
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def DeleteQuiltSmartModule(self, request, context):
+        """server-only; exists (probe), request shape by convention
+        """
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def ListQuiltSmartModules(self, request, context):
+        """server-only; shape verified live
+        """
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def GetRemoteSensor(self, request, context):
+        """server-only; exists (probe), request shape by convention
+        """
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
 
     def CreateRemoteSensor(self, request, context):
-        """Missing associated documentation comment in .proto file."""
+        """called by the Quilt app
+        """
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
 
     def UpdateRemoteSensor(self, request, context):
-        """Missing associated documentation comment in .proto file."""
+        """called by the Quilt app
+        """
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
 
     def DeleteRemoteSensor(self, request, context):
-        """Missing associated documentation comment in .proto file."""
+        """called by the Quilt app
+        """
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def ListRemoteSensors(self, request, context):
+        """server-only; shape verified live
+        """
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def GetControllerRemoteSensor(self, request, context):
+        """server-only; exists (probe), request shape by convention
+        """
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
 
     def CreateControllerRemoteSensor(self, request, context):
-        """Missing associated documentation comment in .proto file."""
+        """server-only; exists (probe), request shape by convention
+        """
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
 
     def UpdateControllerRemoteSensor(self, request, context):
-        """Missing associated documentation comment in .proto file."""
+        """called by the Quilt app
+        """
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
 
     def DeleteControllerRemoteSensor(self, request, context):
-        """Missing associated documentation comment in .proto file."""
+        """called by the Quilt app
+        """
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
 
-    def CreateScheduleDay(self, request, context):
-        """Missing associated documentation comment in .proto file."""
-        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
-        context.set_details('Method not implemented!')
-        raise NotImplementedError('Method not implemented!')
-
-    def GetScheduleDay(self, request, context):
-        """Missing associated documentation comment in .proto file."""
-        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
-        context.set_details('Method not implemented!')
-        raise NotImplementedError('Method not implemented!')
-
-    def UpdateScheduleDay(self, request, context):
-        """Missing associated documentation comment in .proto file."""
-        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
-        context.set_details('Method not implemented!')
-        raise NotImplementedError('Method not implemented!')
-
-    def DeleteScheduleDay(self, request, context):
-        """Missing associated documentation comment in .proto file."""
-        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
-        context.set_details('Method not implemented!')
-        raise NotImplementedError('Method not implemented!')
-
-    def ListScheduleDays(self, request, context):
-        """Missing associated documentation comment in .proto file."""
-        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
-        context.set_details('Method not implemented!')
-        raise NotImplementedError('Method not implemented!')
-
-    def CreateScheduleWeek(self, request, context):
-        """Missing associated documentation comment in .proto file."""
-        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
-        context.set_details('Method not implemented!')
-        raise NotImplementedError('Method not implemented!')
-
-    def GetScheduleWeek(self, request, context):
-        """Missing associated documentation comment in .proto file."""
-        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
-        context.set_details('Method not implemented!')
-        raise NotImplementedError('Method not implemented!')
-
-    def UpdateScheduleWeek(self, request, context):
-        """Missing associated documentation comment in .proto file."""
-        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
-        context.set_details('Method not implemented!')
-        raise NotImplementedError('Method not implemented!')
-
-    def DeleteScheduleWeek(self, request, context):
-        """Missing associated documentation comment in .proto file."""
-        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
-        context.set_details('Method not implemented!')
-        raise NotImplementedError('Method not implemented!')
-
-    def ListScheduleWeeks(self, request, context):
-        """Missing associated documentation comment in .proto file."""
-        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
-        context.set_details('Method not implemented!')
-        raise NotImplementedError('Method not implemented!')
-
-    def CreateComfortSetting(self, request, context):
-        """Missing associated documentation comment in .proto file."""
+    def ListControllerRemoteSensors(self, request, context):
+        """server-only; shape verified live
+        """
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
 
     def GetComfortSetting(self, request, context):
-        """Missing associated documentation comment in .proto file."""
+        """server-only; shape verified live
+        """
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def CreateComfortSetting(self, request, context):
+        """server-only; exists (probe), request shape by convention
+        """
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
 
     def UpdateComfortSetting(self, request, context):
-        """Missing associated documentation comment in .proto file."""
+        """called by the Quilt app
+        """
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
 
     def DeleteComfortSetting(self, request, context):
-        """Missing associated documentation comment in .proto file."""
+        """server-only; object_id verified live
+        """
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
 
     def ListComfortSettings(self, request, context):
-        """Missing associated documentation comment in .proto file."""
+        """called by the Quilt app
+        """
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
 
-    def CreateLocation(self, request, context):
-        """Missing associated documentation comment in .proto file."""
+    def GetScheduleDay(self, request, context):
+        """server-only; shape verified live
+        """
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def CreateScheduleDay(self, request, context):
+        """called by the Quilt app
+        """
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def UpdateScheduleDay(self, request, context):
+        """called by the Quilt app
+        """
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def DeleteScheduleDay(self, request, context):
+        """called by the Quilt app
+        """
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def ListScheduleDays(self, request, context):
+        """server-only; shape verified live
+        """
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def GetScheduleWeek(self, request, context):
+        """server-only; shape verified live
+        """
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def CreateScheduleWeek(self, request, context):
+        """called by the Quilt app
+        """
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def UpdateScheduleWeek(self, request, context):
+        """called by the Quilt app
+        """
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def DeleteScheduleWeek(self, request, context):
+        """server-only; object_id verified live
+        """
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def ListScheduleWeeks(self, request, context):
+        """server-only; shape verified live
+        """
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
 
     def GetLocation(self, request, context):
-        """Missing associated documentation comment in .proto file."""
+        """server-only; shape verified live
+        """
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def CreateLocation(self, request, context):
+        """server-only; exists (probe), request shape by convention
+        """
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
 
     def UpdateLocation(self, request, context):
-        """Missing associated documentation comment in .proto file."""
+        """called by the Quilt app
+        """
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
 
     def DeleteLocation(self, request, context):
-        """Missing associated documentation comment in .proto file."""
+        """server-only; object_id verified live
+        """
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
 
     def ListLocations(self, request, context):
-        """Missing associated documentation comment in .proto file."""
+        """server-only; shape verified live
+        """
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def GetSoftwareUpdateInfo(self, request, context):
+        """server-only; shape verified live
+        """
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def CreateSoftwareUpdateInfo(self, request, context):
+        """server-only; exists (probe), request shape by convention
+        """
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def UpdateSoftwareUpdateInfo(self, request, context):
+        """server-only; exists (probe), request shape by convention
+        """
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def DeleteSoftwareUpdateInfo(self, request, context):
+        """server-only; exists (probe), request shape by convention
+        """
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def ListSoftwareUpdateInfos(self, request, context):
+        """server-only; shape verified live
+        """
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def GetAirHandlingUnit(self, request, context):
+        """called by the Quilt app
+        """
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def CreateAirHandlingUnit(self, request, context):
+        """server-only; exists (probe), request shape by convention
+        """
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def UpdateAirHandlingUnit(self, request, context):
+        """called by the Quilt app
+        """
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def DeleteAirHandlingUnit(self, request, context):
+        """server-only; exists (probe), request shape by convention
+        """
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def ListAirHandlingUnits(self, request, context):
+        """server-only; shape verified live
+        """
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def GetDuctedZone(self, request, context):
+        """called by the Quilt app
+        """
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def CreateDuctedZone(self, request, context):
+        """server-only; exists (probe), request shape by convention
+        """
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def UpdateDuctedZone(self, request, context):
+        """called by the Quilt app
+        """
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def DeleteDuctedZone(self, request, context):
+        """called by the Quilt app
+        """
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def ListDuctedZones(self, request, context):
+        """server-only; shape verified live
+        """
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def GetDuctedZoneMembership(self, request, context):
+        """server-only; exists (probe), request shape by convention
+        """
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def CreateDuctedZoneMembership(self, request, context):
+        """server-only; exists (probe), request shape by convention
+        """
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def UpdateDuctedZoneMembership(self, request, context):
+        """server-only; exists (probe), request shape by convention
+        """
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def DeleteDuctedZoneMembership(self, request, context):
+        """server-only; exists (probe), request shape by convention
+        """
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def ListDuctedZoneMemberships(self, request, context):
+        """server-only; shape verified live
+        """
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def GetAutomation(self, request, context):
+        """server-only; exists (probe), request shape by convention
+        """
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def CreateAutomation(self, request, context):
+        """called by the Quilt app
+        """
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def UpdateAutomation(self, request, context):
+        """called by the Quilt app
+        """
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def DeleteAutomation(self, request, context):
+        """called by the Quilt app
+        """
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def ListAutomations(self, request, context):
+        """server-only; shape verified live
+        """
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def GetDemandResponseEvent(self, request, context):
+        """server-only; exists (probe), request shape by convention
+        """
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def CreateDemandResponseEvent(self, request, context):
+        """server-only; exists (probe), request shape by convention
+        """
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def UpdateDemandResponseEvent(self, request, context):
+        """server-only; exists (probe), request shape by convention
+        """
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def DeleteDemandResponseEvent(self, request, context):
+        """server-only; exists (probe), request shape by convention
+        """
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def ListDemandResponseEvents(self, request, context):
+        """server-only; shape verified live
+        """
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def GetIndoorUnitHardware(self, request, context):
+        """called by the Quilt app
+        """
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def CreateIndoorUnitHardware(self, request, context):
+        """server-only; exists (probe), request shape by convention
+        """
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def UpdateIndoorUnitHardware(self, request, context):
+        """server-only; exists (probe), request shape by convention
+        """
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def DeleteIndoorUnitHardware(self, request, context):
+        """server-only; exists (probe), request shape by convention
+        """
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def ListIndoorUnitHardware(self, request, context):
+        """server-only; shape verified live
+        """
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def GetOutdoorUnitHardware(self, request, context):
+        """server-only; shape verified live
+        """
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def CreateOutdoorUnitHardware(self, request, context):
+        """server-only; exists (probe), request shape by convention
+        """
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def UpdateOutdoorUnitHardware(self, request, context):
+        """server-only; exists (probe), request shape by convention
+        """
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def DeleteOutdoorUnitHardware(self, request, context):
+        """server-only; exists (probe), request shape by convention
+        """
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def ListOutdoorUnitHardware(self, request, context):
+        """server-only; shape verified live
+        """
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def GetControllerHardware(self, request, context):
+        """called by the Quilt app
+        """
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def CreateControllerHardware(self, request, context):
+        """server-only; exists (probe), request shape by convention
+        """
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def UpdateControllerHardware(self, request, context):
+        """server-only; exists (probe), request shape by convention
+        """
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def DeleteControllerHardware(self, request, context):
+        """server-only; exists (probe), request shape by convention
+        """
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def ListControllerHardware(self, request, context):
+        """server-only; shape verified live
+        """
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def GetAirHandlingUnitHardware(self, request, context):
+        """server-only; exists (probe), request shape by convention
+        """
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def CreateAirHandlingUnitHardware(self, request, context):
+        """server-only; exists (probe), request shape by convention
+        """
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def UpdateAirHandlingUnitHardware(self, request, context):
+        """server-only; exists (probe), request shape by convention
+        """
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def DeleteAirHandlingUnitHardware(self, request, context):
+        """server-only; exists (probe), request shape by convention
+        """
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def ListAirHandlingUnitHardware(self, request, context):
+        """server-only; shape verified live
+        """
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
@@ -497,6 +1352,21 @@ def add_HomeDatastoreServiceServicer_to_server(servicer, server):
                     request_deserializer=quilt__hds__pb2.DeleteSpaceRequest.FromString,
                     response_serializer=google_dot_protobuf_dot_empty__pb2.Empty.SerializeToString,
             ),
+            'ListSpaces': grpc.unary_unary_rpc_method_handler(
+                    servicer.ListSpaces,
+                    request_deserializer=quilt__hds__pb2.ListSpacesRequest.FromString,
+                    response_serializer=quilt__hds__pb2.ListSpacesResponse.SerializeToString,
+            ),
+            'GetIndoorUnit': grpc.unary_unary_rpc_method_handler(
+                    servicer.GetIndoorUnit,
+                    request_deserializer=quilt__hds__pb2.GetIndoorUnitRequest.FromString,
+                    response_serializer=quilt__hds__pb2.IndoorUnit.SerializeToString,
+            ),
+            'CreateIndoorUnit': grpc.unary_unary_rpc_method_handler(
+                    servicer.CreateIndoorUnit,
+                    request_deserializer=quilt__hds__pb2.CreateIndoorUnitRequest.FromString,
+                    response_serializer=quilt__hds__pb2.IndoorUnit.SerializeToString,
+            ),
             'UpdateIndoorUnit': grpc.unary_unary_rpc_method_handler(
                     servicer.UpdateIndoorUnit,
                     request_deserializer=quilt__hds__pb2.UpdateIndoorUnitRequest.FromString,
@@ -507,15 +1377,45 @@ def add_HomeDatastoreServiceServicer_to_server(servicer, server):
                     request_deserializer=quilt__hds__pb2.DeleteIndoorUnitRequest.FromString,
                     response_serializer=google_dot_protobuf_dot_empty__pb2.Empty.SerializeToString,
             ),
-            'GetIndoorUnitHardware': grpc.unary_unary_rpc_method_handler(
-                    servicer.GetIndoorUnitHardware,
-                    request_deserializer=quilt__hds__pb2.GetIndoorUnitHardwareRequest.FromString,
-                    response_serializer=quilt__hds__pb2.IndoorUnitHardware.SerializeToString,
+            'ListIndoorUnits': grpc.unary_unary_rpc_method_handler(
+                    servicer.ListIndoorUnits,
+                    request_deserializer=quilt__hds__pb2.ListIndoorUnitsRequest.FromString,
+                    response_serializer=quilt__hds__pb2.ListIndoorUnitsResponse.SerializeToString,
             ),
-            'GetQuiltSmartModule': grpc.unary_unary_rpc_method_handler(
-                    servicer.GetQuiltSmartModule,
-                    request_deserializer=quilt__hds__pb2.GetQuiltSmartModuleRequest.FromString,
-                    response_serializer=quilt__hds__pb2.QuiltSmartModule.SerializeToString,
+            'GetOutdoorUnit': grpc.unary_unary_rpc_method_handler(
+                    servicer.GetOutdoorUnit,
+                    request_deserializer=quilt__hds__pb2.GetOutdoorUnitRequest.FromString,
+                    response_serializer=quilt__hds__pb2.OutdoorUnit.SerializeToString,
+            ),
+            'CreateOutdoorUnit': grpc.unary_unary_rpc_method_handler(
+                    servicer.CreateOutdoorUnit,
+                    request_deserializer=quilt__hds__pb2.CreateOutdoorUnitRequest.FromString,
+                    response_serializer=quilt__hds__pb2.OutdoorUnit.SerializeToString,
+            ),
+            'UpdateOutdoorUnit': grpc.unary_unary_rpc_method_handler(
+                    servicer.UpdateOutdoorUnit,
+                    request_deserializer=quilt__hds__pb2.UpdateOutdoorUnitRequest.FromString,
+                    response_serializer=quilt__hds__pb2.OutdoorUnit.SerializeToString,
+            ),
+            'DeleteOutdoorUnit': grpc.unary_unary_rpc_method_handler(
+                    servicer.DeleteOutdoorUnit,
+                    request_deserializer=quilt__hds__pb2.DeleteOutdoorUnitRequest.FromString,
+                    response_serializer=google_dot_protobuf_dot_empty__pb2.Empty.SerializeToString,
+            ),
+            'ListOutdoorUnits': grpc.unary_unary_rpc_method_handler(
+                    servicer.ListOutdoorUnits,
+                    request_deserializer=quilt__hds__pb2.ListOutdoorUnitsRequest.FromString,
+                    response_serializer=quilt__hds__pb2.ListOutdoorUnitsResponse.SerializeToString,
+            ),
+            'GetController': grpc.unary_unary_rpc_method_handler(
+                    servicer.GetController,
+                    request_deserializer=quilt__hds__pb2.GetControllerRequest.FromString,
+                    response_serializer=quilt__hds__pb2.Controller.SerializeToString,
+            ),
+            'CreateController': grpc.unary_unary_rpc_method_handler(
+                    servicer.CreateController,
+                    request_deserializer=quilt__hds__pb2.CreateControllerRequest.FromString,
+                    response_serializer=quilt__hds__pb2.Controller.SerializeToString,
             ),
             'UpdateController': grpc.unary_unary_rpc_method_handler(
                     servicer.UpdateController,
@@ -527,15 +1427,40 @@ def add_HomeDatastoreServiceServicer_to_server(servicer, server):
                     request_deserializer=quilt__hds__pb2.DeleteControllerRequest.FromString,
                     response_serializer=google_dot_protobuf_dot_empty__pb2.Empty.SerializeToString,
             ),
-            'GetControllerHardware': grpc.unary_unary_rpc_method_handler(
-                    servicer.GetControllerHardware,
-                    request_deserializer=quilt__hds__pb2.GetControllerHardwareRequest.FromString,
-                    response_serializer=quilt__hds__pb2.ControllerHardware.SerializeToString,
+            'ListControllers': grpc.unary_unary_rpc_method_handler(
+                    servicer.ListControllers,
+                    request_deserializer=quilt__hds__pb2.ListControllersRequest.FromString,
+                    response_serializer=quilt__hds__pb2.ListControllersResponse.SerializeToString,
             ),
-            'DeleteOutdoorUnit': grpc.unary_unary_rpc_method_handler(
-                    servicer.DeleteOutdoorUnit,
-                    request_deserializer=quilt__hds__pb2.DeleteOutdoorUnitRequest.FromString,
+            'GetQuiltSmartModule': grpc.unary_unary_rpc_method_handler(
+                    servicer.GetQuiltSmartModule,
+                    request_deserializer=quilt__hds__pb2.GetQuiltSmartModuleRequest.FromString,
+                    response_serializer=quilt__hds__pb2.QuiltSmartModule.SerializeToString,
+            ),
+            'CreateQuiltSmartModule': grpc.unary_unary_rpc_method_handler(
+                    servicer.CreateQuiltSmartModule,
+                    request_deserializer=quilt__hds__pb2.CreateQuiltSmartModuleRequest.FromString,
+                    response_serializer=quilt__hds__pb2.QuiltSmartModule.SerializeToString,
+            ),
+            'UpdateQuiltSmartModule': grpc.unary_unary_rpc_method_handler(
+                    servicer.UpdateQuiltSmartModule,
+                    request_deserializer=quilt__hds__pb2.UpdateQuiltSmartModuleRequest.FromString,
+                    response_serializer=quilt__hds__pb2.QuiltSmartModule.SerializeToString,
+            ),
+            'DeleteQuiltSmartModule': grpc.unary_unary_rpc_method_handler(
+                    servicer.DeleteQuiltSmartModule,
+                    request_deserializer=quilt__hds__pb2.DeleteQuiltSmartModuleRequest.FromString,
                     response_serializer=google_dot_protobuf_dot_empty__pb2.Empty.SerializeToString,
+            ),
+            'ListQuiltSmartModules': grpc.unary_unary_rpc_method_handler(
+                    servicer.ListQuiltSmartModules,
+                    request_deserializer=quilt__hds__pb2.ListQuiltSmartModulesRequest.FromString,
+                    response_serializer=quilt__hds__pb2.ListQuiltSmartModulesResponse.SerializeToString,
+            ),
+            'GetRemoteSensor': grpc.unary_unary_rpc_method_handler(
+                    servicer.GetRemoteSensor,
+                    request_deserializer=quilt__hds__pb2.GetRemoteSensorRequest.FromString,
+                    response_serializer=quilt__hds__pb2.RemoteSensor.SerializeToString,
             ),
             'CreateRemoteSensor': grpc.unary_unary_rpc_method_handler(
                     servicer.CreateRemoteSensor,
@@ -552,6 +1477,16 @@ def add_HomeDatastoreServiceServicer_to_server(servicer, server):
                     request_deserializer=quilt__hds__pb2.DeleteRemoteSensorRequest.FromString,
                     response_serializer=google_dot_protobuf_dot_empty__pb2.Empty.SerializeToString,
             ),
+            'ListRemoteSensors': grpc.unary_unary_rpc_method_handler(
+                    servicer.ListRemoteSensors,
+                    request_deserializer=quilt__hds__pb2.ListRemoteSensorsRequest.FromString,
+                    response_serializer=quilt__hds__pb2.ListRemoteSensorsResponse.SerializeToString,
+            ),
+            'GetControllerRemoteSensor': grpc.unary_unary_rpc_method_handler(
+                    servicer.GetControllerRemoteSensor,
+                    request_deserializer=quilt__hds__pb2.GetControllerRemoteSensorRequest.FromString,
+                    response_serializer=quilt__hds__pb2.ControllerRemoteSensor.SerializeToString,
+            ),
             'CreateControllerRemoteSensor': grpc.unary_unary_rpc_method_handler(
                     servicer.CreateControllerRemoteSensor,
                     request_deserializer=quilt__hds__pb2.CreateControllerRemoteSensorRequest.FromString,
@@ -567,64 +1502,19 @@ def add_HomeDatastoreServiceServicer_to_server(servicer, server):
                     request_deserializer=quilt__hds__pb2.DeleteControllerRemoteSensorRequest.FromString,
                     response_serializer=google_dot_protobuf_dot_empty__pb2.Empty.SerializeToString,
             ),
-            'CreateScheduleDay': grpc.unary_unary_rpc_method_handler(
-                    servicer.CreateScheduleDay,
-                    request_deserializer=quilt__hds__pb2.CreateScheduleDayRequest.FromString,
-                    response_serializer=quilt__hds__pb2.ScheduleDay.SerializeToString,
-            ),
-            'GetScheduleDay': grpc.unary_unary_rpc_method_handler(
-                    servicer.GetScheduleDay,
-                    request_deserializer=quilt__hds__pb2.GetScheduleDayRequest.FromString,
-                    response_serializer=quilt__hds__pb2.ScheduleDay.SerializeToString,
-            ),
-            'UpdateScheduleDay': grpc.unary_unary_rpc_method_handler(
-                    servicer.UpdateScheduleDay,
-                    request_deserializer=quilt__hds__pb2.UpdateScheduleDayRequest.FromString,
-                    response_serializer=quilt__hds__pb2.ScheduleDay.SerializeToString,
-            ),
-            'DeleteScheduleDay': grpc.unary_unary_rpc_method_handler(
-                    servicer.DeleteScheduleDay,
-                    request_deserializer=quilt__hds__pb2.DeleteScheduleDayRequest.FromString,
-                    response_serializer=google_dot_protobuf_dot_empty__pb2.Empty.SerializeToString,
-            ),
-            'ListScheduleDays': grpc.unary_unary_rpc_method_handler(
-                    servicer.ListScheduleDays,
-                    request_deserializer=quilt__hds__pb2.ListScheduleDaysRequest.FromString,
-                    response_serializer=quilt__hds__pb2.ListScheduleDaysResponse.SerializeToString,
-            ),
-            'CreateScheduleWeek': grpc.unary_unary_rpc_method_handler(
-                    servicer.CreateScheduleWeek,
-                    request_deserializer=quilt__hds__pb2.CreateScheduleWeekRequest.FromString,
-                    response_serializer=quilt__hds__pb2.ScheduleWeek.SerializeToString,
-            ),
-            'GetScheduleWeek': grpc.unary_unary_rpc_method_handler(
-                    servicer.GetScheduleWeek,
-                    request_deserializer=quilt__hds__pb2.GetScheduleWeekRequest.FromString,
-                    response_serializer=quilt__hds__pb2.ScheduleWeek.SerializeToString,
-            ),
-            'UpdateScheduleWeek': grpc.unary_unary_rpc_method_handler(
-                    servicer.UpdateScheduleWeek,
-                    request_deserializer=quilt__hds__pb2.UpdateScheduleWeekRequest.FromString,
-                    response_serializer=quilt__hds__pb2.ScheduleWeek.SerializeToString,
-            ),
-            'DeleteScheduleWeek': grpc.unary_unary_rpc_method_handler(
-                    servicer.DeleteScheduleWeek,
-                    request_deserializer=quilt__hds__pb2.DeleteScheduleWeekRequest.FromString,
-                    response_serializer=google_dot_protobuf_dot_empty__pb2.Empty.SerializeToString,
-            ),
-            'ListScheduleWeeks': grpc.unary_unary_rpc_method_handler(
-                    servicer.ListScheduleWeeks,
-                    request_deserializer=quilt__hds__pb2.ListScheduleWeeksRequest.FromString,
-                    response_serializer=quilt__hds__pb2.ListScheduleWeeksResponse.SerializeToString,
-            ),
-            'CreateComfortSetting': grpc.unary_unary_rpc_method_handler(
-                    servicer.CreateComfortSetting,
-                    request_deserializer=quilt__hds__pb2.CreateComfortSettingRequest.FromString,
-                    response_serializer=quilt__hds__pb2.ComfortSetting.SerializeToString,
+            'ListControllerRemoteSensors': grpc.unary_unary_rpc_method_handler(
+                    servicer.ListControllerRemoteSensors,
+                    request_deserializer=quilt__hds__pb2.ListControllerRemoteSensorsRequest.FromString,
+                    response_serializer=quilt__hds__pb2.ListControllerRemoteSensorsResponse.SerializeToString,
             ),
             'GetComfortSetting': grpc.unary_unary_rpc_method_handler(
                     servicer.GetComfortSetting,
                     request_deserializer=quilt__hds__pb2.GetComfortSettingRequest.FromString,
+                    response_serializer=quilt__hds__pb2.ComfortSetting.SerializeToString,
+            ),
+            'CreateComfortSetting': grpc.unary_unary_rpc_method_handler(
+                    servicer.CreateComfortSetting,
+                    request_deserializer=quilt__hds__pb2.CreateComfortSettingRequest.FromString,
                     response_serializer=quilt__hds__pb2.ComfortSetting.SerializeToString,
             ),
             'UpdateComfortSetting': grpc.unary_unary_rpc_method_handler(
@@ -642,14 +1532,64 @@ def add_HomeDatastoreServiceServicer_to_server(servicer, server):
                     request_deserializer=quilt__hds__pb2.ListComfortSettingsRequest.FromString,
                     response_serializer=quilt__hds__pb2.ListComfortSettingsResponse.SerializeToString,
             ),
-            'CreateLocation': grpc.unary_unary_rpc_method_handler(
-                    servicer.CreateLocation,
-                    request_deserializer=quilt__hds__pb2.CreateLocationRequest.FromString,
-                    response_serializer=quilt__hds__pb2.Location.SerializeToString,
+            'GetScheduleDay': grpc.unary_unary_rpc_method_handler(
+                    servicer.GetScheduleDay,
+                    request_deserializer=quilt__hds__pb2.GetScheduleDayRequest.FromString,
+                    response_serializer=quilt__hds__pb2.ScheduleDay.SerializeToString,
+            ),
+            'CreateScheduleDay': grpc.unary_unary_rpc_method_handler(
+                    servicer.CreateScheduleDay,
+                    request_deserializer=quilt__hds__pb2.CreateScheduleDayRequest.FromString,
+                    response_serializer=quilt__hds__pb2.ScheduleDay.SerializeToString,
+            ),
+            'UpdateScheduleDay': grpc.unary_unary_rpc_method_handler(
+                    servicer.UpdateScheduleDay,
+                    request_deserializer=quilt__hds__pb2.UpdateScheduleDayRequest.FromString,
+                    response_serializer=quilt__hds__pb2.ScheduleDay.SerializeToString,
+            ),
+            'DeleteScheduleDay': grpc.unary_unary_rpc_method_handler(
+                    servicer.DeleteScheduleDay,
+                    request_deserializer=quilt__hds__pb2.DeleteScheduleDayRequest.FromString,
+                    response_serializer=google_dot_protobuf_dot_empty__pb2.Empty.SerializeToString,
+            ),
+            'ListScheduleDays': grpc.unary_unary_rpc_method_handler(
+                    servicer.ListScheduleDays,
+                    request_deserializer=quilt__hds__pb2.ListScheduleDaysRequest.FromString,
+                    response_serializer=quilt__hds__pb2.ListScheduleDaysResponse.SerializeToString,
+            ),
+            'GetScheduleWeek': grpc.unary_unary_rpc_method_handler(
+                    servicer.GetScheduleWeek,
+                    request_deserializer=quilt__hds__pb2.GetScheduleWeekRequest.FromString,
+                    response_serializer=quilt__hds__pb2.ScheduleWeek.SerializeToString,
+            ),
+            'CreateScheduleWeek': grpc.unary_unary_rpc_method_handler(
+                    servicer.CreateScheduleWeek,
+                    request_deserializer=quilt__hds__pb2.CreateScheduleWeekRequest.FromString,
+                    response_serializer=quilt__hds__pb2.ScheduleWeek.SerializeToString,
+            ),
+            'UpdateScheduleWeek': grpc.unary_unary_rpc_method_handler(
+                    servicer.UpdateScheduleWeek,
+                    request_deserializer=quilt__hds__pb2.UpdateScheduleWeekRequest.FromString,
+                    response_serializer=quilt__hds__pb2.ScheduleWeek.SerializeToString,
+            ),
+            'DeleteScheduleWeek': grpc.unary_unary_rpc_method_handler(
+                    servicer.DeleteScheduleWeek,
+                    request_deserializer=quilt__hds__pb2.DeleteScheduleWeekRequest.FromString,
+                    response_serializer=google_dot_protobuf_dot_empty__pb2.Empty.SerializeToString,
+            ),
+            'ListScheduleWeeks': grpc.unary_unary_rpc_method_handler(
+                    servicer.ListScheduleWeeks,
+                    request_deserializer=quilt__hds__pb2.ListScheduleWeeksRequest.FromString,
+                    response_serializer=quilt__hds__pb2.ListScheduleWeeksResponse.SerializeToString,
             ),
             'GetLocation': grpc.unary_unary_rpc_method_handler(
                     servicer.GetLocation,
                     request_deserializer=quilt__hds__pb2.GetLocationRequest.FromString,
+                    response_serializer=quilt__hds__pb2.Location.SerializeToString,
+            ),
+            'CreateLocation': grpc.unary_unary_rpc_method_handler(
+                    servicer.CreateLocation,
+                    request_deserializer=quilt__hds__pb2.CreateLocationRequest.FromString,
                     response_serializer=quilt__hds__pb2.Location.SerializeToString,
             ),
             'UpdateLocation': grpc.unary_unary_rpc_method_handler(
@@ -667,6 +1607,256 @@ def add_HomeDatastoreServiceServicer_to_server(servicer, server):
                     request_deserializer=quilt__hds__pb2.ListLocationsRequest.FromString,
                     response_serializer=quilt__hds__pb2.ListLocationsResponse.SerializeToString,
             ),
+            'GetSoftwareUpdateInfo': grpc.unary_unary_rpc_method_handler(
+                    servicer.GetSoftwareUpdateInfo,
+                    request_deserializer=quilt__hds__pb2.GetSoftwareUpdateInfoRequest.FromString,
+                    response_serializer=quilt__hds__pb2.SoftwareUpdateInfo.SerializeToString,
+            ),
+            'CreateSoftwareUpdateInfo': grpc.unary_unary_rpc_method_handler(
+                    servicer.CreateSoftwareUpdateInfo,
+                    request_deserializer=quilt__hds__pb2.CreateSoftwareUpdateInfoRequest.FromString,
+                    response_serializer=quilt__hds__pb2.SoftwareUpdateInfo.SerializeToString,
+            ),
+            'UpdateSoftwareUpdateInfo': grpc.unary_unary_rpc_method_handler(
+                    servicer.UpdateSoftwareUpdateInfo,
+                    request_deserializer=quilt__hds__pb2.UpdateSoftwareUpdateInfoRequest.FromString,
+                    response_serializer=quilt__hds__pb2.SoftwareUpdateInfo.SerializeToString,
+            ),
+            'DeleteSoftwareUpdateInfo': grpc.unary_unary_rpc_method_handler(
+                    servicer.DeleteSoftwareUpdateInfo,
+                    request_deserializer=quilt__hds__pb2.DeleteSoftwareUpdateInfoRequest.FromString,
+                    response_serializer=google_dot_protobuf_dot_empty__pb2.Empty.SerializeToString,
+            ),
+            'ListSoftwareUpdateInfos': grpc.unary_unary_rpc_method_handler(
+                    servicer.ListSoftwareUpdateInfos,
+                    request_deserializer=quilt__hds__pb2.ListSoftwareUpdateInfosRequest.FromString,
+                    response_serializer=quilt__hds__pb2.ListSoftwareUpdateInfosResponse.SerializeToString,
+            ),
+            'GetAirHandlingUnit': grpc.unary_unary_rpc_method_handler(
+                    servicer.GetAirHandlingUnit,
+                    request_deserializer=quilt__hds__pb2.GetAirHandlingUnitRequest.FromString,
+                    response_serializer=quilt__hds__pb2.AirHandlingUnit.SerializeToString,
+            ),
+            'CreateAirHandlingUnit': grpc.unary_unary_rpc_method_handler(
+                    servicer.CreateAirHandlingUnit,
+                    request_deserializer=quilt__hds__pb2.CreateAirHandlingUnitRequest.FromString,
+                    response_serializer=quilt__hds__pb2.AirHandlingUnit.SerializeToString,
+            ),
+            'UpdateAirHandlingUnit': grpc.unary_unary_rpc_method_handler(
+                    servicer.UpdateAirHandlingUnit,
+                    request_deserializer=quilt__hds__pb2.UpdateAirHandlingUnitRequest.FromString,
+                    response_serializer=quilt__hds__pb2.AirHandlingUnit.SerializeToString,
+            ),
+            'DeleteAirHandlingUnit': grpc.unary_unary_rpc_method_handler(
+                    servicer.DeleteAirHandlingUnit,
+                    request_deserializer=quilt__hds__pb2.DeleteAirHandlingUnitRequest.FromString,
+                    response_serializer=google_dot_protobuf_dot_empty__pb2.Empty.SerializeToString,
+            ),
+            'ListAirHandlingUnits': grpc.unary_unary_rpc_method_handler(
+                    servicer.ListAirHandlingUnits,
+                    request_deserializer=quilt__hds__pb2.ListAirHandlingUnitsRequest.FromString,
+                    response_serializer=quilt__hds__pb2.ListAirHandlingUnitsResponse.SerializeToString,
+            ),
+            'GetDuctedZone': grpc.unary_unary_rpc_method_handler(
+                    servicer.GetDuctedZone,
+                    request_deserializer=quilt__hds__pb2.GetDuctedZoneRequest.FromString,
+                    response_serializer=quilt__hds__pb2.DuctedZone.SerializeToString,
+            ),
+            'CreateDuctedZone': grpc.unary_unary_rpc_method_handler(
+                    servicer.CreateDuctedZone,
+                    request_deserializer=quilt__hds__pb2.CreateDuctedZoneRequest.FromString,
+                    response_serializer=quilt__hds__pb2.DuctedZone.SerializeToString,
+            ),
+            'UpdateDuctedZone': grpc.unary_unary_rpc_method_handler(
+                    servicer.UpdateDuctedZone,
+                    request_deserializer=quilt__hds__pb2.UpdateDuctedZoneRequest.FromString,
+                    response_serializer=quilt__hds__pb2.DuctedZone.SerializeToString,
+            ),
+            'DeleteDuctedZone': grpc.unary_unary_rpc_method_handler(
+                    servicer.DeleteDuctedZone,
+                    request_deserializer=quilt__hds__pb2.DeleteDuctedZoneRequest.FromString,
+                    response_serializer=google_dot_protobuf_dot_empty__pb2.Empty.SerializeToString,
+            ),
+            'ListDuctedZones': grpc.unary_unary_rpc_method_handler(
+                    servicer.ListDuctedZones,
+                    request_deserializer=quilt__hds__pb2.ListDuctedZonesRequest.FromString,
+                    response_serializer=quilt__hds__pb2.ListDuctedZonesResponse.SerializeToString,
+            ),
+            'GetDuctedZoneMembership': grpc.unary_unary_rpc_method_handler(
+                    servicer.GetDuctedZoneMembership,
+                    request_deserializer=quilt__hds__pb2.GetDuctedZoneMembershipRequest.FromString,
+                    response_serializer=quilt__hds__pb2.DuctedZoneMembership.SerializeToString,
+            ),
+            'CreateDuctedZoneMembership': grpc.unary_unary_rpc_method_handler(
+                    servicer.CreateDuctedZoneMembership,
+                    request_deserializer=quilt__hds__pb2.CreateDuctedZoneMembershipRequest.FromString,
+                    response_serializer=quilt__hds__pb2.DuctedZoneMembership.SerializeToString,
+            ),
+            'UpdateDuctedZoneMembership': grpc.unary_unary_rpc_method_handler(
+                    servicer.UpdateDuctedZoneMembership,
+                    request_deserializer=quilt__hds__pb2.UpdateDuctedZoneMembershipRequest.FromString,
+                    response_serializer=quilt__hds__pb2.DuctedZoneMembership.SerializeToString,
+            ),
+            'DeleteDuctedZoneMembership': grpc.unary_unary_rpc_method_handler(
+                    servicer.DeleteDuctedZoneMembership,
+                    request_deserializer=quilt__hds__pb2.DeleteDuctedZoneMembershipRequest.FromString,
+                    response_serializer=google_dot_protobuf_dot_empty__pb2.Empty.SerializeToString,
+            ),
+            'ListDuctedZoneMemberships': grpc.unary_unary_rpc_method_handler(
+                    servicer.ListDuctedZoneMemberships,
+                    request_deserializer=quilt__hds__pb2.ListDuctedZoneMembershipsRequest.FromString,
+                    response_serializer=quilt__hds__pb2.ListDuctedZoneMembershipsResponse.SerializeToString,
+            ),
+            'GetAutomation': grpc.unary_unary_rpc_method_handler(
+                    servicer.GetAutomation,
+                    request_deserializer=quilt__hds__pb2.GetAutomationRequest.FromString,
+                    response_serializer=quilt__hds__pb2.Automation.SerializeToString,
+            ),
+            'CreateAutomation': grpc.unary_unary_rpc_method_handler(
+                    servicer.CreateAutomation,
+                    request_deserializer=quilt__hds__pb2.CreateAutomationRequest.FromString,
+                    response_serializer=quilt__hds__pb2.Automation.SerializeToString,
+            ),
+            'UpdateAutomation': grpc.unary_unary_rpc_method_handler(
+                    servicer.UpdateAutomation,
+                    request_deserializer=quilt__hds__pb2.UpdateAutomationRequest.FromString,
+                    response_serializer=quilt__hds__pb2.Automation.SerializeToString,
+            ),
+            'DeleteAutomation': grpc.unary_unary_rpc_method_handler(
+                    servicer.DeleteAutomation,
+                    request_deserializer=quilt__hds__pb2.DeleteAutomationRequest.FromString,
+                    response_serializer=google_dot_protobuf_dot_empty__pb2.Empty.SerializeToString,
+            ),
+            'ListAutomations': grpc.unary_unary_rpc_method_handler(
+                    servicer.ListAutomations,
+                    request_deserializer=quilt__hds__pb2.ListAutomationsRequest.FromString,
+                    response_serializer=quilt__hds__pb2.ListAutomationsResponse.SerializeToString,
+            ),
+            'GetDemandResponseEvent': grpc.unary_unary_rpc_method_handler(
+                    servicer.GetDemandResponseEvent,
+                    request_deserializer=quilt__hds__pb2.GetDemandResponseEventRequest.FromString,
+                    response_serializer=quilt__hds__pb2.DemandResponseEvent.SerializeToString,
+            ),
+            'CreateDemandResponseEvent': grpc.unary_unary_rpc_method_handler(
+                    servicer.CreateDemandResponseEvent,
+                    request_deserializer=quilt__hds__pb2.CreateDemandResponseEventRequest.FromString,
+                    response_serializer=quilt__hds__pb2.DemandResponseEvent.SerializeToString,
+            ),
+            'UpdateDemandResponseEvent': grpc.unary_unary_rpc_method_handler(
+                    servicer.UpdateDemandResponseEvent,
+                    request_deserializer=quilt__hds__pb2.UpdateDemandResponseEventRequest.FromString,
+                    response_serializer=quilt__hds__pb2.DemandResponseEvent.SerializeToString,
+            ),
+            'DeleteDemandResponseEvent': grpc.unary_unary_rpc_method_handler(
+                    servicer.DeleteDemandResponseEvent,
+                    request_deserializer=quilt__hds__pb2.DeleteDemandResponseEventRequest.FromString,
+                    response_serializer=google_dot_protobuf_dot_empty__pb2.Empty.SerializeToString,
+            ),
+            'ListDemandResponseEvents': grpc.unary_unary_rpc_method_handler(
+                    servicer.ListDemandResponseEvents,
+                    request_deserializer=quilt__hds__pb2.ListDemandResponseEventsRequest.FromString,
+                    response_serializer=quilt__hds__pb2.ListDemandResponseEventsResponse.SerializeToString,
+            ),
+            'GetIndoorUnitHardware': grpc.unary_unary_rpc_method_handler(
+                    servicer.GetIndoorUnitHardware,
+                    request_deserializer=quilt__hds__pb2.GetIndoorUnitHardwareRequest.FromString,
+                    response_serializer=quilt__hds__pb2.IndoorUnitHardware.SerializeToString,
+            ),
+            'CreateIndoorUnitHardware': grpc.unary_unary_rpc_method_handler(
+                    servicer.CreateIndoorUnitHardware,
+                    request_deserializer=quilt__hds__pb2.CreateIndoorUnitHardwareRequest.FromString,
+                    response_serializer=quilt__hds__pb2.IndoorUnitHardware.SerializeToString,
+            ),
+            'UpdateIndoorUnitHardware': grpc.unary_unary_rpc_method_handler(
+                    servicer.UpdateIndoorUnitHardware,
+                    request_deserializer=quilt__hds__pb2.UpdateIndoorUnitHardwareRequest.FromString,
+                    response_serializer=quilt__hds__pb2.IndoorUnitHardware.SerializeToString,
+            ),
+            'DeleteIndoorUnitHardware': grpc.unary_unary_rpc_method_handler(
+                    servicer.DeleteIndoorUnitHardware,
+                    request_deserializer=quilt__hds__pb2.DeleteIndoorUnitHardwareRequest.FromString,
+                    response_serializer=google_dot_protobuf_dot_empty__pb2.Empty.SerializeToString,
+            ),
+            'ListIndoorUnitHardware': grpc.unary_unary_rpc_method_handler(
+                    servicer.ListIndoorUnitHardware,
+                    request_deserializer=quilt__hds__pb2.ListIndoorUnitHardwareRequest.FromString,
+                    response_serializer=quilt__hds__pb2.ListIndoorUnitHardwareResponse.SerializeToString,
+            ),
+            'GetOutdoorUnitHardware': grpc.unary_unary_rpc_method_handler(
+                    servicer.GetOutdoorUnitHardware,
+                    request_deserializer=quilt__hds__pb2.GetOutdoorUnitHardwareRequest.FromString,
+                    response_serializer=quilt__hds__pb2.OutdoorUnitHardware.SerializeToString,
+            ),
+            'CreateOutdoorUnitHardware': grpc.unary_unary_rpc_method_handler(
+                    servicer.CreateOutdoorUnitHardware,
+                    request_deserializer=quilt__hds__pb2.CreateOutdoorUnitHardwareRequest.FromString,
+                    response_serializer=quilt__hds__pb2.OutdoorUnitHardware.SerializeToString,
+            ),
+            'UpdateOutdoorUnitHardware': grpc.unary_unary_rpc_method_handler(
+                    servicer.UpdateOutdoorUnitHardware,
+                    request_deserializer=quilt__hds__pb2.UpdateOutdoorUnitHardwareRequest.FromString,
+                    response_serializer=quilt__hds__pb2.OutdoorUnitHardware.SerializeToString,
+            ),
+            'DeleteOutdoorUnitHardware': grpc.unary_unary_rpc_method_handler(
+                    servicer.DeleteOutdoorUnitHardware,
+                    request_deserializer=quilt__hds__pb2.DeleteOutdoorUnitHardwareRequest.FromString,
+                    response_serializer=google_dot_protobuf_dot_empty__pb2.Empty.SerializeToString,
+            ),
+            'ListOutdoorUnitHardware': grpc.unary_unary_rpc_method_handler(
+                    servicer.ListOutdoorUnitHardware,
+                    request_deserializer=quilt__hds__pb2.ListOutdoorUnitHardwareRequest.FromString,
+                    response_serializer=quilt__hds__pb2.ListOutdoorUnitHardwareResponse.SerializeToString,
+            ),
+            'GetControllerHardware': grpc.unary_unary_rpc_method_handler(
+                    servicer.GetControllerHardware,
+                    request_deserializer=quilt__hds__pb2.GetControllerHardwareRequest.FromString,
+                    response_serializer=quilt__hds__pb2.ControllerHardware.SerializeToString,
+            ),
+            'CreateControllerHardware': grpc.unary_unary_rpc_method_handler(
+                    servicer.CreateControllerHardware,
+                    request_deserializer=quilt__hds__pb2.CreateControllerHardwareRequest.FromString,
+                    response_serializer=quilt__hds__pb2.ControllerHardware.SerializeToString,
+            ),
+            'UpdateControllerHardware': grpc.unary_unary_rpc_method_handler(
+                    servicer.UpdateControllerHardware,
+                    request_deserializer=quilt__hds__pb2.UpdateControllerHardwareRequest.FromString,
+                    response_serializer=quilt__hds__pb2.ControllerHardware.SerializeToString,
+            ),
+            'DeleteControllerHardware': grpc.unary_unary_rpc_method_handler(
+                    servicer.DeleteControllerHardware,
+                    request_deserializer=quilt__hds__pb2.DeleteControllerHardwareRequest.FromString,
+                    response_serializer=google_dot_protobuf_dot_empty__pb2.Empty.SerializeToString,
+            ),
+            'ListControllerHardware': grpc.unary_unary_rpc_method_handler(
+                    servicer.ListControllerHardware,
+                    request_deserializer=quilt__hds__pb2.ListControllerHardwareRequest.FromString,
+                    response_serializer=quilt__hds__pb2.ListControllerHardwareResponse.SerializeToString,
+            ),
+            'GetAirHandlingUnitHardware': grpc.unary_unary_rpc_method_handler(
+                    servicer.GetAirHandlingUnitHardware,
+                    request_deserializer=quilt__hds__pb2.GetAirHandlingUnitHardwareRequest.FromString,
+                    response_serializer=quilt__hds__pb2.AirHandlingUnitHardware.SerializeToString,
+            ),
+            'CreateAirHandlingUnitHardware': grpc.unary_unary_rpc_method_handler(
+                    servicer.CreateAirHandlingUnitHardware,
+                    request_deserializer=quilt__hds__pb2.CreateAirHandlingUnitHardwareRequest.FromString,
+                    response_serializer=quilt__hds__pb2.AirHandlingUnitHardware.SerializeToString,
+            ),
+            'UpdateAirHandlingUnitHardware': grpc.unary_unary_rpc_method_handler(
+                    servicer.UpdateAirHandlingUnitHardware,
+                    request_deserializer=quilt__hds__pb2.UpdateAirHandlingUnitHardwareRequest.FromString,
+                    response_serializer=quilt__hds__pb2.AirHandlingUnitHardware.SerializeToString,
+            ),
+            'DeleteAirHandlingUnitHardware': grpc.unary_unary_rpc_method_handler(
+                    servicer.DeleteAirHandlingUnitHardware,
+                    request_deserializer=quilt__hds__pb2.DeleteAirHandlingUnitHardwareRequest.FromString,
+                    response_serializer=google_dot_protobuf_dot_empty__pb2.Empty.SerializeToString,
+            ),
+            'ListAirHandlingUnitHardware': grpc.unary_unary_rpc_method_handler(
+                    servicer.ListAirHandlingUnitHardware,
+                    request_deserializer=quilt__hds__pb2.ListAirHandlingUnitHardwareRequest.FromString,
+                    response_serializer=quilt__hds__pb2.ListAirHandlingUnitHardwareResponse.SerializeToString,
+            ),
     }
     generic_handler = grpc.method_handlers_generic_handler(
             'core.protos.home_datastore.HomeDatastoreService', rpc_method_handlers)
@@ -676,7 +1866,13 @@ def add_HomeDatastoreServiceServicer_to_server(servicer, server):
 
  # This class is part of an EXPERIMENTAL API.
 class HomeDatastoreService(object):
-    """Missing associated documentation comment in .proto file."""
+    """HomeDatastoreService is generic CRUD over every HDS entity. The app (1.0.33) calls 30 of these
+    the server implements all 105 (existence confirmed live 2026-10-05: an unknown method answers
+    UNIMPLEMENTED, an implemented one fails to parse a malformed body). Tags: `app` = in the app's
+    stub registry; `server-only` = not used by the app. Ducted zones are normally created through
+    core.protos.app.MobileAppService/CreateAndConfigureDuctedZone, spaces/systems through
+    CreateAndConfigureSpace/System.
+    """
 
     @staticmethod
     def GetHomeDatastoreSystem(request,
@@ -814,6 +2010,87 @@ class HomeDatastoreService(object):
             _registered_method=True)
 
     @staticmethod
+    def ListSpaces(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/core.protos.home_datastore.HomeDatastoreService/ListSpaces',
+            quilt__hds__pb2.ListSpacesRequest.SerializeToString,
+            quilt__hds__pb2.ListSpacesResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def GetIndoorUnit(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/core.protos.home_datastore.HomeDatastoreService/GetIndoorUnit',
+            quilt__hds__pb2.GetIndoorUnitRequest.SerializeToString,
+            quilt__hds__pb2.IndoorUnit.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def CreateIndoorUnit(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/core.protos.home_datastore.HomeDatastoreService/CreateIndoorUnit',
+            quilt__hds__pb2.CreateIndoorUnitRequest.SerializeToString,
+            quilt__hds__pb2.IndoorUnit.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
     def UpdateIndoorUnit(request,
             target,
             options=(),
@@ -868,7 +2145,7 @@ class HomeDatastoreService(object):
             _registered_method=True)
 
     @staticmethod
-    def GetIndoorUnitHardware(request,
+    def ListIndoorUnits(request,
             target,
             options=(),
             channel_credentials=None,
@@ -881,9 +2158,9 @@ class HomeDatastoreService(object):
         return grpc.experimental.unary_unary(
             request,
             target,
-            '/core.protos.home_datastore.HomeDatastoreService/GetIndoorUnitHardware',
-            quilt__hds__pb2.GetIndoorUnitHardwareRequest.SerializeToString,
-            quilt__hds__pb2.IndoorUnitHardware.FromString,
+            '/core.protos.home_datastore.HomeDatastoreService/ListIndoorUnits',
+            quilt__hds__pb2.ListIndoorUnitsRequest.SerializeToString,
+            quilt__hds__pb2.ListIndoorUnitsResponse.FromString,
             options,
             channel_credentials,
             insecure,
@@ -895,7 +2172,7 @@ class HomeDatastoreService(object):
             _registered_method=True)
 
     @staticmethod
-    def GetQuiltSmartModule(request,
+    def GetOutdoorUnit(request,
             target,
             options=(),
             channel_credentials=None,
@@ -908,9 +2185,171 @@ class HomeDatastoreService(object):
         return grpc.experimental.unary_unary(
             request,
             target,
-            '/core.protos.home_datastore.HomeDatastoreService/GetQuiltSmartModule',
-            quilt__hds__pb2.GetQuiltSmartModuleRequest.SerializeToString,
-            quilt__hds__pb2.QuiltSmartModule.FromString,
+            '/core.protos.home_datastore.HomeDatastoreService/GetOutdoorUnit',
+            quilt__hds__pb2.GetOutdoorUnitRequest.SerializeToString,
+            quilt__hds__pb2.OutdoorUnit.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def CreateOutdoorUnit(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/core.protos.home_datastore.HomeDatastoreService/CreateOutdoorUnit',
+            quilt__hds__pb2.CreateOutdoorUnitRequest.SerializeToString,
+            quilt__hds__pb2.OutdoorUnit.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def UpdateOutdoorUnit(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/core.protos.home_datastore.HomeDatastoreService/UpdateOutdoorUnit',
+            quilt__hds__pb2.UpdateOutdoorUnitRequest.SerializeToString,
+            quilt__hds__pb2.OutdoorUnit.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def DeleteOutdoorUnit(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/core.protos.home_datastore.HomeDatastoreService/DeleteOutdoorUnit',
+            quilt__hds__pb2.DeleteOutdoorUnitRequest.SerializeToString,
+            google_dot_protobuf_dot_empty__pb2.Empty.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def ListOutdoorUnits(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/core.protos.home_datastore.HomeDatastoreService/ListOutdoorUnits',
+            quilt__hds__pb2.ListOutdoorUnitsRequest.SerializeToString,
+            quilt__hds__pb2.ListOutdoorUnitsResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def GetController(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/core.protos.home_datastore.HomeDatastoreService/GetController',
+            quilt__hds__pb2.GetControllerRequest.SerializeToString,
+            quilt__hds__pb2.Controller.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def CreateController(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/core.protos.home_datastore.HomeDatastoreService/CreateController',
+            quilt__hds__pb2.CreateControllerRequest.SerializeToString,
+            quilt__hds__pb2.Controller.FromString,
             options,
             channel_credentials,
             insecure,
@@ -976,7 +2415,7 @@ class HomeDatastoreService(object):
             _registered_method=True)
 
     @staticmethod
-    def GetControllerHardware(request,
+    def ListControllers(request,
             target,
             options=(),
             channel_credentials=None,
@@ -989,9 +2428,9 @@ class HomeDatastoreService(object):
         return grpc.experimental.unary_unary(
             request,
             target,
-            '/core.protos.home_datastore.HomeDatastoreService/GetControllerHardware',
-            quilt__hds__pb2.GetControllerHardwareRequest.SerializeToString,
-            quilt__hds__pb2.ControllerHardware.FromString,
+            '/core.protos.home_datastore.HomeDatastoreService/ListControllers',
+            quilt__hds__pb2.ListControllersRequest.SerializeToString,
+            quilt__hds__pb2.ListControllersResponse.FromString,
             options,
             channel_credentials,
             insecure,
@@ -1003,7 +2442,7 @@ class HomeDatastoreService(object):
             _registered_method=True)
 
     @staticmethod
-    def DeleteOutdoorUnit(request,
+    def GetQuiltSmartModule(request,
             target,
             options=(),
             channel_credentials=None,
@@ -1016,9 +2455,144 @@ class HomeDatastoreService(object):
         return grpc.experimental.unary_unary(
             request,
             target,
-            '/core.protos.home_datastore.HomeDatastoreService/DeleteOutdoorUnit',
-            quilt__hds__pb2.DeleteOutdoorUnitRequest.SerializeToString,
+            '/core.protos.home_datastore.HomeDatastoreService/GetQuiltSmartModule',
+            quilt__hds__pb2.GetQuiltSmartModuleRequest.SerializeToString,
+            quilt__hds__pb2.QuiltSmartModule.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def CreateQuiltSmartModule(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/core.protos.home_datastore.HomeDatastoreService/CreateQuiltSmartModule',
+            quilt__hds__pb2.CreateQuiltSmartModuleRequest.SerializeToString,
+            quilt__hds__pb2.QuiltSmartModule.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def UpdateQuiltSmartModule(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/core.protos.home_datastore.HomeDatastoreService/UpdateQuiltSmartModule',
+            quilt__hds__pb2.UpdateQuiltSmartModuleRequest.SerializeToString,
+            quilt__hds__pb2.QuiltSmartModule.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def DeleteQuiltSmartModule(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/core.protos.home_datastore.HomeDatastoreService/DeleteQuiltSmartModule',
+            quilt__hds__pb2.DeleteQuiltSmartModuleRequest.SerializeToString,
             google_dot_protobuf_dot_empty__pb2.Empty.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def ListQuiltSmartModules(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/core.protos.home_datastore.HomeDatastoreService/ListQuiltSmartModules',
+            quilt__hds__pb2.ListQuiltSmartModulesRequest.SerializeToString,
+            quilt__hds__pb2.ListQuiltSmartModulesResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def GetRemoteSensor(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/core.protos.home_datastore.HomeDatastoreService/GetRemoteSensor',
+            quilt__hds__pb2.GetRemoteSensorRequest.SerializeToString,
+            quilt__hds__pb2.RemoteSensor.FromString,
             options,
             channel_credentials,
             insecure,
@@ -1111,6 +2685,60 @@ class HomeDatastoreService(object):
             _registered_method=True)
 
     @staticmethod
+    def ListRemoteSensors(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/core.protos.home_datastore.HomeDatastoreService/ListRemoteSensors',
+            quilt__hds__pb2.ListRemoteSensorsRequest.SerializeToString,
+            quilt__hds__pb2.ListRemoteSensorsResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def GetControllerRemoteSensor(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/core.protos.home_datastore.HomeDatastoreService/GetControllerRemoteSensor',
+            quilt__hds__pb2.GetControllerRemoteSensorRequest.SerializeToString,
+            quilt__hds__pb2.ControllerRemoteSensor.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
     def CreateControllerRemoteSensor(request,
             target,
             options=(),
@@ -1192,7 +2820,7 @@ class HomeDatastoreService(object):
             _registered_method=True)
 
     @staticmethod
-    def CreateScheduleDay(request,
+    def ListControllerRemoteSensors(request,
             target,
             options=(),
             channel_credentials=None,
@@ -1205,279 +2833,9 @@ class HomeDatastoreService(object):
         return grpc.experimental.unary_unary(
             request,
             target,
-            '/core.protos.home_datastore.HomeDatastoreService/CreateScheduleDay',
-            quilt__hds__pb2.CreateScheduleDayRequest.SerializeToString,
-            quilt__hds__pb2.ScheduleDay.FromString,
-            options,
-            channel_credentials,
-            insecure,
-            call_credentials,
-            compression,
-            wait_for_ready,
-            timeout,
-            metadata,
-            _registered_method=True)
-
-    @staticmethod
-    def GetScheduleDay(request,
-            target,
-            options=(),
-            channel_credentials=None,
-            call_credentials=None,
-            insecure=False,
-            compression=None,
-            wait_for_ready=None,
-            timeout=None,
-            metadata=None):
-        return grpc.experimental.unary_unary(
-            request,
-            target,
-            '/core.protos.home_datastore.HomeDatastoreService/GetScheduleDay',
-            quilt__hds__pb2.GetScheduleDayRequest.SerializeToString,
-            quilt__hds__pb2.ScheduleDay.FromString,
-            options,
-            channel_credentials,
-            insecure,
-            call_credentials,
-            compression,
-            wait_for_ready,
-            timeout,
-            metadata,
-            _registered_method=True)
-
-    @staticmethod
-    def UpdateScheduleDay(request,
-            target,
-            options=(),
-            channel_credentials=None,
-            call_credentials=None,
-            insecure=False,
-            compression=None,
-            wait_for_ready=None,
-            timeout=None,
-            metadata=None):
-        return grpc.experimental.unary_unary(
-            request,
-            target,
-            '/core.protos.home_datastore.HomeDatastoreService/UpdateScheduleDay',
-            quilt__hds__pb2.UpdateScheduleDayRequest.SerializeToString,
-            quilt__hds__pb2.ScheduleDay.FromString,
-            options,
-            channel_credentials,
-            insecure,
-            call_credentials,
-            compression,
-            wait_for_ready,
-            timeout,
-            metadata,
-            _registered_method=True)
-
-    @staticmethod
-    def DeleteScheduleDay(request,
-            target,
-            options=(),
-            channel_credentials=None,
-            call_credentials=None,
-            insecure=False,
-            compression=None,
-            wait_for_ready=None,
-            timeout=None,
-            metadata=None):
-        return grpc.experimental.unary_unary(
-            request,
-            target,
-            '/core.protos.home_datastore.HomeDatastoreService/DeleteScheduleDay',
-            quilt__hds__pb2.DeleteScheduleDayRequest.SerializeToString,
-            google_dot_protobuf_dot_empty__pb2.Empty.FromString,
-            options,
-            channel_credentials,
-            insecure,
-            call_credentials,
-            compression,
-            wait_for_ready,
-            timeout,
-            metadata,
-            _registered_method=True)
-
-    @staticmethod
-    def ListScheduleDays(request,
-            target,
-            options=(),
-            channel_credentials=None,
-            call_credentials=None,
-            insecure=False,
-            compression=None,
-            wait_for_ready=None,
-            timeout=None,
-            metadata=None):
-        return grpc.experimental.unary_unary(
-            request,
-            target,
-            '/core.protos.home_datastore.HomeDatastoreService/ListScheduleDays',
-            quilt__hds__pb2.ListScheduleDaysRequest.SerializeToString,
-            quilt__hds__pb2.ListScheduleDaysResponse.FromString,
-            options,
-            channel_credentials,
-            insecure,
-            call_credentials,
-            compression,
-            wait_for_ready,
-            timeout,
-            metadata,
-            _registered_method=True)
-
-    @staticmethod
-    def CreateScheduleWeek(request,
-            target,
-            options=(),
-            channel_credentials=None,
-            call_credentials=None,
-            insecure=False,
-            compression=None,
-            wait_for_ready=None,
-            timeout=None,
-            metadata=None):
-        return grpc.experimental.unary_unary(
-            request,
-            target,
-            '/core.protos.home_datastore.HomeDatastoreService/CreateScheduleWeek',
-            quilt__hds__pb2.CreateScheduleWeekRequest.SerializeToString,
-            quilt__hds__pb2.ScheduleWeek.FromString,
-            options,
-            channel_credentials,
-            insecure,
-            call_credentials,
-            compression,
-            wait_for_ready,
-            timeout,
-            metadata,
-            _registered_method=True)
-
-    @staticmethod
-    def GetScheduleWeek(request,
-            target,
-            options=(),
-            channel_credentials=None,
-            call_credentials=None,
-            insecure=False,
-            compression=None,
-            wait_for_ready=None,
-            timeout=None,
-            metadata=None):
-        return grpc.experimental.unary_unary(
-            request,
-            target,
-            '/core.protos.home_datastore.HomeDatastoreService/GetScheduleWeek',
-            quilt__hds__pb2.GetScheduleWeekRequest.SerializeToString,
-            quilt__hds__pb2.ScheduleWeek.FromString,
-            options,
-            channel_credentials,
-            insecure,
-            call_credentials,
-            compression,
-            wait_for_ready,
-            timeout,
-            metadata,
-            _registered_method=True)
-
-    @staticmethod
-    def UpdateScheduleWeek(request,
-            target,
-            options=(),
-            channel_credentials=None,
-            call_credentials=None,
-            insecure=False,
-            compression=None,
-            wait_for_ready=None,
-            timeout=None,
-            metadata=None):
-        return grpc.experimental.unary_unary(
-            request,
-            target,
-            '/core.protos.home_datastore.HomeDatastoreService/UpdateScheduleWeek',
-            quilt__hds__pb2.UpdateScheduleWeekRequest.SerializeToString,
-            quilt__hds__pb2.ScheduleWeek.FromString,
-            options,
-            channel_credentials,
-            insecure,
-            call_credentials,
-            compression,
-            wait_for_ready,
-            timeout,
-            metadata,
-            _registered_method=True)
-
-    @staticmethod
-    def DeleteScheduleWeek(request,
-            target,
-            options=(),
-            channel_credentials=None,
-            call_credentials=None,
-            insecure=False,
-            compression=None,
-            wait_for_ready=None,
-            timeout=None,
-            metadata=None):
-        return grpc.experimental.unary_unary(
-            request,
-            target,
-            '/core.protos.home_datastore.HomeDatastoreService/DeleteScheduleWeek',
-            quilt__hds__pb2.DeleteScheduleWeekRequest.SerializeToString,
-            google_dot_protobuf_dot_empty__pb2.Empty.FromString,
-            options,
-            channel_credentials,
-            insecure,
-            call_credentials,
-            compression,
-            wait_for_ready,
-            timeout,
-            metadata,
-            _registered_method=True)
-
-    @staticmethod
-    def ListScheduleWeeks(request,
-            target,
-            options=(),
-            channel_credentials=None,
-            call_credentials=None,
-            insecure=False,
-            compression=None,
-            wait_for_ready=None,
-            timeout=None,
-            metadata=None):
-        return grpc.experimental.unary_unary(
-            request,
-            target,
-            '/core.protos.home_datastore.HomeDatastoreService/ListScheduleWeeks',
-            quilt__hds__pb2.ListScheduleWeeksRequest.SerializeToString,
-            quilt__hds__pb2.ListScheduleWeeksResponse.FromString,
-            options,
-            channel_credentials,
-            insecure,
-            call_credentials,
-            compression,
-            wait_for_ready,
-            timeout,
-            metadata,
-            _registered_method=True)
-
-    @staticmethod
-    def CreateComfortSetting(request,
-            target,
-            options=(),
-            channel_credentials=None,
-            call_credentials=None,
-            insecure=False,
-            compression=None,
-            wait_for_ready=None,
-            timeout=None,
-            metadata=None):
-        return grpc.experimental.unary_unary(
-            request,
-            target,
-            '/core.protos.home_datastore.HomeDatastoreService/CreateComfortSetting',
-            quilt__hds__pb2.CreateComfortSettingRequest.SerializeToString,
-            quilt__hds__pb2.ComfortSetting.FromString,
+            '/core.protos.home_datastore.HomeDatastoreService/ListControllerRemoteSensors',
+            quilt__hds__pb2.ListControllerRemoteSensorsRequest.SerializeToString,
+            quilt__hds__pb2.ListControllerRemoteSensorsResponse.FromString,
             options,
             channel_credentials,
             insecure,
@@ -1504,6 +2862,33 @@ class HomeDatastoreService(object):
             target,
             '/core.protos.home_datastore.HomeDatastoreService/GetComfortSetting',
             quilt__hds__pb2.GetComfortSettingRequest.SerializeToString,
+            quilt__hds__pb2.ComfortSetting.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def CreateComfortSetting(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/core.protos.home_datastore.HomeDatastoreService/CreateComfortSetting',
+            quilt__hds__pb2.CreateComfortSettingRequest.SerializeToString,
             quilt__hds__pb2.ComfortSetting.FromString,
             options,
             channel_credentials,
@@ -1597,7 +2982,7 @@ class HomeDatastoreService(object):
             _registered_method=True)
 
     @staticmethod
-    def CreateLocation(request,
+    def GetScheduleDay(request,
             target,
             options=(),
             channel_credentials=None,
@@ -1610,9 +2995,252 @@ class HomeDatastoreService(object):
         return grpc.experimental.unary_unary(
             request,
             target,
-            '/core.protos.home_datastore.HomeDatastoreService/CreateLocation',
-            quilt__hds__pb2.CreateLocationRequest.SerializeToString,
-            quilt__hds__pb2.Location.FromString,
+            '/core.protos.home_datastore.HomeDatastoreService/GetScheduleDay',
+            quilt__hds__pb2.GetScheduleDayRequest.SerializeToString,
+            quilt__hds__pb2.ScheduleDay.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def CreateScheduleDay(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/core.protos.home_datastore.HomeDatastoreService/CreateScheduleDay',
+            quilt__hds__pb2.CreateScheduleDayRequest.SerializeToString,
+            quilt__hds__pb2.ScheduleDay.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def UpdateScheduleDay(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/core.protos.home_datastore.HomeDatastoreService/UpdateScheduleDay',
+            quilt__hds__pb2.UpdateScheduleDayRequest.SerializeToString,
+            quilt__hds__pb2.ScheduleDay.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def DeleteScheduleDay(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/core.protos.home_datastore.HomeDatastoreService/DeleteScheduleDay',
+            quilt__hds__pb2.DeleteScheduleDayRequest.SerializeToString,
+            google_dot_protobuf_dot_empty__pb2.Empty.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def ListScheduleDays(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/core.protos.home_datastore.HomeDatastoreService/ListScheduleDays',
+            quilt__hds__pb2.ListScheduleDaysRequest.SerializeToString,
+            quilt__hds__pb2.ListScheduleDaysResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def GetScheduleWeek(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/core.protos.home_datastore.HomeDatastoreService/GetScheduleWeek',
+            quilt__hds__pb2.GetScheduleWeekRequest.SerializeToString,
+            quilt__hds__pb2.ScheduleWeek.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def CreateScheduleWeek(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/core.protos.home_datastore.HomeDatastoreService/CreateScheduleWeek',
+            quilt__hds__pb2.CreateScheduleWeekRequest.SerializeToString,
+            quilt__hds__pb2.ScheduleWeek.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def UpdateScheduleWeek(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/core.protos.home_datastore.HomeDatastoreService/UpdateScheduleWeek',
+            quilt__hds__pb2.UpdateScheduleWeekRequest.SerializeToString,
+            quilt__hds__pb2.ScheduleWeek.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def DeleteScheduleWeek(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/core.protos.home_datastore.HomeDatastoreService/DeleteScheduleWeek',
+            quilt__hds__pb2.DeleteScheduleWeekRequest.SerializeToString,
+            google_dot_protobuf_dot_empty__pb2.Empty.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def ListScheduleWeeks(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/core.protos.home_datastore.HomeDatastoreService/ListScheduleWeeks',
+            quilt__hds__pb2.ListScheduleWeeksRequest.SerializeToString,
+            quilt__hds__pb2.ListScheduleWeeksResponse.FromString,
             options,
             channel_credentials,
             insecure,
@@ -1639,6 +3267,33 @@ class HomeDatastoreService(object):
             target,
             '/core.protos.home_datastore.HomeDatastoreService/GetLocation',
             quilt__hds__pb2.GetLocationRequest.SerializeToString,
+            quilt__hds__pb2.Location.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def CreateLocation(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/core.protos.home_datastore.HomeDatastoreService/CreateLocation',
+            quilt__hds__pb2.CreateLocationRequest.SerializeToString,
             quilt__hds__pb2.Location.FromString,
             options,
             channel_credentials,
@@ -1731,6 +3386,1356 @@ class HomeDatastoreService(object):
             metadata,
             _registered_method=True)
 
+    @staticmethod
+    def GetSoftwareUpdateInfo(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/core.protos.home_datastore.HomeDatastoreService/GetSoftwareUpdateInfo',
+            quilt__hds__pb2.GetSoftwareUpdateInfoRequest.SerializeToString,
+            quilt__hds__pb2.SoftwareUpdateInfo.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def CreateSoftwareUpdateInfo(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/core.protos.home_datastore.HomeDatastoreService/CreateSoftwareUpdateInfo',
+            quilt__hds__pb2.CreateSoftwareUpdateInfoRequest.SerializeToString,
+            quilt__hds__pb2.SoftwareUpdateInfo.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def UpdateSoftwareUpdateInfo(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/core.protos.home_datastore.HomeDatastoreService/UpdateSoftwareUpdateInfo',
+            quilt__hds__pb2.UpdateSoftwareUpdateInfoRequest.SerializeToString,
+            quilt__hds__pb2.SoftwareUpdateInfo.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def DeleteSoftwareUpdateInfo(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/core.protos.home_datastore.HomeDatastoreService/DeleteSoftwareUpdateInfo',
+            quilt__hds__pb2.DeleteSoftwareUpdateInfoRequest.SerializeToString,
+            google_dot_protobuf_dot_empty__pb2.Empty.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def ListSoftwareUpdateInfos(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/core.protos.home_datastore.HomeDatastoreService/ListSoftwareUpdateInfos',
+            quilt__hds__pb2.ListSoftwareUpdateInfosRequest.SerializeToString,
+            quilt__hds__pb2.ListSoftwareUpdateInfosResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def GetAirHandlingUnit(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/core.protos.home_datastore.HomeDatastoreService/GetAirHandlingUnit',
+            quilt__hds__pb2.GetAirHandlingUnitRequest.SerializeToString,
+            quilt__hds__pb2.AirHandlingUnit.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def CreateAirHandlingUnit(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/core.protos.home_datastore.HomeDatastoreService/CreateAirHandlingUnit',
+            quilt__hds__pb2.CreateAirHandlingUnitRequest.SerializeToString,
+            quilt__hds__pb2.AirHandlingUnit.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def UpdateAirHandlingUnit(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/core.protos.home_datastore.HomeDatastoreService/UpdateAirHandlingUnit',
+            quilt__hds__pb2.UpdateAirHandlingUnitRequest.SerializeToString,
+            quilt__hds__pb2.AirHandlingUnit.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def DeleteAirHandlingUnit(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/core.protos.home_datastore.HomeDatastoreService/DeleteAirHandlingUnit',
+            quilt__hds__pb2.DeleteAirHandlingUnitRequest.SerializeToString,
+            google_dot_protobuf_dot_empty__pb2.Empty.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def ListAirHandlingUnits(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/core.protos.home_datastore.HomeDatastoreService/ListAirHandlingUnits',
+            quilt__hds__pb2.ListAirHandlingUnitsRequest.SerializeToString,
+            quilt__hds__pb2.ListAirHandlingUnitsResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def GetDuctedZone(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/core.protos.home_datastore.HomeDatastoreService/GetDuctedZone',
+            quilt__hds__pb2.GetDuctedZoneRequest.SerializeToString,
+            quilt__hds__pb2.DuctedZone.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def CreateDuctedZone(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/core.protos.home_datastore.HomeDatastoreService/CreateDuctedZone',
+            quilt__hds__pb2.CreateDuctedZoneRequest.SerializeToString,
+            quilt__hds__pb2.DuctedZone.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def UpdateDuctedZone(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/core.protos.home_datastore.HomeDatastoreService/UpdateDuctedZone',
+            quilt__hds__pb2.UpdateDuctedZoneRequest.SerializeToString,
+            quilt__hds__pb2.DuctedZone.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def DeleteDuctedZone(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/core.protos.home_datastore.HomeDatastoreService/DeleteDuctedZone',
+            quilt__hds__pb2.DeleteDuctedZoneRequest.SerializeToString,
+            google_dot_protobuf_dot_empty__pb2.Empty.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def ListDuctedZones(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/core.protos.home_datastore.HomeDatastoreService/ListDuctedZones',
+            quilt__hds__pb2.ListDuctedZonesRequest.SerializeToString,
+            quilt__hds__pb2.ListDuctedZonesResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def GetDuctedZoneMembership(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/core.protos.home_datastore.HomeDatastoreService/GetDuctedZoneMembership',
+            quilt__hds__pb2.GetDuctedZoneMembershipRequest.SerializeToString,
+            quilt__hds__pb2.DuctedZoneMembership.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def CreateDuctedZoneMembership(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/core.protos.home_datastore.HomeDatastoreService/CreateDuctedZoneMembership',
+            quilt__hds__pb2.CreateDuctedZoneMembershipRequest.SerializeToString,
+            quilt__hds__pb2.DuctedZoneMembership.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def UpdateDuctedZoneMembership(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/core.protos.home_datastore.HomeDatastoreService/UpdateDuctedZoneMembership',
+            quilt__hds__pb2.UpdateDuctedZoneMembershipRequest.SerializeToString,
+            quilt__hds__pb2.DuctedZoneMembership.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def DeleteDuctedZoneMembership(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/core.protos.home_datastore.HomeDatastoreService/DeleteDuctedZoneMembership',
+            quilt__hds__pb2.DeleteDuctedZoneMembershipRequest.SerializeToString,
+            google_dot_protobuf_dot_empty__pb2.Empty.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def ListDuctedZoneMemberships(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/core.protos.home_datastore.HomeDatastoreService/ListDuctedZoneMemberships',
+            quilt__hds__pb2.ListDuctedZoneMembershipsRequest.SerializeToString,
+            quilt__hds__pb2.ListDuctedZoneMembershipsResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def GetAutomation(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/core.protos.home_datastore.HomeDatastoreService/GetAutomation',
+            quilt__hds__pb2.GetAutomationRequest.SerializeToString,
+            quilt__hds__pb2.Automation.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def CreateAutomation(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/core.protos.home_datastore.HomeDatastoreService/CreateAutomation',
+            quilt__hds__pb2.CreateAutomationRequest.SerializeToString,
+            quilt__hds__pb2.Automation.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def UpdateAutomation(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/core.protos.home_datastore.HomeDatastoreService/UpdateAutomation',
+            quilt__hds__pb2.UpdateAutomationRequest.SerializeToString,
+            quilt__hds__pb2.Automation.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def DeleteAutomation(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/core.protos.home_datastore.HomeDatastoreService/DeleteAutomation',
+            quilt__hds__pb2.DeleteAutomationRequest.SerializeToString,
+            google_dot_protobuf_dot_empty__pb2.Empty.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def ListAutomations(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/core.protos.home_datastore.HomeDatastoreService/ListAutomations',
+            quilt__hds__pb2.ListAutomationsRequest.SerializeToString,
+            quilt__hds__pb2.ListAutomationsResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def GetDemandResponseEvent(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/core.protos.home_datastore.HomeDatastoreService/GetDemandResponseEvent',
+            quilt__hds__pb2.GetDemandResponseEventRequest.SerializeToString,
+            quilt__hds__pb2.DemandResponseEvent.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def CreateDemandResponseEvent(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/core.protos.home_datastore.HomeDatastoreService/CreateDemandResponseEvent',
+            quilt__hds__pb2.CreateDemandResponseEventRequest.SerializeToString,
+            quilt__hds__pb2.DemandResponseEvent.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def UpdateDemandResponseEvent(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/core.protos.home_datastore.HomeDatastoreService/UpdateDemandResponseEvent',
+            quilt__hds__pb2.UpdateDemandResponseEventRequest.SerializeToString,
+            quilt__hds__pb2.DemandResponseEvent.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def DeleteDemandResponseEvent(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/core.protos.home_datastore.HomeDatastoreService/DeleteDemandResponseEvent',
+            quilt__hds__pb2.DeleteDemandResponseEventRequest.SerializeToString,
+            google_dot_protobuf_dot_empty__pb2.Empty.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def ListDemandResponseEvents(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/core.protos.home_datastore.HomeDatastoreService/ListDemandResponseEvents',
+            quilt__hds__pb2.ListDemandResponseEventsRequest.SerializeToString,
+            quilt__hds__pb2.ListDemandResponseEventsResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def GetIndoorUnitHardware(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/core.protos.home_datastore.HomeDatastoreService/GetIndoorUnitHardware',
+            quilt__hds__pb2.GetIndoorUnitHardwareRequest.SerializeToString,
+            quilt__hds__pb2.IndoorUnitHardware.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def CreateIndoorUnitHardware(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/core.protos.home_datastore.HomeDatastoreService/CreateIndoorUnitHardware',
+            quilt__hds__pb2.CreateIndoorUnitHardwareRequest.SerializeToString,
+            quilt__hds__pb2.IndoorUnitHardware.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def UpdateIndoorUnitHardware(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/core.protos.home_datastore.HomeDatastoreService/UpdateIndoorUnitHardware',
+            quilt__hds__pb2.UpdateIndoorUnitHardwareRequest.SerializeToString,
+            quilt__hds__pb2.IndoorUnitHardware.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def DeleteIndoorUnitHardware(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/core.protos.home_datastore.HomeDatastoreService/DeleteIndoorUnitHardware',
+            quilt__hds__pb2.DeleteIndoorUnitHardwareRequest.SerializeToString,
+            google_dot_protobuf_dot_empty__pb2.Empty.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def ListIndoorUnitHardware(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/core.protos.home_datastore.HomeDatastoreService/ListIndoorUnitHardware',
+            quilt__hds__pb2.ListIndoorUnitHardwareRequest.SerializeToString,
+            quilt__hds__pb2.ListIndoorUnitHardwareResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def GetOutdoorUnitHardware(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/core.protos.home_datastore.HomeDatastoreService/GetOutdoorUnitHardware',
+            quilt__hds__pb2.GetOutdoorUnitHardwareRequest.SerializeToString,
+            quilt__hds__pb2.OutdoorUnitHardware.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def CreateOutdoorUnitHardware(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/core.protos.home_datastore.HomeDatastoreService/CreateOutdoorUnitHardware',
+            quilt__hds__pb2.CreateOutdoorUnitHardwareRequest.SerializeToString,
+            quilt__hds__pb2.OutdoorUnitHardware.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def UpdateOutdoorUnitHardware(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/core.protos.home_datastore.HomeDatastoreService/UpdateOutdoorUnitHardware',
+            quilt__hds__pb2.UpdateOutdoorUnitHardwareRequest.SerializeToString,
+            quilt__hds__pb2.OutdoorUnitHardware.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def DeleteOutdoorUnitHardware(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/core.protos.home_datastore.HomeDatastoreService/DeleteOutdoorUnitHardware',
+            quilt__hds__pb2.DeleteOutdoorUnitHardwareRequest.SerializeToString,
+            google_dot_protobuf_dot_empty__pb2.Empty.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def ListOutdoorUnitHardware(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/core.protos.home_datastore.HomeDatastoreService/ListOutdoorUnitHardware',
+            quilt__hds__pb2.ListOutdoorUnitHardwareRequest.SerializeToString,
+            quilt__hds__pb2.ListOutdoorUnitHardwareResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def GetControllerHardware(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/core.protos.home_datastore.HomeDatastoreService/GetControllerHardware',
+            quilt__hds__pb2.GetControllerHardwareRequest.SerializeToString,
+            quilt__hds__pb2.ControllerHardware.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def CreateControllerHardware(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/core.protos.home_datastore.HomeDatastoreService/CreateControllerHardware',
+            quilt__hds__pb2.CreateControllerHardwareRequest.SerializeToString,
+            quilt__hds__pb2.ControllerHardware.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def UpdateControllerHardware(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/core.protos.home_datastore.HomeDatastoreService/UpdateControllerHardware',
+            quilt__hds__pb2.UpdateControllerHardwareRequest.SerializeToString,
+            quilt__hds__pb2.ControllerHardware.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def DeleteControllerHardware(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/core.protos.home_datastore.HomeDatastoreService/DeleteControllerHardware',
+            quilt__hds__pb2.DeleteControllerHardwareRequest.SerializeToString,
+            google_dot_protobuf_dot_empty__pb2.Empty.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def ListControllerHardware(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/core.protos.home_datastore.HomeDatastoreService/ListControllerHardware',
+            quilt__hds__pb2.ListControllerHardwareRequest.SerializeToString,
+            quilt__hds__pb2.ListControllerHardwareResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def GetAirHandlingUnitHardware(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/core.protos.home_datastore.HomeDatastoreService/GetAirHandlingUnitHardware',
+            quilt__hds__pb2.GetAirHandlingUnitHardwareRequest.SerializeToString,
+            quilt__hds__pb2.AirHandlingUnitHardware.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def CreateAirHandlingUnitHardware(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/core.protos.home_datastore.HomeDatastoreService/CreateAirHandlingUnitHardware',
+            quilt__hds__pb2.CreateAirHandlingUnitHardwareRequest.SerializeToString,
+            quilt__hds__pb2.AirHandlingUnitHardware.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def UpdateAirHandlingUnitHardware(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/core.protos.home_datastore.HomeDatastoreService/UpdateAirHandlingUnitHardware',
+            quilt__hds__pb2.UpdateAirHandlingUnitHardwareRequest.SerializeToString,
+            quilt__hds__pb2.AirHandlingUnitHardware.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def DeleteAirHandlingUnitHardware(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/core.protos.home_datastore.HomeDatastoreService/DeleteAirHandlingUnitHardware',
+            quilt__hds__pb2.DeleteAirHandlingUnitHardwareRequest.SerializeToString,
+            google_dot_protobuf_dot_empty__pb2.Empty.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def ListAirHandlingUnitHardware(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/core.protos.home_datastore.HomeDatastoreService/ListAirHandlingUnitHardware',
+            quilt__hds__pb2.ListAirHandlingUnitHardwareRequest.SerializeToString,
+            quilt__hds__pb2.ListAirHandlingUnitHardwareResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
 
 class CommandServiceStub(object):
     """Missing associated documentation comment in .proto file."""
@@ -1744,7 +4749,7 @@ class CommandServiceStub(object):
         self.RequestFastUpdates = channel.unary_unary(
                 '/core.protos.home_datastore.CommandService/RequestFastUpdates',
                 request_serializer=quilt__hds__pb2.RequestFastUpdatesRequest.SerializeToString,
-                response_deserializer=google_dot_protobuf_dot_empty__pb2.Empty.FromString,
+                response_deserializer=quilt__hds__pb2.RequestFastUpdatesResponse.FromString,
                 _registered_method=True)
 
 
@@ -1763,7 +4768,7 @@ def add_CommandServiceServicer_to_server(servicer, server):
             'RequestFastUpdates': grpc.unary_unary_rpc_method_handler(
                     servicer.RequestFastUpdates,
                     request_deserializer=quilt__hds__pb2.RequestFastUpdatesRequest.FromString,
-                    response_serializer=google_dot_protobuf_dot_empty__pb2.Empty.SerializeToString,
+                    response_serializer=quilt__hds__pb2.RequestFastUpdatesResponse.SerializeToString,
             ),
     }
     generic_handler = grpc.method_handlers_generic_handler(
@@ -1792,7 +4797,7 @@ class CommandService(object):
             target,
             '/core.protos.home_datastore.CommandService/RequestFastUpdates',
             quilt__hds__pb2.RequestFastUpdatesRequest.SerializeToString,
-            google_dot_protobuf_dot_empty__pb2.Empty.FromString,
+            quilt__hds__pb2.RequestFastUpdatesResponse.FromString,
             options,
             channel_credentials,
             insecure,

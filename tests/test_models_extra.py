@@ -135,10 +135,10 @@ def test_controller_from_proto_includes_wifi_remote_sensor_and_hardware() -> Non
         settings=_ns(name="Hall Dial"),
         state=_ns(
             updated_ts=_ns(seconds=now),
-            ambient_temperature_c=22.1,
-            temperature_f3=34.5,
-            temperature_f4=48.0,
-            temperature_f5=21.7,
+            sht4x_temperature_c=22.1,
+            encoder_temperature_c=34.5,
+            soc_temperature_c=48.0,
+            calculated_ambient_temperature_c=21.7,
         ),
         hosted_wifi_state=_ns(
             ssid="HomeNet",

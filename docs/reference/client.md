@@ -217,6 +217,57 @@ Discards the cached snapshot. The next `get_snapshot()` call fetches fresh data 
 
 ---
 
+### `get_system_version`
+
+```python
+async def get_system_version(self, system_id: str | None = None) -> int | None
+```
+
+Fetches only the system's configuration version (a ~14-byte response, about 70 ms against
+~550 ms for a full snapshot). The version is an epoch-nanosecond timestamp that advances whenever
+controls, settings or configuration are written, including automatic writes such as auto-away
+switching a comfort setting; telemetry does not advance it.
+
+```python
+if await client.get_system_version() != snapshot.version:
+    client.invalidate_snapshot()
+    snapshot = await client.get_snapshot()
+```
+
+---
+
+### Single-object fetches
+
+```python
+async def get_space(self, space_id: str) -> Space
+async def get_indoor_unit(self, indoor_unit_id: str) -> IndoorUnit
+async def get_outdoor_unit(self, outdoor_unit_id: str) -> OutdoorUnit
+async def get_controller(self, controller_id: str) -> Controller
+async def get_quilt_smart_module(self, qsm_id: str) -> QuiltSmartModule
+async def get_comfort_setting(self, comfort_setting_id: str) -> ComfortSetting
+async def get_remote_sensor(self, sensor_id: str) -> RemoteSensor
+async def get_controller_remote_sensor(self, sensor_id: str) -> ControllerRemoteSensor
+async def get_schedule_day(self, schedule_day_id: str) -> ScheduleDay
+async def get_schedule_week(self, schedule_week_id: str) -> ScheduleWeek
+async def get_software_update_info(self, info_id: str) -> SoftwareUpdateInfo
+```
+
+Fetch one object straight from the server instead of a full snapshot. The result lacks hardware
+attributes (`model_sku`, `serial_number`, `firmware_version`) and, for spaces, comfort-setting
+enrichment (`active_comfort_setting_type`). Merge it into a snapshot to keep those:
+
+```python
+idu = snapshot.apply_indoor_unit(await client.get_indoor_unit(idu_id))
+```
+
+The client's `list_spaces`, `list_indoor_units` and `list_comfort_settings` read from the cached
+snapshot (see `get_snapshot`), which is usually what you want.
+
+**Raises:** `QuiltNotFoundError` if the object does not exist or is not visible to you (the server
+answers both with `PERMISSION_DENIED`). `QuiltError` for other gRPC failures.
+
+---
+
 ### `get_diagnostics`
 
 ```python
