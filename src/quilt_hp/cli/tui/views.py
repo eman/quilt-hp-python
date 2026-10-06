@@ -7,7 +7,7 @@ from __future__ import annotations
 
 import zoneinfo
 from dataclasses import dataclass
-from datetime import UTC, datetime, tzinfo
+from datetime import UTC, date, datetime, timedelta, tzinfo
 from enum import IntEnum
 from typing import TYPE_CHECKING
 
@@ -25,6 +25,7 @@ from quilt_hp.models.enums import (
 from quilt_hp.models.software_update import SoftwareUpdateInfo, SoftwareUpdateState
 
 if TYPE_CHECKING:
+    from quilt_hp.models.energy import EnergyBucket
     from quilt_hp.models.indoor_unit import IndoorUnit
     from quilt_hp.models.space import Space
     from quilt_hp.models.system import SystemSnapshot
@@ -388,3 +389,105 @@ def _update(updates: dict[str, SoftwareUpdateInfo], *ids: str | None) -> str | N
             text += f" → {info.target_version}"
         return text
     return None
+
+
+# ── Schedule ────────────────────────────────────────────────────────────────
+
+
+@dataclass(frozen=True, slots=True)
+class ScheduleSlot:
+    """One schedule event: from ``time`` the room runs ``mode`` at the setpoints it uses."""
+
+    time: str  # "HH:MM"
+    mode: HVACMode
+    heat_c: float | None
+    cool_c: float | None
+    preset: str | None
+
+
+def week_schedule(snap: SystemSnapshot, space_id: str) -> list[list[ScheduleSlot]] | None:
+    """Monday-first list of each day's events for a room, or None when it has no schedule.
+
+    An event that uses a comfort preset takes the preset's mode and setpoints. Only the
+    setpoints the mode uses are kept: Standby, Fan and Dry events carry the system's limits,
+    which are not settings anyone chose.
+    """
+    week = next((w for w in snap.schedule_weeks if w.space_id == space_id), None)
+    if week is None:
+        return None
+    days = {d.id: d for d in snap.schedule_days}
+    presets = {c.id: c for c in snap.comfort_settings}
+    grid: list[list[ScheduleSlot]] = [[] for _ in range(7)]
+    for weekday in week.days:
+        index = weekday.weekday - 1  # 1 = Monday
+        day = days.get(weekday.day_id)
+        if not 0 <= index < 7 or day is None:
+            continue
+        for ev in day.events:
+            mode, heat, cool = ev.hvac_mode, ev.heating_setpoint_c, ev.cooling_setpoint_c
+            preset = presets.get(ev.comfort_setting_id) if ev.comfort_setting_id else None
+            if preset is not None:
+                mode, heat, cool = (
+                    preset.hvac_mode,
+                    preset.heating_setpoint_c,
+                    preset.cooling_setpoint_c,
+                )
+            grid[index].append(
+                ScheduleSlot(
+                    time=ev.start_time,
+                    mode=mode,
+                    heat_c=heat if mode in (HVACMode.HEAT, HVACMode.AUTO) else None,
+                    cool_c=cool if mode in (HVACMode.COOL, HVACMode.AUTO) else None,
+                    preset=preset.name if preset is not None else None,
+                )
+            )
+    for slots in grid:
+        slots.sort(key=lambda slot: slot.time)
+    return grid
+
+
+# ── Energy ──────────────────────────────────────────────────────────────────
+
+
+@dataclass(frozen=True, slots=True)
+class EnergySummary:
+    """A room's energy use, in the system's local days."""
+
+    today_kwh: float
+    yesterday_kwh: float
+    last_7_days_kwh: float
+    last_30_days_kwh: float
+    today_by_hour: dict[int, float]
+    by_day: list[tuple[date, float]]  # most recent first, up to 30 days
+
+
+def energy_summary(buckets: list[EnergyBucket], tz: tzinfo, now: datetime) -> EnergySummary:
+    """Totals and hourly/daily breakdowns from hourly buckets (missing values ignored)."""
+    today = now.astimezone(tz).date()
+    by_day: dict[date, float] = {}
+    hours: dict[int, float] = {}
+    for bucket in buckets:
+        if bucket.has_missing_energy_value:
+            continue
+        start = (
+            bucket.start_time
+            if bucket.start_time.tzinfo
+            else bucket.start_time.replace(tzinfo=UTC)
+        )
+        local = start.astimezone(tz)
+        by_day[local.date()] = by_day.get(local.date(), 0.0) + bucket.energy_kwh
+        if local.date() == today:
+            hours[local.hour] = hours.get(local.hour, 0.0) + bucket.energy_kwh
+
+    def since(days: int) -> float:
+        first = today - timedelta(days=days - 1)
+        return sum(kwh for day, kwh in by_day.items() if day >= first)
+
+    return EnergySummary(
+        today_kwh=by_day.get(today, 0.0),
+        yesterday_kwh=by_day.get(today - timedelta(days=1), 0.0),
+        last_7_days_kwh=since(7),
+        last_30_days_kwh=since(30),
+        today_by_hour=hours,
+        by_day=sorted(by_day.items(), reverse=True)[:30],
+    )

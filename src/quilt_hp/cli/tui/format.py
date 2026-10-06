@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import logging
 from datetime import UTC, datetime
-from typing import TYPE_CHECKING
 
 from rich.text import Text
 
@@ -15,15 +14,8 @@ from quilt_hp.models.enums import (
     FanSpeed,
     HVACMode,
     HVACState,
-    LightPreset,
-    LocalCommsHealthStatus,
     LouverMode,
-    OccupancyState,
 )
-
-if TYPE_CHECKING:
-    from quilt_hp.models.space import Space
-
 
 logger = logging.getLogger(__name__)
 
@@ -31,17 +23,6 @@ logger = logging.getLogger(__name__)
 # Helpers
 # ──────────────────────────────────────────────────────────────────
 
-_MODE_STYLE: dict[HVACMode, str] = {
-    HVACMode.HEAT: "bold red",
-    HVACMode.COOL: "bold cyan",
-    HVACMode.AUTO: "bold yellow",
-    HVACMode.FAN: "bold green",
-    HVACMode.DRY: "bold blue",
-    HVACMode.STANDBY: "dim",
-    HVACMode.FALLBACK_AUTO: "bold yellow",
-    HVACMode.FALLBACK_OFF: "dim",
-    HVACMode.UNSPECIFIED: "dim",
-}
 
 _STATE_STYLE: dict[HVACState, str] = {
     HVACState.HEAT: "red",
@@ -60,17 +41,6 @@ _STATE_STYLE: dict[HVACState, str] = {
     HVACState.UNSPECIFIED: "dim",
 }
 
-_MODE_LABELS: dict[HVACMode, str] = {
-    HVACMode.HEAT: "HEAT",
-    HVACMode.COOL: "COOL",
-    HVACMode.AUTO: "AUTO",
-    HVACMode.FAN: " FAN",
-    HVACMode.DRY: " DRY",
-    HVACMode.STANDBY: "STBY",
-    HVACMode.FALLBACK_AUTO: "FAUTO",
-    HVACMode.FALLBACK_OFF: "FOFF",
-    HVACMode.UNSPECIFIED: " -- ",
-}
 
 _STATE_SYMBOLS: dict[HVACState, str] = {
     HVACState.HEAT: "◉ Heating",
@@ -159,40 +129,6 @@ def _fmt_detected(value: bool | None) -> tuple[str, str]:
     return ("● detected", "bold green") if value else ("○ clear", "dim")
 
 
-def _fmt_timeout(seconds: float) -> str:
-    """Format timeout as readable text (for example, '20 min')."""
-    if seconds <= 0:
-        return "0 s"
-    total_m = int(seconds) // 60
-    rem_s = int(seconds) % 60
-    if total_m == 0:
-        return f"{rem_s} s"
-    if rem_s == 0:
-        return f"{total_m} min"
-    return f"{total_m} min {rem_s} s"
-
-
-def _tu(use_f: bool) -> str:
-    return "°F" if use_f else "°C"
-
-
-def _led_color_str(color_code: int) -> str:
-    """Return a human-readable LED color label from a packed RGBW uint32.
-
-    Matches against known LightPreset values first; falls back to hex notation.
-    """
-    if color_code == 0:
-        return "Black"
-    try:
-        return LightPreset(color_code).name.capitalize()
-    except ValueError:
-        r = (color_code >> 24) & 0xFF
-        g = (color_code >> 16) & 0xFF
-        b = (color_code >> 8) & 0xFF
-        w = color_code & 0xFF
-        return f"#{r:02X}{g:02X}{b:02X}w{w:02X}"
-
-
 def _sku_or_none(model_sku: str | None) -> str | None:
     """Return a displayable SKU value or None for empty/placeholder values."""
     if not model_sku:
@@ -209,56 +145,6 @@ def _id_tokens(value: str | None) -> set[str]:
     if not raw:
         return set()
     return {raw, raw.rsplit("/", 1)[-1]}
-
-
-def _occ_glyph(occ: OccupancyState | int | None) -> str:
-    if occ is None:
-        return "?"
-    state = OccupancyState(occ) if isinstance(occ, int) else occ
-    if state == OccupancyState.DETECTED:
-        return "[green]●[/green]"
-    if state == OccupancyState.UNDETECTED:
-        return "[dim]○[/dim]"
-    return "[dim]?[/dim]"
-
-
-_LOCAL_COMMS_STYLE: dict[LocalCommsHealthStatus, str] = {
-    LocalCommsHealthStatus.HEALTHY: "green",
-    LocalCommsHealthStatus.STARTING_UP: "green",  # transient — treat as healthy
-    LocalCommsHealthStatus.DEGRADED: "bold yellow",
-    LocalCommsHealthStatus.OFFLINE: "bold red",
-    LocalCommsHealthStatus.UNSPECIFIED: "dim",
-}
-_LOCAL_COMMS_LABELS: dict[LocalCommsHealthStatus, str] = {
-    LocalCommsHealthStatus.HEALTHY: "● Healthy",
-    LocalCommsHealthStatus.STARTING_UP: "⋯ Starting",
-    LocalCommsHealthStatus.DEGRADED: "⚠ Degraded",
-    LocalCommsHealthStatus.OFFLINE: "✗ Offline",
-    LocalCommsHealthStatus.UNSPECIFIED: "--",
-}
-
-
-def _fmt_local_comms(health: LocalCommsHealthStatus) -> tuple[str, str]:
-    """Return (label, style) for a LocalCommsHealthStatus value."""
-    return (
-        _LOCAL_COMMS_LABELS.get(health, health.name),
-        _LOCAL_COMMS_STYLE.get(health, ""),
-    )
-
-
-def _fmt_mode(mode: HVACMode) -> Text:
-    label = _MODE_LABELS.get(mode, mode.name)
-    style = _MODE_STYLE.get(mode, "")
-    return Text(label, style=style)
-
-
-def _space_mode_badge(space: Space) -> Text:
-    """Mode badge using Space.is_away / Space.is_off from the core model."""
-    if space.is_away:
-        return Text("AWAY", style="yellow dim")
-    if space.is_off:
-        return Text(" OFF", style="dim")
-    return _fmt_mode(space.controls.hvac_mode)
 
 
 def _fmt_state(state: HVACState) -> Text:
