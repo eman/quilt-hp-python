@@ -139,3 +139,26 @@ def test_settings_remember_the_theme_name(tmp_path) -> None:  # type: ignore[no-
     store = SettingsStore(tmp_path / "settings.json")
     store.update(theme="nord", dark=True)
     assert store.load().theme == "nord"
+
+
+def test_energy_last_days_are_calendar_days() -> None:
+    """A day without data is reported as such; it never pulls in an older day."""
+    from datetime import UTC, datetime, timedelta
+
+    from quilt_hp.cli.tui.views import energy_summary
+    from quilt_hp.models.energy import EnergyBucket
+    from quilt_hp.models.enums import MetricBucketStatus
+
+    now = datetime(2026, 10, 5, 18, 0, tzinfo=UTC)
+
+    def bucket(days_ago: int, kwh: float) -> EnergyBucket:
+        start = now.replace(hour=12) - timedelta(days=days_ago)
+        return EnergyBucket(start, kwh, MetricBucketStatus.COMPLETE)
+
+    e = energy_summary([bucket(0, 1.0), bucket(1, 2.0), bucket(3, 3.0), bucket(9, 50.0)], UTC, now)
+    week = e.last_days(7)
+    assert len(week) == 7
+    assert week[0] == (now.date(), 1.0)
+    assert week[2] == (now.date() - timedelta(days=2), None)  # the gap stays a gap
+    assert all(day >= now.date() - timedelta(days=6) for day, _ in week)  # day 9 never appears
+    assert e.last_7_days_kwh == sum(kwh for _, kwh in week if kwh is not None) == 6.0

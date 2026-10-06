@@ -77,6 +77,7 @@ class HomeScreen(Screen[None]):
         Binding("plus,equals_sign", "setpoint(1)", "+ Setpoint", key_display="+"),
         Binding("minus", "setpoint(-1)", "− Setpoint", key_display="−"),
         Binding("d", "devices", "Devices"),
+        Binding("e", "energy", "Energy"),
         Binding("P", "toggle_schedules", "Pause/resume schedules", show=False),
         Binding("r", "refresh", "Refresh"),
         Binding("u", "toggle_units", "°C/°F"),
@@ -300,6 +301,11 @@ class HomeScreen(Screen[None]):
         from quilt_hp.cli.tui.devices import DevicesScreen  # devices imports nothing from here
 
         self.app.push_screen(DevicesScreen(self.snapshot, self._client))
+
+    def action_energy(self) -> None:
+        from quilt_hp.cli.tui.energy import EnergyScreen
+
+        self.app.push_screen(EnergyScreen(self.snapshot, self._client))
 
     def action_cycle_mode(self) -> None:
         if (space_id := self.selected_space_id) is not None:
