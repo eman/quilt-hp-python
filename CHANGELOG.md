@@ -3,6 +3,10 @@
 ## [Unreleased]
 
 ### Added
+- **Dial settings:** `QuiltClient.set_controller()` renames a Dial and/or switches the app's
+  "Temperature sensor" setting (`uses_dial_temperature`: control the room to the Dial's
+  reading, or to the indoor unit's own sensor). Verified against a live system. New
+  `Controller.description` and `Controller.uses_dial_temperature`.
 - **Actions:** `QuiltClient.apply_mode()`, `apply_temperatures()`, `apply_fan_speed()`,
   `apply_fan_angle()` and `apply_light()`, through the action API the Quilt app uses
   (`HomeActionService/SubmitAction`). One call changes any mix of rooms, indoor units or the
@@ -174,6 +178,11 @@
   `client` and `settings_store` arguments for tests and embedding.
 
 ### Fixed
+- `Controller.is_online` reported an offline Dial as online: the server sends an offline Dial
+  with no state at all, and the library assumed "no timestamp" meant online. It now matches
+  the app — no state report in the last 5 minutes means offline.
+- The TUI's Devices screen labelled the Dial's temperature-sensor setting "Zone sensor"; it
+  now says "Temperature sensor" and whether the Dial controls the room.
 - The TUI's Devices screen and the models reference showed an indoor unit's Smart Module
   serial as the unit's serial. `docs/reference/models.md` also still showed
   `SoftwareUpdateInfo.state`, `status` and `progress_unit` as integers, and had no section

@@ -496,7 +496,8 @@ class Controller:
     wifi_last_seen: datetime | None
     ap_wifi: WifiInfo | None
     p2p_wifi: WifiInfo | None
-    remote_sensor_mode: RemoteSensorControlMode
+    remote_sensor_mode: RemoteSensorControlMode  # the app's "Temperature sensor" setting
+    description: str | None
     software_update_info_id: str | None
     firmware_update_info_id: str | None
     serial_number: str | None
@@ -527,7 +528,9 @@ class Controller:
 
 Useful properties: `ambient_temperature_c` (→ `calibrated_ambient_c`, `None`
 when no state reading is available), `wifi_band`, `is_online` (state reported within
-the last 5 minutes; online Dials report about every 10 s), `display_on` (`False` while
+the last 5 minutes, as in the app; online Dials report about every 10 s, and an offline
+Dial is sent with no state at all), `uses_dial_temperature` (True when the room is
+controlled to this Dial's reading), `display_on` (`False` while
 asleep, `None` when unknown) and `presence_detected` (the Dial radar sees someone; this
 is independent of the indoor unit's radar).
 

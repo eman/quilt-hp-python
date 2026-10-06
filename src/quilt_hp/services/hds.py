@@ -46,6 +46,7 @@ class _HomeDatastoreServiceStub(Protocol):
     async def UpdateScheduleDay(self, request: hds.UpdateScheduleDayRequest) -> object: ...
     async def DeleteScheduleWeek(self, request: hds.DeleteScheduleWeekRequest) -> object: ...
     async def UpdateLocation(self, request: hds.UpdateLocationRequest) -> object: ...
+    async def UpdateController(self, request: hds.UpdateControllerRequest) -> object: ...
 
 
 def _now_ts() -> Timestamp:
@@ -377,6 +378,54 @@ class HomeDatastoreService:
         async with grpc_call("UpdateSpace settings"):
             result = await self._stub.UpdateSpace(hds.UpdateSpaceRequest(space=diff))
         return Space.from_proto(result)
+
+    async def update_controller(
+        self,
+        controller: Controller,
+        *,
+        name: str | None = None,
+        uses_dial_temperature: bool | None = None,
+    ) -> Controller:
+        """Rename a Dial and/or choose whether the room is controlled to its temperature.
+
+        Sends a sparse UpdateController diff with only the blocks being changed. The sensor
+        switch is the diff the app sends (header + ``controls``). A rename sends ``settings``
+        with the current description echoed, as for the other settings updates.
+        """
+        if name is None and uses_dial_temperature is None:
+            raise ValueError("Give a name, uses_dial_temperature, or both.")
+        diff = hds.Controller(
+            header=hds.EntityMetadata(object_id=controller.id, system_id=controller.system_id)
+        )
+        if name is not None:
+            if not name.strip():
+                raise ValueError("A Dial's name can't be empty.")
+            diff.settings.CopyFrom(
+                hds.ControllerSettings(
+                    name=name.strip(),
+                    description=controller.description or "",
+                    updated_ts=_now_ts(),
+                )
+            )
+        if uses_dial_temperature is not None:
+            mode = (
+                hds.REMOTE_SENSOR_CONTROL_MODE_ENABLED
+                if uses_dial_temperature
+                else hds.REMOTE_SENSOR_CONTROL_MODE_DISABLED
+            )
+            diff.controls.CopyFrom(
+                hds.ControllerControls(updated_ts=_now_ts(), remote_sensor_control_mode=mode)
+            )
+        logger.debug(
+            "RPC UpdateController controller_id=%s system_id=%s",
+            controller.id,
+            controller.system_id,
+        )
+        async with grpc_call("UpdateController"):
+            result = await self._stub.UpdateController(
+                hds.UpdateControllerRequest(controller=diff)
+            )
+        return Controller.from_proto(result)
 
     async def update_indoor_unit(
         self,
