@@ -296,7 +296,16 @@ class IndoorUnit:
     firmware_version: str | None
     climate: IndoorUnitClimate | None  # dew point etc.; see IndoorUnitClimate
     test_state: IndoorUnitTestState | None  # health check / commissioning; see IndoorUnitTestState
+    unit_serial_number: str | None  # the indoor unit's own serial (QN1-…)
+    smart_module_serial_number: str | None  # its built-in Smart Module's serial (QS1-…)
+    manufactured_at: datetime | None
+    created_at: datetime | None  # when the unit was added to the system
 ```
+
+`serial_number` is the hardware record's serial, which is the built-in Smart Module's
+(`QS1-…`, the same as `smart_module_serial_number`); `unit_serial_number` is the indoor
+unit's own (`QN1-…`). Hardware details and `created_at` come from the full snapshot and are
+kept when stream updates are merged.
 
 #### `IndoorUnitControls`
 
@@ -444,6 +453,9 @@ class OutdoorUnit:
     firmware_version: str | None
     firmware_update_info_id: str | None
     performance_data: OutdoorUnitPerformanceData | None
+    port_count: int | None  # how many indoor units it can serve
+    manufactured_at: datetime | None
+    created_at: datetime | None
 ```
 
 #### `OutdoorUnitPerformanceData`
@@ -508,6 +520,9 @@ class Controller:
     power_board_temperature_c: float | None
     accelerometer_raw: tuple[int, int, int] | None
     # display, radar and light telemetry (None / UNSPECIFIED when no state reading)
+    hosted_wifi: WifiInfo | None  # the home-network link in full; wifi_* are its common parts
+    manufactured_at: datetime | None
+    created_at: datetime | None
 ```
 
 Useful properties: `ambient_temperature_c` (→ `calibrated_ambient_c`, `None`
@@ -515,6 +530,52 @@ when no state reading is available), `wifi_band`, `is_online` (state reported wi
 the last 5 minutes; online Dials report about every 10 s), `display_on` (`False` while
 asleep, `None` when unknown) and `presence_detected` (the Dial radar sees someone; this
 is independent of the indoor unit's radar).
+
+---
+
+### `QuiltSmartModule`
+
+```python
+@dataclass
+class QuiltSmartModule:
+    id: str
+    system_id: str
+    led_color_code: int
+    sensors: QsmSensors | None  # raw radar, light and accelerometer readings
+    hosted_wifi: WifiInfo | None  # the home-network link
+    ap_wifi: WifiInfo | None  # setup access point
+    p2p_wifi: WifiInfo | None  # Wi-Fi Direct (usually empty)
+    software_update_info_id: str | None
+    firmware_update_info_id: str | None
+    local_comms_health: LocalCommsHealthStatus
+    local_comms_visible_devices: int | None
+    local_comms_expected_devices: int | None
+    local_comms_reason: LocalCommsHealthReason
+    local_comms_last_session_change: datetime | None
+    created_at: datetime | None
+```
+
+The Smart Module built into an indoor unit (`IndoorUnit.qsm_id`).
+
+#### `WifiInfo`
+
+```python
+@dataclass
+class WifiInfo:
+    ssid: str | None
+    ip: str | None
+    signal_dbm: int | None
+    bssid: str | None
+    frequency_mhz: int | None
+    connection_state: WifiConnectionState  # COMPLETED when connected
+    noise_dbm: int | None  # noise floor
+    rx_invalid_fragments: int | None
+    tx_excessive_retries: int | None
+    ipv6: str | None
+```
+
+Properties: `connected`, `band` (`"5 GHz"` / `"2.4 GHz"`) and `snr_db` (signal minus noise,
+when both are reported).
 
 ---
 
@@ -688,16 +749,81 @@ Hourly energy history for one space. Convenience properties include `total_kwh` 
 @dataclass
 class SoftwareUpdateInfo:
     id: str
-    state: int
-    status: int
+    state: SoftwareUpdateState  # IDLE, DOWNLOADING, TRANSFERRING, INSTALLING, REBOOTING
+    status: SoftwareUpdateStatus  # OK, UNKNOWN_ERROR
     current_version: str
     target_version: str
     current_progress: float
     total_progress: float
-    progress_unit: int
+    progress_unit: SoftwareUpdateProgressUnit  # PERCENT, BYTES, SECONDS
 ```
 
 Firmware/software update record associated with an indoor unit, outdoor unit, controller, or QSM.
+
+---
+
+### Account models
+
+Returned by the read-only account methods on `QuiltClient` (`list_system_users`,
+`get_access_role`, `list_pending_invitations`, `get_partner_details`, `get_data_sharing`,
+`list_certified_partners`, `list_user_tasks`). All live in `quilt_hp.models.account` and are
+exported from `quilt_hp.models`.
+
+```python
+@dataclass
+class SystemUsers:
+    administrators: list[SystemUser]
+    members: list[SystemUser]
+    pending_invitations: list[Invitation]
+
+@dataclass
+class SystemUser:
+    user_id: str
+    first_name: str
+    last_name: str
+    email: str
+    phone_number: str | None
+    # property: full_name
+
+@dataclass
+class Invitation:
+    id: str
+    invitee_email: str
+    inviter_name: str
+    inviter_email: str
+    system_name: str
+    role: AccessRole  # ADMIN or MEMBER
+    system_id: str | None
+
+@dataclass
+class PartnerDetails:  # an installer partner organisation
+    organization_id: str
+    organization_name: str
+    tier: str | None
+
+@dataclass
+class PartnerProfile:  # a partner's public contact details
+    organization_id: str
+    display_name: str
+    phone_number: str | None
+    website_url: str | None
+    email: str | None
+    address: str | None  # formatted postal address
+
+@dataclass
+class SystemDataSharing:
+    state: DataSharingState  # NO_PARTNER, PENDING, ACTIVE, DECLINED, CONSENT_REQUIRED
+    setting: DataSharingSetting  # ON, OFF
+    partner: PartnerDetails | None
+    partner_profile: PartnerProfile | None
+    active_after: datetime | None  # when a pending change takes effect
+
+@dataclass
+class UserTask:
+    kind: UserTaskKind  # DATA_SHARING_CONSENT_BANNER
+    system_id: str | None
+    partner_organization_id: str | None
+```
 
 ---
 

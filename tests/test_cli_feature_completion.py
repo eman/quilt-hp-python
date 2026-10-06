@@ -86,6 +86,9 @@ class _FakeSnapshot:
                 performance_metrics=SimpleNamespace(odu_usage_fraction=0.5),
                 is_under_test=False,
                 test_state=SimpleNamespace(test_mode=IndoorUnitTestMode.INACTIVE),
+                unit_serial_number="QN1-TEST0001",
+                smart_module_serial_number="QS1-TEST0001",
+                manufactured_at=datetime(2024, 11, 28, tzinfo=UTC),
                 effective_test_mode=IndoorUnitTestMode.INACTIVE,
                 software_update_info_id="update-software-idu",
             )
@@ -98,6 +101,8 @@ class _FakeSnapshot:
                 serial_number="SER123",
                 firmware_version="1.2.3",
                 firmware_update_info_id="update-firmware-odu",
+                port_count=2,
+                manufactured_at=None,
                 performance_data=SimpleNamespace(
                     compressor_frequency_hz=33.0,
                     ambient_temperature_c=28.0,
@@ -133,6 +138,7 @@ class _FakeSnapshot:
                 firmware_update_info_id="update-firmware-ctrl",
                 serial_number="CTRL123",
                 model_sku="DIAL-01",
+                manufactured_at=None,
             )
         ]
         self.remote_sensors = [
@@ -231,6 +237,9 @@ def test_info_json_outputs_machine_readable_snapshot() -> None:
     assert payload["version_at"] == "2026-10-05T22:18:18+00:00"
     assert payload["spaces"][0]["occupancy_state"] == "DETECTED"
     assert payload["indoor_units"][0]["occupancy_state"] == "DETECTED"
+    assert payload["indoor_units"][0]["unit_serial_number"] == "QN1-TEST0001"
+    assert payload["indoor_units"][0]["manufactured_at"] == "2024-11-28T00:00:00+00:00"
+    assert payload["outdoor_units"][0]["port_count"] == 2
     assert payload["software_update_infos"][0]["state"] == "DOWNLOADING"
     assert payload["software_update_infos"][0]["progress_unit"] == "PERCENT"
     assert payload["indoor_units"][0]["dew_point_c"] == 15.9

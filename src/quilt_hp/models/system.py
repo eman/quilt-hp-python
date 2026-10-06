@@ -95,6 +95,18 @@ class SystemInfo:
     timezone: str
 
 
+# Fields that only come from the full snapshot (hardware records, creation times); stream diffs
+# lack them, so apply_* keeps the known value.
+_CARRIED_FIELDS = (
+    "unit_serial_number",
+    "smart_module_serial_number",
+    "manufactured_at",
+    "created_at",
+    "port_count",
+    "hosted_wifi",
+)
+
+
 @dataclass(slots=True)
 class SystemSnapshot:
     """Full system state from GetHomeDatastoreSystem."""
@@ -376,6 +388,9 @@ class SystemSnapshot:
                     updates["serial_number"] = u.serial_number
                 if idu.firmware_version is None and u.firmware_version is not None:
                     updates["firmware_version"] = u.firmware_version
+                for name in _CARRIED_FIELDS:
+                    if getattr(idu, name, None) is None and getattr(u, name, None) is not None:
+                        updates[name] = getattr(u, name)
                 if updates:
                     idu = replace(idu, **updates)
                 self.indoor_units[i] = idu
@@ -418,6 +433,9 @@ class SystemSnapshot:
                     updates["serial_number"] = u.serial_number
                 if odu.firmware_version is None and u.firmware_version is not None:
                     updates["firmware_version"] = u.firmware_version
+                for name in _CARRIED_FIELDS:
+                    if getattr(odu, name, None) is None and getattr(u, name, None) is not None:
+                        updates[name] = getattr(u, name)
                 if updates:
                     odu = replace(odu, **updates)
                 self.outdoor_units[i] = odu
@@ -475,6 +493,9 @@ class SystemSnapshot:
                     updates["ap_wifi"] = c.ap_wifi
                 if ctrl.p2p_wifi is None and c.p2p_wifi is not None:
                     updates["p2p_wifi"] = c.p2p_wifi
+                for name in _CARRIED_FIELDS:
+                    if getattr(ctrl, name, None) is None and getattr(c, name, None) is not None:
+                        updates[name] = getattr(c, name)
                 if (
                     ctrl.remote_sensor_mode == RemoteSensorControlMode.UNSPECIFIED
                     and c.remote_sensor_mode != RemoteSensorControlMode.UNSPECIFIED
