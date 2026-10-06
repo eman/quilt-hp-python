@@ -830,6 +830,31 @@ class UserTask:
 
 ---
 
+### Action models
+
+Used by the `QuiltClient.apply_*` action methods.
+
+```python
+@dataclass(frozen=True)
+class ActionOutcome:
+    result: ActionResult  # SUCCESS, FAILED, PARTIAL_FAILURE
+    action_id: str | None
+    failure_reason: str | None
+    # property: ok — True only for SUCCESS
+
+@dataclass(frozen=True)
+class RgbwColor:  # a custom LED colour; each channel 0–255
+    red: int = 0
+    green: int = 0
+    blue: int = 0
+    white: int = 0
+```
+
+`ClimateMode` (`OFF`, `HEAT`, `COOL`, `AUTO`, `FAN`, `DRY`, `AWAY`) and `FanAngle` (`AUTO`,
+`CEILING`, `HIGH`, `MIDDLE`, `LOW`, `FLOOR`) are in `quilt_hp.models.enums`.
+
+---
+
 ### SystemDiagnostics
 
 ```python

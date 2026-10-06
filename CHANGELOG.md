@@ -3,6 +3,14 @@
 ## [Unreleased]
 
 ### Added
+- **Actions:** `QuiltClient.apply_mode()`, `apply_temperatures()`, `apply_fan_speed()`,
+  `apply_fan_angle()` and `apply_light()`, through the action API the Quilt app uses
+  (`HomeActionService/SubmitAction`). One call changes any mix of rooms, indoor units or the
+  whole house; lights take presets or a custom `RgbwColor`, and modes include `AWAY`. Each
+  returns an `ActionOutcome` and raises the new `QuiltActionError` when the server reports a
+  failure. New enums `ClimateMode`, `FanAngle` and `ActionResult`. Verified against a live
+  system: fan speed, fan angle and light must address indoor units (rooms are expanded), and
+  the wire's brightness field is a 0–1 fraction despite its name (the library takes 0–100).
 - **Account (read-only):** `QuiltClient.list_system_users()`, `get_access_role()`,
   `list_pending_invitations()`, `get_partner_details()`, `get_data_sharing()`,
   `list_certified_partners()` and `list_user_tasks()`, with new models in
