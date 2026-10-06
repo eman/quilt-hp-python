@@ -53,6 +53,7 @@ class QuiltApp(App[None]):
     TITLE = "Quilt HVAC"
     BINDINGS: ClassVar = [
         Binding("q", "quit", "Quit", priority=True),
+        Binding("question_mark", "help", "Help", key_display="?"),
     ]
 
     _STREAM_RECOVERY_DELAYS_S: ClassVar = (5.0, 15.0, 30.0)
@@ -110,6 +111,25 @@ class QuiltApp(App[None]):
         """Save current toggleable settings to disk."""
         self._settings = self._settings_store.update(
             use_fahrenheit=self.use_f, theme=self.theme, dark=self.current_theme.dark
+        )
+
+    def action_help(self) -> None:
+        from quilt_hp.cli.tui.devices import DevicesScreen
+        from quilt_hp.cli.tui.energy import EnergyScreen
+        from quilt_hp.cli.tui.help import HelpScreen
+        from quilt_hp.cli.tui.room import RoomScreen
+
+        if isinstance(self.screen, HelpScreen):
+            return
+        self.push_screen(
+            HelpScreen(
+                [
+                    ("Home", HomeScreen),
+                    ("Room", RoomScreen),
+                    ("Devices", DevicesScreen),
+                    ("Energy", EnergyScreen),
+                ]
+            )
         )
 
     def _on_theme_changed(self, _theme: object) -> None:

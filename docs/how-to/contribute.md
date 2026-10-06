@@ -64,6 +64,10 @@ pytest tests/test_tui_snapshots.py --snapshot-update
 
 A failing run writes `snapshot_report.html`, which shows each differing screen side by side.
 
+Some of these snapshots are also the screenshots in [Use the terminal UI](use-the-tui.md).
+After updating snapshots, refresh them with `python scripts/update_tui_screenshots.py`;
+`tests/test_tui_screenshots.py` fails while they differ.
+
 ---
 
 ## Submit a pull request

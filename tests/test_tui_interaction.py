@@ -315,3 +315,40 @@ async def test_room_follows_live_updates_and_closes_when_removed(
         assert room.space is not None and room.space.controls.cooling_setpoint_c == 21.0
         pilot.app._dispatch_delete("space", space.id)
         await _wait_for(pilot, lambda: isinstance(pilot.app.screen, HomeScreen))
+
+
+async def test_energy_screen_ranks_rooms_and_sums_the_house(tmp_path: Path, frozen: Any) -> None:
+    from quilt_hp.cli.tui import EnergyScreen
+
+    async with make_app(tmp_path).run_test(size=(100, 30)) as pilot:
+        await _home_on(pilot, "Family Room")
+        await pilot.press("e")
+        await _wait_for(pilot, lambda: isinstance(pilot.app.screen, EnergyScreen))
+        screen = pilot.app.screen
+        await _wait_for(pilot, lambda: screen._house is not None)
+        rooms = list(screen._rooms.values())
+        assert screen._house.today_kwh == pytest.approx(sum(r.today_kwh for r in rooms))
+        assert screen.query_one("#en-rooms", DataTable).row_count == len(pilot.app.snapshot.rooms)
+        await pilot.press("escape")
+        await _wait_for(pilot, lambda: isinstance(pilot.app.screen, HomeScreen))
+
+
+async def test_help_lists_every_screens_keys(tmp_path: Path, frozen: Any) -> None:
+    from textual.widgets import Static
+
+    from quilt_hp.cli.tui.help import HelpScreen
+
+    async with make_app(tmp_path).run_test(size=(100, 30)) as pilot:
+        await _room(pilot, "Family Room")
+        await pilot.press("question_mark")
+        await _wait_for(pilot, lambda: isinstance(pilot.app.screen, HelpScreen))
+        text = str(pilot.app.screen.query_one(Static).render())
+        for expected in (
+            "Previous / next room",
+            "Raise / lower the setpoint",
+            "Pause/resume schedules",
+            "Raw telemetry",
+        ):
+            assert expected in text
+        await pilot.press("escape")
+        await _wait_for(pilot, lambda: isinstance(pilot.app.screen, RoomScreen))

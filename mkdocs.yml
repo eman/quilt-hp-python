@@ -48,6 +48,7 @@ nav:
       - Configure schedules: how-to/configure-schedules.md
       - Build a Home Assistant component: how-to/home-assistant.md
       - Build an automation daemon: how-to/automation-daemon.md
+      - Use the terminal UI: how-to/use-the-tui.md
       - Automate with the CLI: how-to/cli-scripting.md
       - Build a TUI app: how-to/tui-app.md
       - Regenerate protobuf stubs: how-to/regenerate-protos.md

@@ -77,6 +77,14 @@ def _scenario(screen: str) -> Callable[[Pilot[Any]], Awaitable[None]]:
             await _wait_for(pilot, lambda: isinstance(app.screen, DevicesScreen))
             if screen == "devices-raw":
                 await pilot.press("down", "down", "down", "down", "down", "r")
+        elif screen == "energy":
+            await _home(pilot)
+            await pilot.press("e")
+            await _wait_for(pilot, lambda: type(app.screen).__name__ == "EnergyScreen")
+        elif screen == "help":
+            await _home(pilot)
+            await pilot.press("question_mark")
+            await _wait_for(pilot, lambda: type(app.screen).__name__ == "HelpScreen")
         elif screen == "room-settings":
             await _open_room(pilot)
             await pilot.press("s")
@@ -94,7 +102,16 @@ def _scenario(screen: str) -> Callable[[Pilot[Any]], Awaitable[None]]:
 @pytest.mark.parametrize("size", SIZES, ids=lambda s: f"{s[0]}x{s[1]}")
 @pytest.mark.parametrize(
     "screen",
-    ["home", *ROOM_TABS, "room-climate-raw", "room-settings", "devices", "devices-raw"],
+    [
+        "home",
+        *ROOM_TABS,
+        "room-climate-raw",
+        "room-settings",
+        "devices",
+        "devices-raw",
+        "energy",
+        "help",
+    ],
 )
 def test_screen(snap_compare: Any, tmp_path: Path, screen: str, size: tuple[int, int]) -> None:
     with time_machine.travel(FROZEN_NOW, tick=False):
