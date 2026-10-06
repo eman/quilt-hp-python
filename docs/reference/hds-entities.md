@@ -147,7 +147,8 @@ The Quilt Dial is a compact circular thermostat (58 mm diameter) that can be wal
 | `name` | `str` | Display name |
 | `ambient_temperature_c` | `float \| None` | Temperature measured by the Dial's built-in sensor; `None` when no state reading is available |
 | `raw_thermistor_c` | `float \| None` | Raw uncalibrated thermistor reading; `None` when no state reading is available |
-| `remote_sensor_mode` | `HvacControllerType` | How the Dial's temperature reading influences the space setpoint |
+| `remote_sensor_mode` | `RemoteSensorControlMode` | The app's "Temperature sensor" setting: `ENABLED` controls the room to the Dial's reading, `DISABLED` to the indoor unit's sensor (also `uses_dial_temperature`) |
+| `description` | `str \| None` | `ControllerSettings.description` (usually empty) |
 | `model_sku` | `str \| None` | Hardware model identifier |
 | `serial_number` | `str \| None` | Unit serial number |
 | `software_update_info_id` | `str \| None` | Pending software update entity ID |
@@ -186,7 +187,7 @@ Both report:
 - `humidity_percent`
 - `battery_level_percent`
 - `signal_level_dbm`
-- `control_mode`: Whether this sensor is used as the zone temperature source
+- `control_mode`: Whether the room is controlled to this sensor's reading
 
 **Python models**: `quilt_hp.models.sensor.RemoteSensor`, `ControllerRemoteSensor`
 

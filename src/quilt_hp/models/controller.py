@@ -53,6 +53,10 @@ class Controller:
     ap_wifi: WifiInfo | None = None  # AP-mode interface (device provisioning)
     p2p_wifi: WifiInfo | None = None  # peer-to-peer / Wi-Fi Direct
     remote_sensor_mode: RemoteSensorControlMode = RemoteSensorControlMode.UNSPECIFIED
+    """Whether the room is controlled to this Dial's temperature (the app's "Temperature
+    sensor" setting); DISABLED means the indoor unit's own sensor is used."""
+    description: str | None = None
+    """``ControllerSettings.description``; None when ``settings`` was absent from a diff."""
     software_update_info_id: str | None = None
     firmware_update_info_id: str | None = None
     serial_number: str | None = None  # ControllerHardware.attributes.serial_number
@@ -127,6 +131,13 @@ class Controller:
         return self.calibrated_ambient_c
 
     @property
+    def uses_dial_temperature(self) -> bool | None:
+        """True when the room is controlled to this Dial's temperature; None if unknown."""
+        if self.remote_sensor_mode == RemoteSensorControlMode.UNSPECIFIED:
+            return None
+        return self.remote_sensor_mode == RemoteSensorControlMode.ENABLED
+
+    @property
     def display_on(self) -> bool | None:
         """True unless the display is asleep; None when the view state is unknown."""
         if self.view_state == ControllerViewState.UNSPECIFIED:
@@ -153,17 +164,17 @@ class Controller:
 
     @property
     def is_online(self) -> bool:
-        """True if the controller is known to be online.
+        """True if the Dial has reported its state in the last 5 minutes.
 
-        Uses ``ControllerState.updated_ts`` (proto field 15) with a 5-minute
-        threshold. Online Dials report state about every 10 seconds; an offline
-        Dial's timestamp stops advancing. Earlier releases read the timestamp from
-        field 1, which the server never sends, so this always returned True.
-        When no timestamp is available we assume the controller is online; we
-        only report offline when we have positive evidence of a stale timestamp.
+        Uses ``ControllerState.updated_ts`` (proto field 15), as the app does
+        (``Controller.isOnline``). Online Dials report state about every 10 seconds; an
+        offline Dial's timestamp stops advancing. A Dial with no state timestamp at all is
+        offline, again as in the app: the server sends an offline Dial with an empty
+        ``state``. (A sparse stream diff without ``state`` keeps the previous timestamp
+        through ``SystemSnapshot.apply_controller``.)
         """
         if self.state_updated_at is None:
-            return True  # no timestamp → unknown → assume online (fail-open)
+            return False
         age = (datetime.now(tz=UTC) - self.state_updated_at).total_seconds()
         return age < _ONLINE_THRESHOLD_S
 
@@ -218,6 +229,7 @@ class Controller:
             system_id=p.header.system_id,
             space_id=rel.space_id if rel is not None else "",
             name=settings.name if settings is not None else "",
+            description=getattr(settings, "description", "") if settings is not None else None,
             hosted_wifi=_wifi(w),
             manufactured_at=manufactured_at,
             created_at=timestamp_or_none(getattr(p.header, "created_ts", None)),

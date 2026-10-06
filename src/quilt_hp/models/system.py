@@ -460,6 +460,8 @@ class SystemSnapshot:
                 updates: dict[str, Any] = {}
                 if not ctrl.name and c.name:
                     updates["name"] = c.name
+                if ctrl.description is None and c.description is not None:
+                    updates["description"] = c.description
                 if not ctrl.space_id and c.space_id:
                     updates["space_id"] = c.space_id
                 if not ctrl.system_id and c.system_id:
