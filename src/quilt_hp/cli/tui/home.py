@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import asyncio
 import contextlib
 import logging
 from datetime import UTC, datetime
@@ -17,9 +16,16 @@ from textual.widgets import DataTable, Footer, Header, Static
 from textual.widgets.data_table import ColumnKey
 
 from quilt_hp.cli.tui.base import SnapshotHost
-from quilt_hp.cli.tui.controls import next_mode, nudge_setpoint, send_space_change
+from quilt_hp.cli.tui.controls import next_mode, nudge_setpoint, room_lock, send_space_change
 from quilt_hp.cli.tui.dialogs import ConfirmScreen
 from quilt_hp.cli.tui.format import _fmt_state, _tc
+from quilt_hp.cli.tui.render import (
+    MODE_WORDS,
+    SEVERITY_MARK,
+    people_text,
+    room_summary,
+    target_text,
+)
 from quilt_hp.cli.tui.shared import _set_schedule_paused, room_screen_for
 from quilt_hp.cli.tui.views import (
     AttentionItem,
@@ -29,7 +35,6 @@ from quilt_hp.cli.tui.views import (
     room_views,
     system_tz,
 )
-from quilt_hp.models.enums import ControllerViewState, HVACMode, OccupancyState
 
 if TYPE_CHECKING:
     from textual.app import ComposeResult
@@ -49,19 +54,6 @@ _ROOM_COLUMNS: tuple[tuple[str, int | None], ...] = (
     ("Today", 9),
     ("Alerts", None),  # takes the rest
 )
-_SEVERITY_MARK = {
-    Severity.CRITICAL: ("⚠", "bold red"),
-    Severity.WARNING: ("⚠", "yellow"),
-    Severity.INFO: ("•", "dim"),
-}
-_MODE_WORDS = {
-    HVACMode.COOL: "Cool",
-    HVACMode.HEAT: "Heat",
-    HVACMode.AUTO: "Auto",
-    HVACMode.FAN: "Fan",
-    HVACMode.DRY: "Dry",
-    HVACMode.STANDBY: "Off",
-}
 
 
 class HomeScreen(Screen[None]):
@@ -97,7 +89,6 @@ class HomeScreen(Screen[None]):
         self._today_kwh: dict[str, float] | None = None
         self._views: list[RoomView] = []
         self._alerts: list[AttentionItem] = []
-        self._locks: dict[str, asyncio.Lock] = {}  # serialises control presses per room
 
     # ── Shared state ────────────────────────────────────────────
 
@@ -184,7 +175,7 @@ class HomeScreen(Screen[None]):
         today = self._today_kwh.get(v.space_id) if self._today_kwh is not None else None
         alert = Text("")
         if v.alerts:
-            mark, style = _SEVERITY_MARK[v.alerts[0].severity]
+            mark, style = SEVERITY_MARK[v.alerts[0].severity]
             short = v.alerts[0].title.removeprefix(v.name).strip(" :")
             more = f" +{len(v.alerts) - 1}" if len(v.alerts) > 1 else ""
             alert = Text(f"{mark} {short}{more}", style=style)
@@ -192,9 +183,9 @@ class HomeScreen(Screen[None]):
             Text(v.name, style="bold"),
             Text(self._deg(v.temp_c), style="green" if v.temp_c is not None else "dim"),
             Text(f"{v.humidity_percent:.0f}%" if v.humidity_percent is not None else "–"),
-            _target(v, self._deg),
+            target_text(v, self._deg),
             _fmt_state(v.hvac_state),
-            _people(v.occupancy),
+            people_text(v.occupancy),
             Text(
                 f"{today:.2f} kWh" if today is not None else "–",
                 style="dim" if today is None else "",
@@ -210,12 +201,12 @@ class HomeScreen(Screen[None]):
             panel.update(Text("No rooms in this system.", style="dim"))
             return
         panel.border_title = view.name
-        panel.update(_summary(view, self.use_f))
+        panel.update(room_summary(view, self.use_f))
 
     def _render_attention(self) -> None:
         lines: list[Text] = []
         for item in self._alerts:
-            mark, style = _SEVERITY_MARK[item.severity]
+            mark, style = SEVERITY_MARK[item.severity]
             lines.append(Text.assemble((f"{mark} ", style), item.title))
             if item.detail:
                 lines.append(Text(f"  {item.detail}", style="dim"))
@@ -323,7 +314,7 @@ class HomeScreen(Screen[None]):
         """Apply one key press. Presses for a room run one at a time, in order, and each
         computes its target from the room as the previous press left it (two quick ``+``
         presses from 24 °C reach 25 °C, not 24.5 °C twice)."""
-        async with self._locks.setdefault(space_id, asyncio.Lock()):
+        async with room_lock(self.app, space_id):
             space = next((s for s in self.snapshot.rooms if s.id == space_id), None)
             if space is None:
                 return
@@ -332,7 +323,7 @@ class HomeScreen(Screen[None]):
             else:
                 change = nudge_setpoint(space, direction, self.use_f)
                 if change is None:
-                    mode = _MODE_WORDS.get(space.controls.hvac_mode, "this mode")
+                    mode = MODE_WORDS.get(space.controls.hvac_mode, "this mode")
                     self.notify(f"{space.name} has no setpoint in {mode}. Press m to change mode.")
                     return
                 changes = {"change": change}
@@ -389,79 +380,3 @@ class HomeScreen(Screen[None]):
         app = self.app
         if isinstance(app, SnapshotHost):
             app.use_f = not app.use_f
-
-
-# ── Cell and summary formatting ─────────────────────────────────────────────
-
-
-def _target(v: RoomView, deg: Any) -> Text:
-    if v.away:
-        return Text("Away", style="yellow")
-    word = _MODE_WORDS.get(v.mode, "–")
-    style = {HVACMode.COOL: "cyan", HVACMode.HEAT: "red", HVACMode.AUTO: "magenta"}.get(
-        v.mode, "dim"
-    )
-    if v.mode == HVACMode.AUTO and v.heat_c is not None and v.cool_c is not None:
-        return Text(f"{word} {deg(v.heat_c)}–{deg(v.cool_c)}", style=style)
-    setpoint = v.cool_c if v.cool_c is not None else v.heat_c
-    return Text(f"{word} {deg(setpoint)}" if setpoint is not None else word, style=style)
-
-
-def _people(occupancy: OccupancyState | None) -> Text:
-    if occupancy == OccupancyState.DETECTED:
-        return Text("● here", style="green")
-    if occupancy == OccupancyState.UNDETECTED:
-        return Text("○ away", style="dim")
-    return Text("–", style="dim")
-
-
-def _summary(v: RoomView, use_f: bool) -> Text:
-    def t(value: float | None) -> str:
-        return _tc(value, use_f)
-
-    lines: list[Text] = []
-    if v.away:
-        goal = Text("away: standby until someone comes back", style="yellow")
-    elif v.mode == HVACMode.AUTO and v.heat_c is not None and v.cool_c is not None:
-        goal = Text(f"keeping between {t(v.heat_c)} and {t(v.cool_c)}")
-    elif v.mode in (HVACMode.COOL, HVACMode.HEAT) and (v.cool_c or v.heat_c) is not None:
-        verb = "cooling to" if v.mode == HVACMode.COOL else "heating to"
-        goal = Text(f"{verb} {t(v.cool_c if v.mode == HVACMode.COOL else v.heat_c)}")
-    else:
-        goal = Text(_MODE_WORDS.get(v.mode, "–").replace("Off", "off"), style="dim")
-    lines.append(Text.assemble((t(v.temp_c), "bold green"), "  ", goal))
-    climate = []
-    if v.humidity_percent is not None:
-        climate.append(f"{v.humidity_percent:.0f}% RH")
-    if v.dew_point_c is not None:
-        climate.append(f"dew point {t(v.dew_point_c)}")
-    lines.append(Text("  ·  ").join([_fmt_state(v.hvac_state), *(Text(c) for c in climate)]))
-    air = []
-    if v.fan is not None:
-        air.append(f"fan {v.fan.name.lower()}")
-    if v.fan_rpm:
-        air.append(f"{v.fan_rpm:,.0f} rpm")
-    if v.louver is not None:
-        air.append(f"louver {v.louver.name.lower()}")
-    if air:
-        lines.append(Text(" · ".join(air)))
-    power = []
-    if v.power_w is not None:
-        power.append(f"{v.power_w:,.0f} W")
-    if v.cop:
-        power.append(f"COP {v.cop:.1f}")
-    if v.odu_share:
-        power.append(f"{v.odu_share:.0%} of its outdoor unit")
-    if power:
-        lines.append(Text(" · ".join(power)))
-    if v.dial_online is False:
-        lines.append(Text(f"Dial ⚠ offline {v.dial_age}", style="bold red"))
-    elif v.dial_online:
-        display = "–"
-        if v.dial_display not in (None, ControllerViewState.UNSPECIFIED):
-            display = v.dial_display.name.title()
-            if v.dial_brightness:
-                display += f" {v.dial_brightness:.0%}"
-        radar = {True: "radar ● someone", False: "radar ○ clear", None: "radar –"}[v.dial_presence]
-        lines.append(Text(f"Dial {display} · {radar}", style="dim"))
-    return Text("\n").join(lines)

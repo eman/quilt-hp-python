@@ -16,7 +16,6 @@ from quilt_hp.cli.settings import SettingsStore
 from quilt_hp.cli.store import FileStore
 from quilt_hp.cli.tui.boot import BootErrorScreen, LoadingScreen, OtpScreen
 from quilt_hp.cli.tui.home import HomeScreen
-from quilt_hp.cli.tui.room import RoomScreen
 from quilt_hp.cli.tui.styles import _APP_CSS
 from quilt_hp.client import QuiltClient
 from quilt_hp.exceptions import QuiltAuthError
@@ -77,6 +76,7 @@ class QuiltApp(App[None]):
         )
         self._stream: NotifierStream | None = None
         self._snapshot: SystemSnapshot | None = None
+        self.control_locks: dict[str, asyncio.Lock] = {}  # see controls.room_lock
         self._settings_store = settings_store or _settings_store
         self._settings = self._settings_store.load()
         # Apply persisted preferences before first render; set_reactive avoids
@@ -250,58 +250,36 @@ class QuiltApp(App[None]):
                 f"A {kind.replace('_', ' ')} was removed from this system; press r to refresh."
             )
 
-    def _notify_screen(self, kind: str, entity: object) -> bool:
-        """Tell the active screen about a merged update; True if it took it generically."""
+    def _notify_screen(self, kind: str, entity: object) -> None:
+        """Tell the active screen about an update already merged into the snapshot."""
         hook = getattr(self.screen, "snapshot_changed", None)
         if callable(hook):
             hook(kind, entity)
-            return True
-        return False
 
     def _dispatch_space(self, space: Space) -> None:
         if self._snapshot:
             space = self._snapshot.apply_space(space)
-        screen = self.screen
-        if not self._notify_screen("space", space) and (
-            isinstance(screen, RoomScreen) and screen.space_id == space.id
-        ):
-            screen.update_space(space)
+        self._notify_screen("space", space)
 
     def _dispatch_idu(self, idu: IndoorUnit) -> None:
         if self._snapshot:
             idu = self._snapshot.apply_indoor_unit(idu)
-        screen = self.screen
-        if not self._notify_screen("indoor_unit", idu) and (
-            isinstance(screen, RoomScreen) and screen.idu_id == idu.id
-        ):
-            screen.update_idu(idu)
+        self._notify_screen("indoor_unit", idu)
 
     def _dispatch_odu(self, odu: OutdoorUnit) -> None:
         if self._snapshot:
             odu = self._snapshot.apply_outdoor_unit(odu)
-        screen = self.screen
-        if not self._notify_screen("outdoor_unit", odu) and (
-            isinstance(screen, RoomScreen) and screen.odu_id == odu.id
-        ):
-            screen.update_odu(odu)
+        self._notify_screen("outdoor_unit", odu)
 
     def _dispatch_ctrl(self, ctrl: Controller) -> None:
         if self._snapshot:
             ctrl = self._snapshot.apply_controller(ctrl)
-        screen = self.screen
-        if not self._notify_screen("controller", ctrl) and (
-            isinstance(screen, RoomScreen) and screen.controller_id == ctrl.id
-        ):
-            screen.update_ctrl(ctrl)
+        self._notify_screen("controller", ctrl)
 
     def _dispatch_qsm(self, qsm: QuiltSmartModule) -> None:
         if self._snapshot:
             qsm = self._snapshot.apply_qsm(qsm)
-        screen = self.screen
-        if not self._notify_screen("qsm", qsm) and (
-            isinstance(screen, RoomScreen) and screen.qsm_id == qsm.id
-        ):
-            screen.update_qsm(qsm)
+        self._notify_screen("qsm", qsm)
 
     def _dispatch_remote_sensor(self, rs: RemoteSensor) -> None:
         if self._snapshot:

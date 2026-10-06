@@ -20,8 +20,10 @@ from quilt_hp._proto import quilt_hds_pb2 as hds
 from quilt_hp.cli.settings import SettingsStore
 from quilt_hp.cli.tui import QuiltApp
 from quilt_hp.models import HVACMode, SystemSnapshot
+from quilt_hp.models.comfort import ComfortSetting
 from quilt_hp.models.energy import EnergyBucket, SpaceEnergyMetrics
-from quilt_hp.models.enums import MetricBucketStatus
+from quilt_hp.models.enums import LightState, MetricBucketStatus
+from quilt_hp.models.indoor_unit import IndoorUnit
 from quilt_hp.models.space import Space
 
 FIXTURE = Path(__file__).parent / "fixtures" / "system_snapshot.bin"
@@ -122,6 +124,39 @@ class FakeClient:
                 if cool_setpoint_c is not None
                 else c.cooling_setpoint_c,
             ),
+        )
+
+    async def set_indoor_unit(self, idu: IndoorUnit, **changes: Any) -> IndoorUnit:
+        self.calls.append(("set_indoor_unit", (idu.id,), changes))
+        c = idu.controls
+        updates: dict[str, Any] = {}
+        if changes.get("fan_speed") is not None:
+            updates["fan_speed"] = changes["fan_speed"]
+        if changes.get("louver_mode") is not None:
+            updates["louver_mode"] = changes["louver_mode"]
+        if changes.get("led_brightness") is not None:
+            level = changes["led_brightness"]
+            updates["led_brightness"] = level if level > 0 else c.led_brightness
+            updates["led_state"] = LightState.ON if level > 0 else LightState.OFF
+        return replace(idu, controls=replace(c, **updates))
+
+    async def set_space_settings(self, space: Space, **changes: Any) -> Space:
+        self.calls.append(("set_space_settings", (space.id,), changes))
+        updates = {k: v for k, v in changes.items() if v is not None}
+        return replace(space, settings=replace(space.settings, **updates))
+
+    async def set_indoor_unit_settings(self, idu: IndoorUnit, **changes: Any) -> IndoorUnit:
+        self.calls.append(("set_indoor_unit_settings", (idu.id,), changes))
+        return idu
+
+    async def update_comfort_setting(
+        self, setting: ComfortSetting, **changes: Any
+    ) -> ComfortSetting:
+        self.calls.append(("update_comfort_setting", (setting.id,), changes))
+        return replace(
+            setting,
+            heating_setpoint_c=changes.get("heat_setpoint_c") or setting.heating_setpoint_c,
+            cooling_setpoint_c=changes.get("cool_setpoint_c") or setting.cooling_setpoint_c,
         )
 
     def __getattr__(self, name: str) -> Callable[..., Any]:

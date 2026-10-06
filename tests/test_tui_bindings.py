@@ -18,12 +18,23 @@ def _key_action_map() -> dict[str, set[str]]:
     return mapping
 
 
-def test_fan_key_does_not_overlap_with_fence_adjustment() -> None:
+def test_room_bindings_have_no_case_pairs_or_modifier_chords() -> None:
     keymap = _key_action_map()
     assert keymap["f"] == {"cycle_fan"}
-    assert "fence_fwd_inc" not in keymap["f"]
-    assert "ctrl+up" in keymap
-    assert keymap["ctrl+up"] == {"fence_fwd_inc"}
+    assert keymap["v"] == {"cycle_louver"}
+    assert keymap["l"] == {"toggle_light"}
+    assert keymap["s"] == {"settings"}
+    assert keymap["plus"] == {"setpoint(1)"} and keymap["minus"] == {"setpoint(-1)"}
+    assert keymap["left_square_bracket"] == {"switch_room(-1)"}
+    assert keymap["right_square_bracket"] == {"switch_room(1)"}
+    assert keymap["1"] == {"tab('overview')"} and keymap["5"] == {"tab('devices')"}
+    # Rare settings live in the settings dialog, not on chords many terminals intercept.
+    assert not [k for k in keymap if k.startswith(("ctrl+", "alt+"))]
+    # No upper/lower-case pairs bound to different actions (the old H/h, C/c, L/l).
+    letters = [k for k in keymap if len(k) == 1 and k.isalpha()]
+    assert not [k for k in letters if k.swapcase() in keymap and keymap[k] != keymap[k.swapcase()]]
+    # Schedules for the whole house are never changed from a room.
+    assert "p" not in keymap and "P" not in keymap
 
 
 def _keymap(screen: type) -> dict[str, set[str]]:
@@ -83,12 +94,6 @@ def test_odu_for_space_falls_back_to_space_id_match() -> None:
             return None
 
     assert _odu_for_space(_Snap(), "space/space-1", idu=object()) is not None  # type: ignore[arg-type]
-
-
-def test_room_screen_has_no_occupancy_cycle_binding() -> None:
-    keymap = _key_action_map()
-    assert "o" not in keymap
-    assert not hasattr(RoomScreen, "action_cycle_occupancy")
 
 
 def test_setpoint_clamp_constants() -> None:
