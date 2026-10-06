@@ -728,7 +728,7 @@ def test_controller_no_wifi() -> None:
     assert ctrl.wifi_signal_dbm == 0
     assert ctrl.wifi_band is None
     assert ctrl.wifi_last_seen is None
-    assert ctrl.is_online  # seconds=0 → no timestamp → unknown → assume online (fail-open)
+    assert ctrl.is_online is False  # no state timestamp → offline, as in the app
 
 
 def test_controller_wifi_signal_zero_is_preserved() -> None:

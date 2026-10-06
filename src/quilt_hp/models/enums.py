@@ -328,7 +328,11 @@ class FallbackControlCommand(IntEnum):
 
 
 class RemoteSensorControlMode(IntEnum):
-    """Whether the Dial acts as the zone temperature sensor."""
+    """Whether a Dial (or remote sensor) is the room's temperature sensor.
+
+    The app calls this setting "Temperature sensor": ENABLED controls the room to the Dial's
+    reading, DISABLED to the indoor unit's built-in sensor.
+    """
 
     UNSPECIFIED = 0
     DISABLED = 1

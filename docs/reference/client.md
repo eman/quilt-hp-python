@@ -387,6 +387,43 @@ Updates occupancy automation timeouts.
 
 ---
 
+## Dial settings
+
+### `set_controller`
+
+```python
+async def set_controller(
+    self,
+    controller: Controller | str,
+    *,
+    name: str | None = None,
+    uses_dial_temperature: bool | None = None,
+) -> Controller
+```
+
+Rename a Dial, and/or choose which sensor its room is controlled to. Only the settings you
+pass are sent.
+
+| Parameter | Meaning |
+|---|---|
+| `controller` | A `Controller` object or controller ID string |
+| `name` | The Dial's new name |
+| `uses_dial_temperature` | `True` to control the room to the Dial's temperature (the app's "Temperature sensor" switch); `False` to use the indoor unit's built-in sensor |
+
+```python
+dial = next(d for d in snapshot.controllers if d.space_id == den.id)
+await client.set_controller(dial, uses_dial_temperature=True)
+await client.set_controller(dial, name="Den Dial")
+```
+
+After switching the sensor, the room's temperature moves to the new source over about a
+minute rather than jumping.
+
+**Returns:** The updated `Controller` as the server reports it (hardware fields are `None`).
+The cached snapshot is invalidated.
+
+---
+
 ## Indoor unit control
 
 ### `list_indoor_units`
