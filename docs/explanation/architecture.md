@@ -41,7 +41,9 @@ The **wire artifacts** (`src/quilt_hp/_proto/`) change when the proto definition
 
 ### CLI/TUI surface
 
-`cli/main.py` provides Typer commands (`login`, `info`, `devices`, `values`, `energy`, `set`, `stream`, `tui`) that drive `QuiltClient` and format output using Rich. `cli/tui.py` provides a Textual full-screen dashboard. Neither file contains business logic.
+`cli/main.py` provides Typer commands (`login`, `info`, `devices`, `values`, `diagnostics`, `presets`, `schedules`, `energy`, `set`, `tui`) that drive `QuiltClient` and format output using Rich.
+
+`cli/tui/` is the Textual full-screen app (`quilt tui`): a Home screen with every room and a "needs attention" list, a Room screen per room, and a whole-house Devices screen. Pure functions in `cli/tui/views.py` turn a `SystemSnapshot` into what each screen shows, and `cli/tui/controls.py` holds the control decisions (which mode comes next, which setpoint `+`/`−` changes); both are unit-tested without Textual, and every screen has snapshot tests. Neither the CLI nor the TUI contains business logic.
 
 `cli/store.py` provides `FileStore`, the CLI's `TokenStore` implementation. It is the only place in the project that writes auth data to disk.
 

@@ -11,7 +11,7 @@
 - **Manage schedules:** Create, update, and delete schedule-day programs and schedule-week mappings.
 - **Monitor energy use:** Query hourly per-space energy consumption for any time range.
 - **Stream real-time updates:** Subscribe to live change events for spaces, indoor units, outdoor units, controllers, remote sensors, and more. The bidirectional gRPC stream reconnects automatically.
-- **Use the CLI and TUI:** Work with the bundled command-line interface (`quilt login`, `quilt devices`, `quilt set`, `quilt stream`, `quilt tui`, and more) for interactive use and shell scripting.
+- **Use the CLI and TUI:** Work with the bundled command-line interface (`quilt login`, `quilt info`, `quilt set`, `quilt diagnostics`, `quilt tui`, and more) for interactive use and shell scripting.
 
 ## Installation
 

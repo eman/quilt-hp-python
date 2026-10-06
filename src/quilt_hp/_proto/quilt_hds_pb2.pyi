@@ -2812,7 +2812,7 @@ class WifiState(_message.Message):
     wifi_state: Global___WifiConnectionState.ValueType
     """connection phase (DISCONNECTED→WPA_COMPLETED)"""
     ssid: _builtins.str
-    """"HomeNt" — shared Quilt AP"""
+    """network name"""
     bssid: _builtins.str
     """AP MAC address"""
     frequency_mhz: _builtins.int

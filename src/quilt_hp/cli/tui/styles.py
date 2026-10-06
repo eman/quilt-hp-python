@@ -62,18 +62,6 @@ OtpScreen {
 }
 
 /* Dashboard */
-#dashboard-list {
-    height: 1fr;
-    border: round $primary-darken-2;
-    margin: 1 2;
-}
-#dashboard-statusbar {
-    height: 1;
-    padding: 0 2;
-    background: $primary-darken-3;
-    color: $text-muted;
-    dock: bottom;
-}
 
 /* Room panels */
 .panel {
@@ -88,13 +76,6 @@ OtpScreen {
     text-style: bold;
     color: $accent;
     margin-top: 1;
-}
-.kv-key {
-    color: $text-muted;
-    width: 22;
-}
-.kv-val {
-    color: $text;
 }
 .section-rule {
     margin: 1 0;
@@ -190,26 +171,4 @@ OtpScreen {
     height: 1fr;
 }
 
-/* System screen */
-#system-container {
-    overflow-y: auto;
-    padding: 1 2;
-}
-.odu-panel {
-    border: round $primary-darken-2;
-    border-title-color: $accent;
-    border-title-align: left;
-    padding: 1 2;
-    margin-bottom: 1;
-    height: auto;
-}
-#odu-row {
-    height: auto;
-    margin-bottom: 1;
-}
-#odu-row .odu-panel {
-    width: 1fr;
-    margin-bottom: 0;
-    margin-right: 1;
-}
 """
