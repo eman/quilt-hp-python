@@ -15,11 +15,17 @@ from datetime import datetime
 from typing import Any, cast
 
 from quilt_hp.models._helpers import (
+    enum_or,
     local_comms_last_session_change,
     parse_wifi_state,
     present_submsg,
+    timestamp_or_none,
 )
-from quilt_hp.models.enums import LocalCommsHealthReason, LocalCommsHealthStatus
+from quilt_hp.models.enums import (
+    LocalCommsHealthReason,
+    LocalCommsHealthStatus,
+    WifiConnectionState,
+)
 
 
 @dataclass(slots=True)
@@ -31,6 +37,19 @@ class WifiInfo:
     signal_dbm: int | None
     bssid: str | None = None
     frequency_mhz: int | None = None
+    connection_state: WifiConnectionState = WifiConnectionState.UNSPECIFIED
+    noise_dbm: int | None = None
+    """Noise floor; signal minus noise is the link's signal-to-noise ratio."""
+    rx_invalid_fragments: int | None = None
+    tx_excessive_retries: int | None = None
+    ipv6: str | None = None
+
+    @property
+    def snr_db(self) -> int | None:
+        """Signal-to-noise ratio, when both are reported."""
+        if self.signal_dbm is None or self.noise_dbm is None:
+            return None
+        return self.signal_dbm - self.noise_dbm
 
     @property
     def connected(self) -> bool:
@@ -46,12 +65,22 @@ class WifiInfo:
     @classmethod
     def from_proto(cls, proto: object) -> WifiInfo:
         ssid, ip, signal_dbm, bssid, frequency_mhz = parse_wifi_state(proto)
+        p = cast("Any", proto)
         return cls(
             ssid=ssid,
             ip=ip,
             signal_dbm=signal_dbm,
             bssid=bssid,
             frequency_mhz=frequency_mhz,
+            connection_state=enum_or(
+                WifiConnectionState,
+                getattr(p, "wifi_state", 0),
+                WifiConnectionState.UNSPECIFIED,
+            ),
+            noise_dbm=getattr(p, "noise_level_dbm", 0) or None,
+            rx_invalid_fragments=getattr(p, "rx_invalid_frag", None),
+            tx_excessive_retries=getattr(p, "tx_excessive_retries", None),
+            ipv6=getattr(p, "ipv6_address", "") or None,
         )
 
 
@@ -111,6 +140,8 @@ class QuiltSmartModule:
     """``LocalCommsStatus.last_session_change_ts`` (proto field 5) — when the
     local mesh session last changed.
     """
+    created_at: datetime | None = None
+    """When this module was added to the system."""
 
     @classmethod
     def from_proto(cls, proto: object) -> QuiltSmartModule:
@@ -146,6 +177,7 @@ class QuiltSmartModule:
         rel = cast("Any", present_submsg(proto, "relationships"))
         return cls(
             id=p.header.object_id,
+            created_at=timestamp_or_none(getattr(p.header, "created_ts", None)),
             system_id=p.header.system_id,
             led_color_code=c.led_color_code if c is not None else 0,
             sensors=sensors,

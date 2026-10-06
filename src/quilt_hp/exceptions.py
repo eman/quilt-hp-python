@@ -19,5 +19,13 @@ class QuiltNotFoundError(QuiltError):
     """Requested resource (system, space, IDU) was not found."""
 
 
+class QuiltPreconditionError(QuiltError):
+    """The server refused because the system isn't set up for the request yet.
+
+    For example, listing certified installer partners needs the system's address.
+    The message is the server's explanation.
+    """
+
+
 class QuiltStreamError(QuiltError):
     """Error in the NotifierService bidirectional stream."""

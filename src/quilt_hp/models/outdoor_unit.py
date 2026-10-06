@@ -3,9 +3,10 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import datetime
 from typing import Any, cast
 
-from quilt_hp.models._helpers import lookup_hardware, present_submsg
+from quilt_hp.models._helpers import lookup_hardware, present_submsg, timestamp_or_none
 from quilt_hp.models.enums import HVACState
 
 
@@ -36,6 +37,12 @@ class OutdoorUnit:
     firmware_version: str | None
     firmware_update_info_id: str | None
     performance_data: OutdoorUnitPerformanceData | None
+    port_count: int | None = None
+    """How many indoor units the outdoor unit can serve (``OutdoorUnitHardware.num_ports``)."""
+    manufactured_at: datetime | None = None
+    """``OutdoorUnitHardware.production_ts``."""
+    created_at: datetime | None = None
+    """When this outdoor unit was added to the system."""
 
     @classmethod
     def from_proto(cls, proto: object, hw_map: dict[str, object] | None = None) -> OutdoorUnit:
@@ -76,4 +83,13 @@ class OutdoorUnit:
                 (rel.firmware_update_info_id or None) if rel is not None else None
             ),
             performance_data=pd,
+            port_count=(getattr(cast("Any", hw).attributes, "num_ports", 0) or None)
+            if hw
+            else None,
+            manufactured_at=(
+                timestamp_or_none(getattr(cast("Any", hw).attributes, "production_ts", None))
+                if hw
+                else None
+            ),
+            created_at=timestamp_or_none(getattr(cast("Any", proto).header, "created_ts", None)),
         )

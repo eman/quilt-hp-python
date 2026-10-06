@@ -24,6 +24,7 @@ from quilt_hp.auth import OtpCallback, authenticate
 from quilt_hp.const import Environment
 from quilt_hp.exceptions import QuiltAuthError, QuiltError, QuiltNotFoundError
 from quilt_hp.models.enums import FastUpdateReason
+from quilt_hp.services.account import AccountService
 from quilt_hp.services.command import CommandService
 from quilt_hp.services.hds import HomeDatastoreService
 from quilt_hp.services.streaming import NotifierStream
@@ -45,6 +46,15 @@ if TYPE_CHECKING:
 
     import grpc.aio
 
+    from quilt_hp.models.account import (
+        AccessRole,
+        Invitation,
+        PartnerDetails,
+        PartnerProfile,
+        SystemDataSharing,
+        SystemUsers,
+        UserTask,
+    )
     from quilt_hp.models.comfort import ComfortSetting
     from quilt_hp.models.controller import Controller
     from quilt_hp.models.diagnostics import SystemDiagnostics
@@ -111,6 +121,7 @@ class QuiltClient:
         self._sysinfo: SystemInformationService | None = None
         self._user_svc: UserService | None = None
         self._command: CommandService | None = None
+        self._account: AccountService | None = None
 
         # Snapshot cache
         self._snapshot_cache: SystemSnapshot | None = None
@@ -145,6 +156,7 @@ class QuiltClient:
             self._sysinfo = SystemInformationService(self._channel)
             self._user_svc = UserService(self._channel)
             self._command = CommandService(self._channel)
+            self._account = AccountService(self._channel)
         return self._channel
 
     def _require_channel(self) -> grpc.aio.Channel:
@@ -166,6 +178,11 @@ class QuiltClient:
         if self._user_svc is None:
             raise QuiltError("Client not connected. Call login() first.")
         return self._user_svc
+
+    def _require_account(self) -> AccountService:
+        if self._account is None:
+            raise QuiltError("Client not connected. Call login() first.")
+        return self._account
 
     def _require_command(self) -> CommandService:
         if self._command is None:
@@ -780,6 +797,44 @@ class QuiltClient:
             phone_number=phone_number,
         )
 
+    # --- Account (read-only) ---
+
+    async def list_system_users(self, system_id: str | None = None) -> SystemUsers:
+        """Administrators, members and pending invitations for the system."""
+        sid = await self._resolve_system_id(system_id)
+        return await self._require_account().list_system_users(sid)
+
+    async def get_access_role(self, system_id: str | None = None) -> AccessRole:
+        """The signed-in user's role in the system (admin or member)."""
+        sid = await self._resolve_system_id(system_id)
+        return await self._require_account().get_access_role(sid)
+
+    async def list_pending_invitations(self) -> list[Invitation]:
+        """Invitations the signed-in user has received and not yet answered."""
+        return await self._require_account().list_pending_invitations()
+
+    async def get_partner_details(self) -> PartnerDetails | None:
+        """The installer partner the signed-in user belongs to, or None for homeowners."""
+        return await self._require_account().get_partner_details()
+
+    async def get_data_sharing(self, system_id: str | None = None) -> SystemDataSharing:
+        """Whether the system shares its data with an installer partner."""
+        sid = await self._resolve_system_id(system_id)
+        return await self._require_account().get_data_sharing(sid)
+
+    async def list_certified_partners(self, system_id: str | None = None) -> list[PartnerProfile]:
+        """Certified installer partners for the system's location.
+
+        Raises ``QuiltPreconditionError`` when the system has no address set.
+        """
+        sid = await self._resolve_system_id(system_id)
+        return await self._require_account().list_certified_partners(sid)
+
+    async def list_user_tasks(self, system_id: str | None = None) -> list[UserTask]:
+        """Tasks the app would prompt about for the system, such as data-sharing consent."""
+        sid = await self._resolve_system_id(system_id)
+        return await self._require_account().list_user_tasks(sid)
+
     async def get_user_attributes(self) -> UserAttributes:
         """Get current user's additional attributes."""
         return await self._require_user_service().get_user_attributes()
@@ -810,6 +865,7 @@ class QuiltClient:
         self._sysinfo = None
         self._user_svc = None
         self._command = None
+        self._account = None
 
     async def __aenter__(self) -> Self:
         return self

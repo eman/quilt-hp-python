@@ -411,6 +411,22 @@ class FastUpdateReason(IntEnum):
         return self.name
 
 
+class WifiConnectionState(IntEnum):
+    """A Wi-Fi interface's connection phase (``WifiState.wifi_state``); COMPLETED = connected."""
+
+    UNSPECIFIED = 0
+    DISCONNECTED = 1
+    INTERFACE_DISABLED = 2
+    INACTIVE = 3
+    SCANNING = 4
+    AUTHENTICATING = 5
+    ASSOCIATING = 6
+    ASSOCIATED = 7
+    FOUR_WAY_HANDSHAKE = 8
+    GROUP_HANDSHAKE = 9
+    COMPLETED = 10
+
+
 class AmbientTemperatureSource(IntEnum):
     """Which temperature reading an indoor unit is controlling to (``IndoorUnitHvacInputs``)."""
 

@@ -3,6 +3,26 @@
 ## [Unreleased]
 
 ### Added
+- **Account (read-only):** `QuiltClient.list_system_users()`, `get_access_role()`,
+  `list_pending_invitations()`, `get_partner_details()`, `get_data_sharing()`,
+  `list_certified_partners()` and `list_user_tasks()`, with new models in
+  `quilt_hp.models.account` (`SystemUsers`, `SystemUser`, `Invitation`, `PartnerDetails`,
+  `PartnerProfile`, `SystemDataSharing`, `UserTask`, and the `AccessRole`,
+  `DataSharingSetting`, `DataSharingState` and `UserTaskKind` enums). Each was checked
+  against a live system; they never change anything.
+- **`QuiltPreconditionError`** (a `QuiltError`), raised for gRPC `FAILED_PRECONDITION`, e.g.
+  `list_certified_partners()` on a system with no address.
+- **Hardware and creation details:** `IndoorUnit.unit_serial_number` (the unit's own
+  `QN1-…` serial) and `smart_module_serial_number` (`QS1-…`, which is what `serial_number`
+  has always held), `manufactured_at` on indoor units, outdoor units and Dials,
+  `OutdoorUnit.port_count`, and `created_at` on rooms, indoor units, outdoor units, Dials and
+  Smart Modules. They are kept when stream updates are merged.
+- **Wi-Fi link details:** `WifiInfo.connection_state` (new `WifiConnectionState` enum),
+  `noise_dbm`, `snr_db`, `rx_invalid_fragments`, `tx_excessive_retries` and `ipv6`, and
+  `Controller.hosted_wifi` with the Dial's home-network link in full.
+- The TUI's Devices screen shows the indoor unit's own serial alongside its Smart Module's,
+  manufacture dates, outdoor-unit port use and Wi-Fi signal-to-noise; `quilt info --output
+  json` includes the serials, manufacture dates and port count.
 - **TUI Energy screen** (`e` from Home): the whole house today by hour and over the last week,
   and each room's use today, yesterday, over 7 and 30 days, with its share of the house.
 - **TUI help** (`?` anywhere): every key for every screen, generated from the screens' key
@@ -142,6 +162,10 @@
   `client` and `settings_store` arguments for tests and embedding.
 
 ### Fixed
+- The TUI's Devices screen and the models reference showed an indoor unit's Smart Module
+  serial as the unit's serial. `docs/reference/models.md` also still showed
+  `SoftwareUpdateInfo.state`, `status` and `progress_unit` as integers, and had no section
+  for `QuiltSmartModule` or `WifiInfo`.
 - **TUI:** an offline Dial's last display, radar and light readings were shown as current on
   the System screen and the room's Dial panel; they now read "⚠ offline 8 h".
 - **TUI:** the hourly energy chart put today's usage under the wrong hour (leading idle hours
