@@ -28,10 +28,6 @@ VERSION_TARGETS = [
         ROOT / "docs/reference/client.md",
         re.compile(r'(?P<pre>__version__:\s*str\s*#\s*e\.g\.\s*")(?P<version>\d+\.\d+\.\d+)(?P<post>")'),
     ),
-    (
-        ROOT / "tests/test_cli_surfaces_extra.py",
-        re.compile(r'(?P<pre>result\.stdout\.strip\(\)\s*==\s*")(?P<version>\d+\.\d+\.\d+)(?P<post>")'),
-    ),
 ]
 
 CHANGELOG = ROOT / "CHANGELOG.md"
