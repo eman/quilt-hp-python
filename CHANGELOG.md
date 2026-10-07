@@ -2,6 +2,20 @@
 
 ## [Unreleased]
 
+## [0.6.0] - 2026-10-06
+
+Write APIs, each verified against a live system (cancelling a self-test excepted):
+whole-house and multi-room actions (mode, setpoints, fan, louver, light), Dial settings
+(rename, temperature sensor) and the indoor-unit self-test; read-only account APIs; data the server sent that the library dropped (Dial display,
+radar and light telemetry, Wi-Fi details, serials, creation dates); a redesigned TUI. Protos
+were audited against app 1.0.33 and the live server.
+
+Upgrade notes: offline Dials now report `is_online == False` (they reported online before);
+`SoftwareUpdateInfo.state`/`status`/`progress_unit` are enums (they compare equal to the old
+integers); several TUI keys changed (see Changed). The repository's history was rewritten on
+2026-10-06 to remove household identifiers: re-clone, or `git fetch` and reset, any existing
+checkout.
+
 ### Added
 - **TUI controls for the new write APIs:** on the Devices screen, `t` runs (or cancels) an
   indoor unit's diagnostic self-test, `s` switches a Dial's temperature sensor and `n` renames a
@@ -171,6 +185,7 @@
   `quilt values` adds `display_on`, `presence_detected` and `power_w`.
 
 ### Changed
+- Development: requires twine 7 (`twine check` in twine 6 rejects the wheel's metadata 2.5).
 - **TUI Room keys:** no more upper/lower-case pairs. `+`/`−` change the setpoint the mode uses
   (as on Home), `f` fan, `v` louver (was `l`), `l` light (was `L`), `s` settings. Control
   changes from Home and Room share one queue per room.
