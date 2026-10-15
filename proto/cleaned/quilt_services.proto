@@ -10,8 +10,6 @@ package core.protos.app;
 import "google/protobuf/empty.proto";
 import "google/protobuf/field_mask.proto";
 import "google/protobuf/timestamp.proto";
-
-option java_package = "com.quilt.proto.api";
 option swift_prefix = "Quilt";
 
 // ---------------------------------------------------------------------------

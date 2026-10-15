@@ -16,8 +16,6 @@ syntax = "proto3";
 package core.protos.notifier;
 
 import "google/protobuf/any.proto";
-
-option java_package = "com.quilt.proto.notifier";
 option swift_prefix = "Quilt";
 
 // ---------------------------------------------------------------------------
