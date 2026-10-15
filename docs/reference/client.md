@@ -845,6 +845,9 @@ async def list_pending_invitations(self) -> list[Invitation]
 async def get_partner_details(self) -> PartnerDetails | None
 async def get_data_sharing(self, system_id: str | None = None) -> SystemDataSharing
 async def list_certified_partners(self, system_id: str | None = None) -> list[PartnerProfile]
+async def list_partner_organizations_for_address(
+    self, postal_code: str, country_code: str
+) -> list[PartnerProfile]
 async def list_user_tasks(self, system_id: str | None = None) -> list[UserTask]
 ```
 
@@ -858,6 +861,9 @@ async def list_user_tasks(self, system_id: str | None = None) -> list[UserTask]
   (`NO_PARTNER` when it has none).
 - `list_certified_partners` — certified installers for the system's location. Raises
   `QuiltPreconditionError` when the system has no address.
+- `list_partner_organizations_for_address` — the same certified-installer lookup by postal
+  code and ISO country code, without needing a system. The app uses it during onboarding,
+  before a system exists (added in app 1.0.34).
 - `list_user_tasks` — prompts the app would show, such as a data-sharing consent banner.
 
 ```python

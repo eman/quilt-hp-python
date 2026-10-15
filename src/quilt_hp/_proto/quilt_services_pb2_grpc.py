@@ -276,6 +276,11 @@ class SystemInformationServiceStub(object):
                 request_serializer=quilt__services__pb2.SetSystemDataSharingRequest.SerializeToString,
                 response_deserializer=quilt__services__pb2.SystemDataSharing.FromString,
                 _registered_method=True)
+        self.ListPartnerOrganizationsForAddress = channel.unary_unary(
+                '/core.protos.app.SystemInformationService/ListPartnerOrganizationsForAddress',
+                request_serializer=quilt__services__pb2.ListPartnerOrganizationsForAddressRequest.SerializeToString,
+                response_deserializer=quilt__services__pb2.ListPartnerOrganizationsForAddressResponse.FromString,
+                _registered_method=True)
 
 
 class SystemInformationServiceServicer(object):
@@ -333,6 +338,13 @@ class SystemInformationServiceServicer(object):
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
 
+    def ListPartnerOrganizationsForAddress(self, request, context):
+        """new in 1.0.34
+        """
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
 
 def add_SystemInformationServiceServicer_to_server(servicer, server):
     rpc_method_handlers = {
@@ -375,6 +387,11 @@ def add_SystemInformationServiceServicer_to_server(servicer, server):
                     servicer.SetSystemDataSharing,
                     request_deserializer=quilt__services__pb2.SetSystemDataSharingRequest.FromString,
                     response_serializer=quilt__services__pb2.SystemDataSharing.SerializeToString,
+            ),
+            'ListPartnerOrganizationsForAddress': grpc.unary_unary_rpc_method_handler(
+                    servicer.ListPartnerOrganizationsForAddress,
+                    request_deserializer=quilt__services__pb2.ListPartnerOrganizationsForAddressRequest.FromString,
+                    response_serializer=quilt__services__pb2.ListPartnerOrganizationsForAddressResponse.SerializeToString,
             ),
     }
     generic_handler = grpc.method_handlers_generic_handler(
@@ -593,6 +610,33 @@ class SystemInformationService(object):
             '/core.protos.app.SystemInformationService/SetSystemDataSharing',
             quilt__services__pb2.SetSystemDataSharingRequest.SerializeToString,
             quilt__services__pb2.SystemDataSharing.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def ListPartnerOrganizationsForAddress(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/core.protos.app.SystemInformationService/ListPartnerOrganizationsForAddress',
+            quilt__services__pb2.ListPartnerOrganizationsForAddressRequest.SerializeToString,
+            quilt__services__pb2.ListPartnerOrganizationsForAddressResponse.FromString,
             options,
             channel_credentials,
             insecure,

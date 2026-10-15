@@ -2,6 +2,26 @@
 
 ## [Unreleased]
 
+### Added
+- **`QuiltClient.list_partner_organizations_for_address(postal_code, country_code)`** — looks up
+  certified installer partners by address without needing a system, the address-based counterpart
+  of `list_certified_partners()`. The app added it in 1.0.34 for onboarding, before a system
+  exists. Returns the same `PartnerProfile` list. Not verified against a live system.
+- **`PartnerDetails.parent_organization_id`** — the parent organisation of a partner that is a
+  sub-organisation of another (new proto field in app 1.0.34).
+- **BLE direct control of a Dial** (`quilt_hp.bluetooth.BluetoothControlClient`, optional `ble`
+  extra). Reads live climate/damper state and writes setpoint/mode/fan/power straight over
+  Bluetooth with no cloud, mirroring the app's installer "Remote Control" tool added in 1.0.34.
+  Includes `discover_dials()`, the `quilt_bluetooth_control.proto` messages, a `QuiltBluetoothError`
+  exception, and typed models in `quilt_hp.models.bluetooth`. Install with
+  `pip install "quilt-hp-python[ble]"`. See the how-to guide. **Reconstructed from the app and not
+  yet verified against physical hardware** — treat it as experimental.
+
+### Changed
+- Protos re-synced from app 1.0.34 (versionCode 278). The cloud gRPC surface is unchanged from
+  1.0.33 apart from the partner additions above; the update's other substantive work is the local
+  BLE control path now implemented above, and firmware-side changes with no app footprint.
+
 ## [0.6.0] - 2026-10-06
 
 Write APIs, each verified against a live system (cancelling a self-test excepted):

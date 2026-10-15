@@ -1,0 +1,147 @@
+// quilt_bluetooth_control.proto
+// BLE direct-control messages — serialized over a Bluetooth GATT service (not gRPC), added in
+// app 1.0.34. The app's installer tooling reads live climate/damper state from a Dial and writes
+// setpoint/mode/fan/power commands over Bluetooth with no cloud. Reconstructed from the app and
+// not yet verified against physical hardware; the `quilt.bluetooth.v1` package name is
+// reconstructed and never appears on the wire. Fields marked `optional` have explicit presence.
+// This package carries the message definitions only; it does not implement a BLE transport.
+
+syntax = "proto3";
+
+package quilt.bluetooth.v1;
+
+option java_package = "com.quilt.proto.bluetooth";
+
+// ---------------------------------------------------------------------------
+// Enums
+// ---------------------------------------------------------------------------
+
+// Distinct from hds.HVACMode and actions.ClimateMode — this is the BLE codec's own.
+enum ClimateMode {
+  CLIMATE_MODE_UNSPECIFIED = 0;
+  CLIMATE_MODE_COOL = 1;
+  CLIMATE_MODE_HEAT = 2;
+  CLIMATE_MODE_FAN = 3;
+  CLIMATE_MODE_AUTO = 4;
+}
+
+enum ClimatePower {
+  CLIMATE_POWER_UNSPECIFIED = 0;
+  CLIMATE_POWER_OFF = 1;
+  CLIMATE_POWER_ON = 2;
+}
+
+enum FanSpeedMode {
+  FAN_SPEED_MODE_UNSPECIFIED = 0;
+  FAN_SPEED_MODE_AUTO = 1;
+  FAN_SPEED_MODE_PERCENT = 2;  // fan_speed_percent carries the level
+}
+
+enum ClimateStatus {
+  CLIMATE_STATUS_UNSPECIFIED = 0;
+  CLIMATE_STATUS_OFF = 1;
+  CLIMATE_STATUS_RUNNING = 2;
+  CLIMATE_STATUS_DRIFTING = 3;
+  CLIMATE_STATUS_DEFERRED = 4;
+  CLIMATE_STATUS_PREPARING = 5;
+}
+
+enum ClimateOperation {  // what the unit is actually doing
+  CLIMATE_OPERATION_UNSPECIFIED = 0;
+  CLIMATE_OPERATION_NONE = 1;
+  CLIMATE_OPERATION_HEAT = 2;
+  CLIMATE_OPERATION_COOL = 3;
+  CLIMATE_OPERATION_FAN = 4;
+}
+
+enum PresenceResult {  // per-damper verdict
+  PRESENCE_RESULT_UNSPECIFIED = 0;
+  PRESENCE_RESULT_PRESENT = 1;
+  PRESENCE_RESULT_ABSENT = 2;
+  PRESENCE_RESULT_NO_VERDICT = 3;
+  PRESENCE_RESULT_UNSUPPORTED = 4;
+  PRESENCE_RESULT_UNAVAILABLE = 5;
+}
+
+enum BluetoothActionResult {
+  RESULT_UNSPECIFIED = 0;
+  RESULT_OK = 1;
+  RESULT_UNSUPPORTED = 2;
+  RESULT_INVALID = 3;
+  RESULT_UNAVAILABLE = 4;
+  RESULT_INTERNAL = 5;
+}
+
+// ---------------------------------------------------------------------------
+// Write: command (GATT ...0001), and its response notification (GATT ...0002)
+// ---------------------------------------------------------------------------
+
+// Written to the action_request characteristic. Exactly one action per write.
+message BluetoothActionRequest {
+  message SetPower {
+    ClimatePower power = 1;
+    optional ClimateMode mode = 2;  // omit to leave the mode unchanged
+  }
+  message SetMode {
+    ClimateMode mode = 1;
+  }
+  message SetTemperatureSetpoints {
+    optional float heat_setpoint_c = 1;  // omit either to leave it unchanged
+    optional float cool_setpoint_c = 2;
+  }
+  message SetFanSpeed {
+    FanSpeedMode mode = 1;
+    optional uint32 fan_speed_percent = 2;  // used when mode = PERCENT
+  }
+
+  oneof action {
+    SetPower set_power = 1;
+    SetMode set_mode = 2;
+    SetTemperatureSetpoints set_temperature_setpoints = 3;
+    SetFanSpeed set_fan_speed = 4;
+  }
+}
+
+// Notified back on the action_response characteristic after a write.
+message BluetoothActionResponse {
+  BluetoothActionResult result = 1;
+  string message = 2;
+}
+
+// ---------------------------------------------------------------------------
+// Read: live state (GATT ...0003/...0004/...0006) and a change poke (...0005)
+// ---------------------------------------------------------------------------
+
+// climate_controls characteristic — the current control settings.
+message BluetoothClimateControls {
+  ClimatePower power = 1;
+  ClimateMode mode = 2;
+  optional float heat_setpoint_c = 3;
+  optional float cool_setpoint_c = 4;
+  FanSpeedMode fan_speed_mode = 5;
+  optional uint32 fan_speed_percent = 6;
+}
+
+// climate_state characteristic — what the unit is doing right now.
+message BluetoothClimateState {
+  ClimateStatus status = 1;
+  ClimateOperation operation = 2;
+  optional float ambient_temperature_c = 3;
+}
+
+// damper_state characteristic — ducted-zone dampers seen on this device.
+message BluetoothDamperState {
+  message Damper {
+    uint32 channel_index = 1;
+    PresenceResult presence = 2;
+  }
+  repeated Damper dampers = 1;
+}
+
+// change_counters characteristic (notify) — each counter bumps when its state changes, so a
+// client re-reads the matching characteristic instead of polling.
+message BluetoothChangeCounters {
+  uint32 climate_controls = 1;
+  uint32 climate_state = 2;
+  uint32 damper_state = 3;
+}

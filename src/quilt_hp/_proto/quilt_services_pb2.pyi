@@ -255,6 +255,33 @@ AFTER_INVITE_BEHAVIOR_NONE: AfterInviteBehavior.ValueType  # 1
 AFTER_INVITE_BEHAVIOR_REMOVE_INSTALLER: AfterInviteBehavior.ValueType  # 2
 Global___AfterInviteBehavior: _TypeAlias = AfterInviteBehavior  # noqa: Y015
 
+class _UserReportedPartnerKind:
+    ValueType = _typing.NewType("ValueType", _builtins.int)
+    V: _TypeAlias = ValueType  # noqa: Y015
+
+class _UserReportedPartnerKindEnumTypeWrapper(_enum_type_wrapper._EnumTypeWrapper[_UserReportedPartnerKind.ValueType], _builtins.type):
+    DESCRIPTOR: _descriptor.EnumDescriptor
+    USER_REPORTED_PARTNER_KIND_UNSPECIFIED: _UserReportedPartnerKind.ValueType  # 0
+    USER_REPORTED_PARTNER_KIND_UNKNOWN: _UserReportedPartnerKind.ValueType  # 1
+    """"I don't know who installed this system" """
+    USER_REPORTED_PARTNER_KIND_NOT_LISTED: _UserReportedPartnerKind.ValueType  # 2
+    """"My installer is not listed" """
+    USER_REPORTED_PARTNER_KIND_SELECTED: _UserReportedPartnerKind.ValueType  # 3
+    """chose one from ListPartnerOrganizationsForAddress"""
+    USER_REPORTED_PARTNER_KIND_NO_PARTNERS_AVAILABLE: _UserReportedPartnerKind.ValueType  # 4
+
+class UserReportedPartnerKind(_UserReportedPartnerKind, metaclass=_UserReportedPartnerKindEnumTypeWrapper): ...
+
+USER_REPORTED_PARTNER_KIND_UNSPECIFIED: UserReportedPartnerKind.ValueType  # 0
+USER_REPORTED_PARTNER_KIND_UNKNOWN: UserReportedPartnerKind.ValueType  # 1
+""""I don't know who installed this system" """
+USER_REPORTED_PARTNER_KIND_NOT_LISTED: UserReportedPartnerKind.ValueType  # 2
+""""My installer is not listed" """
+USER_REPORTED_PARTNER_KIND_SELECTED: UserReportedPartnerKind.ValueType  # 3
+"""chose one from ListPartnerOrganizationsForAddress"""
+USER_REPORTED_PARTNER_KIND_NO_PARTNERS_AVAILABLE: UserReportedPartnerKind.ValueType  # 4
+Global___UserReportedPartnerKind: _TypeAlias = UserReportedPartnerKind  # noqa: Y015
+
 class _DiagnosticType:
     ValueType = _typing.NewType("ValueType", _builtins.int)
     V: _TypeAlias = ValueType  # noqa: Y015
@@ -1054,6 +1081,55 @@ class ListSystemCertifiedPartnersResponse(_message.Message):
 Global___ListSystemCertifiedPartnersResponse: _TypeAlias = ListSystemCertifiedPartnersResponse  # noqa: Y015
 
 @_typing.final
+class ListPartnerOrganizationsForAddressRequest(_message.Message):
+    """app 1.0.34: partner lookup by address during onboarding, before a system exists.
+    Feeds the new "Select your installer" screen (gate mobile_new_home_ask_who_installed_enabled).
+    nxa
+    """
+
+    DESCRIPTOR: _descriptor.Descriptor
+
+    POSTAL_CODE_FIELD_NUMBER: _builtins.int
+    COUNTRY_CODE_FIELD_NUMBER: _builtins.int
+    postal_code: _builtins.str
+    country_code: _builtins.str
+    def __init__(
+        self,
+        *,
+        postal_code: _builtins.str = ...,
+        country_code: _builtins.str = ...,
+    ) -> None: ...
+    _HasFieldArgType: _TypeAlias = _Never  # noqa: Y015
+    def HasField(self, field_name: _HasFieldArgType) -> _builtins.bool: ...
+    _ClearFieldArgType: _TypeAlias = _typing.Literal["country_code", b"country_code", "postal_code", b"postal_code"]  # noqa: Y015
+    def ClearField(self, field_name: _ClearFieldArgType) -> None: ...
+    def WhichOneof(self, oneof_group: _Never) -> None: ...
+
+Global___ListPartnerOrganizationsForAddressRequest: _TypeAlias = ListPartnerOrganizationsForAddressRequest  # noqa: Y015
+
+@_typing.final
+class ListPartnerOrganizationsForAddressResponse(_message.Message):
+    """pxa"""
+
+    DESCRIPTOR: _descriptor.Descriptor
+
+    PARTNER_ORGANIZATIONS_FIELD_NUMBER: _builtins.int
+    @_builtins.property
+    def partner_organizations(self) -> _containers.RepeatedCompositeFieldContainer[Global___PartnerOrganizationPublicProfile]: ...
+    def __init__(
+        self,
+        *,
+        partner_organizations: _abc.Iterable[Global___PartnerOrganizationPublicProfile] | None = ...,
+    ) -> None: ...
+    _HasFieldArgType: _TypeAlias = _Never  # noqa: Y015
+    def HasField(self, field_name: _HasFieldArgType) -> _builtins.bool: ...
+    _ClearFieldArgType: _TypeAlias = _typing.Literal["partner_organizations", b"partner_organizations"]  # noqa: Y015
+    def ClearField(self, field_name: _ClearFieldArgType) -> None: ...
+    def WhichOneof(self, oneof_group: _Never) -> None: ...
+
+Global___ListPartnerOrganizationsForAddressResponse: _TypeAlias = ListPartnerOrganizationsForAddressResponse  # noqa: Y015
+
+@_typing.final
 class SetSystemPartnerRequest(_message.Message):
     """rka"""
 
@@ -1174,7 +1250,7 @@ class Invitation(_message.Message):
     system_name: _builtins.str
     access_role: Global___AccessRoleToSystem.ValueType
     system_id: _builtins.str
-    """server-only: sent by the server (ListSystemUsers, 2026-10-05) but absent from app 1.0.33"""
+    """sent by the server (ListSystemUsers, 2026-10-05); now also in the app proto as of app 1.0.34"""
     @_builtins.property
     def invited_by(self) -> Global___InviterInformation: ...
     def __init__(
@@ -1424,21 +1500,25 @@ class PartnerDetails(_message.Message):
     PARTNER_ORGANIZATION_ID_FIELD_NUMBER: _builtins.int
     PARTNER_ORGANIZATION_NAME_FIELD_NUMBER: _builtins.int
     PARTNER_TIER_FIELD_NUMBER: _builtins.int
+    PARENT_PARTNER_ORGANIZATION_ID_FIELD_NUMBER: _builtins.int
     partner_organization_id: _builtins.str
     """was organization_id"""
     partner_organization_name: _builtins.str
     """was organization_name"""
     partner_tier: _builtins.str
+    parent_partner_organization_id: _builtins.str
+    """app 1.0.34: new; parent org for partner sub-organizations"""
     def __init__(
         self,
         *,
         partner_organization_id: _builtins.str = ...,
         partner_organization_name: _builtins.str = ...,
         partner_tier: _builtins.str = ...,
+        parent_partner_organization_id: _builtins.str = ...,
     ) -> None: ...
     _HasFieldArgType: _TypeAlias = _Never  # noqa: Y015
     def HasField(self, field_name: _HasFieldArgType) -> _builtins.bool: ...
-    _ClearFieldArgType: _TypeAlias = _typing.Literal["partner_organization_id", b"partner_organization_id", "partner_organization_name", b"partner_organization_name", "partner_tier", b"partner_tier"]  # noqa: Y015
+    _ClearFieldArgType: _TypeAlias = _typing.Literal["parent_partner_organization_id", b"parent_partner_organization_id", "partner_organization_id", b"partner_organization_id", "partner_organization_name", b"partner_organization_name", "partner_tier", b"partner_tier"]  # noqa: Y015
     def ClearField(self, field_name: _ClearFieldArgType) -> None: ...
     def WhichOneof(self, oneof_group: _Never) -> None: ...
 
@@ -1909,6 +1989,34 @@ class CreateAndConfigureDuctedZoneResponse(_message.Message):
 Global___CreateAndConfigureDuctedZoneResponse: _TypeAlias = CreateAndConfigureDuctedZoneResponse  # noqa: Y015
 
 @_typing.final
+class UserReportedPartner(_message.Message):
+    """What the homeowner reported about who installed the system, captured during onboarding
+    (app 1.0.34). Backs the "Select your installer" / partner-code questions, gated.
+    mobile_new_home_ask_who_installed_enabled and mobile_new_home_ask_partner_code_enabled.
+    """
+
+    DESCRIPTOR: _descriptor.Descriptor
+
+    KIND_FIELD_NUMBER: _builtins.int
+    PARTNER_ORGANIZATION_ID_FIELD_NUMBER: _builtins.int
+    kind: Global___UserReportedPartnerKind.ValueType
+    partner_organization_id: _builtins.str
+    """set when kind = SELECTED"""
+    def __init__(
+        self,
+        *,
+        kind: Global___UserReportedPartnerKind.ValueType = ...,
+        partner_organization_id: _builtins.str = ...,
+    ) -> None: ...
+    _HasFieldArgType: _TypeAlias = _Never  # noqa: Y015
+    def HasField(self, field_name: _HasFieldArgType) -> _builtins.bool: ...
+    _ClearFieldArgType: _TypeAlias = _typing.Literal["kind", b"kind", "partner_organization_id", b"partner_organization_id"]  # noqa: Y015
+    def ClearField(self, field_name: _ClearFieldArgType) -> None: ...
+    def WhichOneof(self, oneof_group: _Never) -> None: ...
+
+Global___UserReportedPartner: _TypeAlias = UserReportedPartner  # noqa: Y015
+
+@_typing.final
 class CreateAndConfigureSystemRequest(_message.Message):
     """System/space creation used by onboarding."""
 
@@ -1918,12 +2026,17 @@ class CreateAndConfigureSystemRequest(_message.Message):
     NAME_FIELD_NUMBER: _builtins.int
     TZ_IDENTIFIER_FIELD_NUMBER: _builtins.int
     ADDRESS_FIELD_NUMBER: _builtins.int
+    USER_REPORTED_PARTNER_FIELD_NUMBER: _builtins.int
     request_id: _builtins.str
     """client-generated idempotency key"""
     name: _builtins.str
     tz_identifier: _builtins.str
     @_builtins.property
     def address(self) -> Global___Address: ...
+    @_builtins.property
+    def user_reported_partner(self) -> Global___UserReportedPartner:
+        """app 1.0.34: new"""
+
     def __init__(
         self,
         *,
@@ -1931,10 +2044,11 @@ class CreateAndConfigureSystemRequest(_message.Message):
         name: _builtins.str = ...,
         tz_identifier: _builtins.str = ...,
         address: Global___Address | None = ...,
+        user_reported_partner: Global___UserReportedPartner | None = ...,
     ) -> None: ...
-    _HasFieldArgType: _TypeAlias = _typing.Literal["address", b"address"]  # noqa: Y015
+    _HasFieldArgType: _TypeAlias = _typing.Literal["address", b"address", "user_reported_partner", b"user_reported_partner"]  # noqa: Y015
     def HasField(self, field_name: _HasFieldArgType) -> _builtins.bool: ...
-    _ClearFieldArgType: _TypeAlias = _typing.Literal["address", b"address", "name", b"name", "request_id", b"request_id", "tz_identifier", b"tz_identifier"]  # noqa: Y015
+    _ClearFieldArgType: _TypeAlias = _typing.Literal["address", b"address", "name", b"name", "request_id", b"request_id", "tz_identifier", b"tz_identifier", "user_reported_partner", b"user_reported_partner"]  # noqa: Y015
     def ClearField(self, field_name: _ClearFieldArgType) -> None: ...
     def WhichOneof(self, oneof_group: _Never) -> None: ...
 

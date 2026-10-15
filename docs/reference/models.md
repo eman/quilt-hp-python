@@ -806,6 +806,7 @@ class PartnerDetails:  # an installer partner organisation
     organization_id: str
     organization_name: str
     tier: str | None
+    parent_organization_id: str | None  # parent org, for a partner sub-organisation
 
 @dataclass
 class PartnerProfile:  # a partner's public contact details

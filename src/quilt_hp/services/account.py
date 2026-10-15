@@ -92,6 +92,23 @@ class AccountService:
             )
         return [PartnerProfile.from_proto(p) for p in reply.partners]
 
+    async def list_partner_organizations_for_address(
+        self, postal_code: str, country_code: str
+    ) -> list[PartnerProfile]:
+        """Certified installer partners serving a postal code, without needing a system.
+
+        The address-based counterpart of :meth:`list_certified_partners`, used during
+        onboarding before a system exists (added in app 1.0.34).
+        """
+        async with grpc_call("ListPartnerOrganizationsForAddress"):
+            reply = await self._sysinfo.ListPartnerOrganizationsForAddress(
+                svc.ListPartnerOrganizationsForAddressRequest(
+                    postal_code=postal_code,
+                    country_code=country_code,
+                )
+            )
+        return [PartnerProfile.from_proto(p) for p in reply.partner_organizations]
+
     async def list_user_tasks(self, system_id: str) -> list[UserTask]:
         """Tasks the app would prompt the user with for a system (e.g. data-sharing consent)."""
         async with grpc_call("ListUserTasks"):
