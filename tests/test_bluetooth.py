@@ -242,8 +242,13 @@ async def test_discover_dials(monkeypatch: pytest.MonkeyPatch, fake_bleak: Any) 
             self._cb = detection_callback
 
         async def start(self) -> None:
-            self._cb(_Device("AA:BB", "Quilt Dial"), types.SimpleNamespace(manufacturer_data={0x0F60: b""}))
-            self._cb(_Device("CC:DD", "Other"), types.SimpleNamespace(manufacturer_data={0x1234: b""}))
+            self._cb(
+                _Device("AA:BB", "Quilt Dial"),
+                types.SimpleNamespace(manufacturer_data={0x0F60: b""}),
+            )
+            self._cb(
+                _Device("CC:DD", "Other"), types.SimpleNamespace(manufacturer_data={0x1234: b""})
+            )
 
         async def stop(self) -> None:
             pass

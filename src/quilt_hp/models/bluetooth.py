@@ -121,8 +121,12 @@ class ClimateControls:
             power=enum_or(ClimatePower, proto.power, ClimatePower.UNSPECIFIED),
             mode=enum_or(ClimateMode, proto.mode, ClimateMode.UNSPECIFIED),
             fan_speed_mode=enum_or(FanSpeedMode, proto.fan_speed_mode, FanSpeedMode.UNSPECIFIED),
-            heat_setpoint_c=proto.heat_setpoint_c if proto_has_field(proto, "heat_setpoint_c") else None,
-            cool_setpoint_c=proto.cool_setpoint_c if proto_has_field(proto, "cool_setpoint_c") else None,
+            heat_setpoint_c=proto.heat_setpoint_c
+            if proto_has_field(proto, "heat_setpoint_c")
+            else None,
+            cool_setpoint_c=proto.cool_setpoint_c
+            if proto_has_field(proto, "cool_setpoint_c")
+            else None,
             fan_speed_percent=(
                 proto.fan_speed_percent if proto_has_field(proto, "fan_speed_percent") else None
             ),

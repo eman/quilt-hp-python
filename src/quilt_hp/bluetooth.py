@@ -247,9 +247,7 @@ class BluetoothControlClient:
             setpoints.cool_setpoint_c = cool_c
         await self._submit(ble.BluetoothActionRequest(set_temperature_setpoints=setpoints))
 
-    async def set_fan_speed(
-        self, mode: FanSpeedMode, percent: int | None = None
-    ) -> None:
+    async def set_fan_speed(self, mode: FanSpeedMode, percent: int | None = None) -> None:
         """Set the fan to AUTO, or to PERCENT with a 0–100 level."""
         set_fan = ble.BluetoothActionRequest.SetFanSpeed(mode=ble.FanSpeedMode.ValueType(mode))
         if percent is not None:
@@ -270,4 +268,6 @@ class BluetoothControlClient:
         result = BluetoothActionResult(response.result)
         if result != BluetoothActionResult.OK:
             detail = f": {response.message}" if response.message else ""
-            raise QuiltBluetoothError(f"Dial rejected the action ({result}){detail}", result=result)
+            raise QuiltBluetoothError(
+                f"Dial rejected the action ({result}){detail}", result=result
+            )
