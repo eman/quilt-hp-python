@@ -10,8 +10,6 @@ package core.protos.app;
 import "google/protobuf/empty.proto";
 import "google/protobuf/field_mask.proto";
 import "google/protobuf/timestamp.proto";
-
-option java_package = "com.quilt.proto.api";
 option swift_prefix = "Quilt";
 
 // ---------------------------------------------------------------------------
@@ -255,6 +253,16 @@ message ListSystemCertifiedPartnersResponse {  // aka
   repeated PartnerOrganizationPublicProfile partners = 1;
 }
 
+// app 1.0.34: partner lookup by address during onboarding, before a system exists.
+// Feeds the new "Select your installer" screen (gate mobile_new_home_ask_who_installed_enabled).
+message ListPartnerOrganizationsForAddressRequest {  // nxa
+  string postal_code = 1;
+  string country_code = 2;
+}
+message ListPartnerOrganizationsForAddressResponse {  // pxa
+  repeated PartnerOrganizationPublicProfile partner_organizations = 1;
+}
+
 message SetSystemPartnerRequest {  // rka
   string system_id = 1;
   PartnerDesignationState expected = 2;
@@ -281,6 +289,8 @@ service SystemInformationService {
   rpc SetSystemPartner(SetSystemPartnerRequest) returns (SetSystemPartnerResponse);  // new in 1.0.33
   rpc GetSystemDataSharing(GetSystemDataSharingRequest) returns (SystemDataSharing);  // in app 1.0.31+; first documented here
   rpc SetSystemDataSharing(SetSystemDataSharingRequest) returns (SystemDataSharing);
+  rpc ListPartnerOrganizationsForAddress(ListPartnerOrganizationsForAddressRequest)
+      returns (ListPartnerOrganizationsForAddressResponse);  // new in 1.0.34
 }
 
 // ---------------------------------------------------------------------------
@@ -299,7 +309,7 @@ message Invitation {
   InviterInformation invited_by = 3;
   string system_name = 4;
   AccessRoleToSystem access_role = 5;
-  string system_id = 6;  // server-only: sent by the server (ListSystemUsers, 2026-10-05) but absent from app 1.0.33
+  string system_id = 6;  // sent by the server (ListSystemUsers, 2026-10-05); now also in the app proto as of app 1.0.34
 }
 
 message ListPendingInvitationsRequest {}
@@ -370,6 +380,7 @@ message PartnerDetails {
   string partner_organization_id = 1;  // was organization_id
   string partner_organization_name = 2;  // was organization_name
   string partner_tier = 3;
+  string parent_partner_organization_id = 4;  // app 1.0.34: new; parent org for partner sub-organizations
 }
 
 message InviteSystemOwnerRequest {
@@ -480,12 +491,29 @@ message CreateAndConfigureDuctedZoneResponse {
   string air_handling_unit_id = 2;
 }
 
+// What the homeowner reported about who installed the system, captured during onboarding
+// (app 1.0.34). Backs the "Select your installer" / partner-code questions, gated.
+// mobile_new_home_ask_who_installed_enabled and mobile_new_home_ask_partner_code_enabled.
+message UserReportedPartner {
+  UserReportedPartnerKind kind = 1;
+  string partner_organization_id = 2;  // set when kind = SELECTED
+}
+
+enum UserReportedPartnerKind {
+  USER_REPORTED_PARTNER_KIND_UNSPECIFIED = 0;
+  USER_REPORTED_PARTNER_KIND_UNKNOWN = 1;  // "I don't know who installed this system"
+  USER_REPORTED_PARTNER_KIND_NOT_LISTED = 2;  // "My installer is not listed"
+  USER_REPORTED_PARTNER_KIND_SELECTED = 3;  // chose one from ListPartnerOrganizationsForAddress
+  USER_REPORTED_PARTNER_KIND_NO_PARTNERS_AVAILABLE = 4;
+}
+
 // System/space creation used by onboarding.
 message CreateAndConfigureSystemRequest {
   string request_id = 1;  // client-generated idempotency key
   string name = 2;
   string tz_identifier = 3;
   Address address = 4;
+  UserReportedPartner user_reported_partner = 5;  // app 1.0.34: new
 }
 message CreateAndConfigureSystemResponse {
   string system_id = 1;

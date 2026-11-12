@@ -36,6 +36,19 @@ class QuiltStreamError(QuiltError):
     """Error in the NotifierService bidirectional stream."""
 
 
+class QuiltBluetoothError(QuiltError):
+    """A BLE direct-control operation failed.
+
+    Raised when ``bleak`` is missing, a device can't be found or connected, the control
+    service is absent, or the device rejects an action. ``result`` holds the device's
+    ``BluetoothActionResult`` for a rejected action, else ``None``.
+    """
+
+    def __init__(self, message: str, result: object | None = None) -> None:
+        super().__init__(message)
+        self.result = result
+
+
 class QuiltActionError(QuiltError):
     """The server reported that an action failed (``ActionResult.FAILED``).
 

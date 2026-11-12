@@ -8,8 +8,6 @@ syntax = "proto3";
 package core.protos.common;
 
 import "quilt_device_pairing.proto";
-
-option java_package = "com.quilt.proto.common";
 option swift_prefix = "Quilt";
 
 message GetSupportedDeviceConfigVersionRequest {}

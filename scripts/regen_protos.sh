@@ -45,7 +45,8 @@ python -m grpc_tools.protoc \
     "$PROTO_SRC/quilt_system.proto" \
     "$PROTO_SRC/quilt_device_pairing.proto" \
     "$PROTO_SRC/quilt_device_config.proto" \
-    "$PROTO_SRC/quilt_actions.proto"
+    "$PROTO_SRC/quilt_actions.proto" \
+    "$PROTO_SRC/quilt_bluetooth_control.proto"
 
 # Fix imports in generated files (.py and .pyi): protoc emits absolute imports that won't
 # work inside our package. Rewrite them to relative imports.
@@ -72,6 +73,9 @@ for f in *.py *.pyi; do
 
     sed -i '' 's/^import quilt_actions_pb2/from . import quilt_actions_pb2/' "$f" 2>/dev/null || \
     sed -i  's/^import quilt_actions_pb2/from . import quilt_actions_pb2/' "$f"
+
+    sed -i '' 's/^import quilt_bluetooth_control_pb2/from . import quilt_bluetooth_control_pb2/' "$f" 2>/dev/null || \
+    sed -i  's/^import quilt_bluetooth_control_pb2/from . import quilt_bluetooth_control_pb2/' "$f"
 done
 
 # Ensure __init__.py exists

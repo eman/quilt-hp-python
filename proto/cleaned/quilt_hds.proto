@@ -11,9 +11,6 @@ import "google/protobuf/timestamp.proto";
 import "google/protobuf/empty.proto";
 import "google/protobuf/field_mask.proto";
 
-option java_package = "com.quilt.proto.hds";
-option java_outer_classname = "QuiltHdsProto";
-
 // ---------------------------------------------------------------------------
 // Enums
 // ---------------------------------------------------------------------------

@@ -6,8 +6,6 @@
 syntax = "proto3";
 
 package core.protos.actions;
-
-option java_package = "com.quilt.proto.actions";
 option swift_prefix = "Quilt";
 
 // ---------------------------------------------------------------------------

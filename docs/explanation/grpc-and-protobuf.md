@@ -18,7 +18,7 @@ There are three properties of gRPC that make it particularly well-suited here:
 
 ## The five proto services and their roles
 
-The Quilt API is split across five proto files, each defining one or more services:
+The Quilt API is split across eight proto files, each defining one or more services or wire messages:
 
 **`quilt_hds.proto`: `HomeDatastoreService`**
 The central service. All HDS (Home Datastore) entities live here: spaces, indoor units, outdoor units, controllers, sensors, comfort settings, and schedules. This is where all HVAC control RPCs are defined. The library wraps eleven methods: `GetHomeDatastoreSystem`, `UpdateSpace`, `UpdateIndoorUnit`, `UpdateComfortSetting`, and the CRUD methods for schedule days, schedule weeks, and location (for schedule pausing).
@@ -34,6 +34,15 @@ System-level RPCs. Not currently wrapped by the library.
 
 **`quilt_device_pairing.proto`: `DevicePairingService`**
 Device pairing RPCs. Not currently wrapped by the library.
+
+**`quilt_device_config.proto`: `DeviceConfigurationService`**
+Plaintext provisioning RPCs a device exposes on its setup hotspot. Not currently wrapped by the library.
+
+**`quilt_actions.proto`: `HomeActionService`**
+The unified "submit an action" control API (`SubmitAction`). The library carries the messages; the gate that turns this path on in the app is off by default.
+
+**`quilt_bluetooth_control.proto`** (no gRPC service)
+Message definitions for the BLE direct-control protocol added in app 1.0.34: climate/damper reads and setpoint/mode/fan/power writes serialized over a Bluetooth GATT service, not gRPC. Unlike the other non-gRPC protos, this one has a transport: `quilt_hp.bluetooth.BluetoothControlClient` drives it over `bleak` (the optional `ble` extra). See [Control a Dial over Bluetooth](../how-to/bluetooth-control.md). The definitions are reconstructed from the app and not yet verified against physical hardware.
 
 For the complete method matrix, see [gRPC services matrix](../reference/grpc-services-matrix.md).
 

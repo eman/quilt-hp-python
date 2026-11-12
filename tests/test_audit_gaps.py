@@ -21,6 +21,7 @@ from quilt_hp.models import (
     UserTaskKind,
     WifiConnectionState,
 )
+from quilt_hp.models.account import PartnerDetails
 from quilt_hp.models.qsm import WifiInfo
 from quilt_hp.services import account as account_service
 from tests.tui_harness import load_snapshot
@@ -248,6 +249,43 @@ async def test_certified_partners_without_an_address_raise_precondition(
         await service.list_certified_partners("s")
 
 
+async def test_list_partner_organizations_for_address(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Address-based partner lookup added in app 1.0.34 (no system needed)."""
+    reply = svc.ListPartnerOrganizationsForAddressResponse(
+        partner_organizations=[
+            svc.PartnerOrganizationPublicProfile(
+                partner_organization_id="org-7",
+                display_name="Northgate Heating & Air",
+                contact_phone_number="555-0100",
+            )
+        ]
+    )
+    call = AsyncMock(return_value=reply)
+    service = _account(monkeypatch, ListPartnerOrganizationsForAddress=call)
+    partners = await service.list_partner_organizations_for_address("94040", "US")
+    assert [(p.organization_id, p.display_name, p.phone_number) for p in partners] == [
+        ("org-7", "Northgate Heating & Air", "555-0100")
+    ]
+    call.assert_awaited_once_with(
+        svc.ListPartnerOrganizationsForAddressRequest(postal_code="94040", country_code="US")
+    )
+
+
+def test_partner_details_carries_parent_organization() -> None:
+    """PartnerDetails.parent_organization_id maps the new app 1.0.34 proto field."""
+    details = PartnerDetails.from_proto(
+        svc.PartnerDetails(
+            partner_organization_id="org-child",
+            partner_organization_name="Child Org",
+            parent_partner_organization_id="org-parent",
+        )
+    )
+    assert details is not None
+    assert details.parent_organization_id == "org-parent"
+
+
 async def test_client_account_methods_resolve_the_system() -> None:
     client = QuiltClient("user@example.com")
     client._system_id = "sys-1"
@@ -256,6 +294,7 @@ async def test_client_account_methods_resolve_the_system() -> None:
         get_access_role=AsyncMock(return_value=AccessRole.ADMIN),
         get_data_sharing=AsyncMock(return_value="sharing"),
         list_certified_partners=AsyncMock(return_value=[]),
+        list_partner_organizations_for_address=AsyncMock(return_value=[]),
         list_user_tasks=AsyncMock(return_value=[]),
         list_pending_invitations=AsyncMock(return_value=[]),
         get_partner_details=AsyncMock(return_value=None),
@@ -266,6 +305,8 @@ async def test_client_account_methods_resolve_the_system() -> None:
     assert await client.get_access_role() is AccessRole.ADMIN
     assert await client.get_data_sharing() == "sharing"
     assert await client.list_certified_partners() == []
+    assert await client.list_partner_organizations_for_address("94040", "US") == []
+    account.list_partner_organizations_for_address.assert_awaited_once_with("94040", "US")
     assert await client.list_user_tasks() == []
     assert await client.list_pending_invitations() == []
     assert await client.get_partner_details() is None

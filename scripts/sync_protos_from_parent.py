@@ -27,6 +27,7 @@ FILES = [
     "quilt_device_pairing.proto",
     "quilt_device_config.proto",
     "quilt_actions.proto",
+    "quilt_bluetooth_control.proto",
 ]
 
 # (pattern, replacement) applied to comments in order. Decompiler class names are deleted;
@@ -98,6 +99,7 @@ SUBS: list[tuple[str, str | Callable[[re.Match[str]], str]]] = [
     (rf"\s*\((?:{_OBF}\s*/\s*)+{_OBF}\)", ""),  # (wn2 / xn2 / vn2)
     (rf";\s*enum {_OBF} in \d{{3}}\)", ")"),  # (255+; enum ty4 in 271)
     # Android build numbers -> app versions (last, after the class-tag rules above)
+    (r"\b278\b", "1.0.34"),
     (r"\b271\b", "1.0.33"),
     (r"\b255\b", "1.0.31"),
     (r"\b242\b", "1.0.29"),
@@ -117,7 +119,7 @@ SUBS: list[tuple[str, str | Callable[[re.Match[str]], str]]] = [
 SUB_RE = [(re.compile(a), b) for a, b in SUBS]
 MARKER = re.compile(
     r"APK|\.java|\.kt\b|KMP|jadx|smali|Java enum|ProtocolMessageEnum|\b\d{3}: [a-z]{1,3}\d"
-    r"|versionCode|com\.quilt\.android|FIELD_NUMBER|\(C\d{3,5}|\b(?:242|255|271)\b"
+    r"|versionCode|com\.quilt\.android|FIELD_NUMBER|\(C\d{3,5}|\b(?:242|255|271|278)\b"
 )
 JUNK = re.compile(r"^[\s,;:()\-—/.+]*$")
 # Words a substitution may legitimately drop; anything else lost is reported for review.
@@ -196,6 +198,14 @@ HEADERS = {
 // HomeActionService — unified "submit an action" control API.
 // Wire path: /core.protos.actions.HomeActionService/SubmitAction
 // Fields marked `optional` have explicit presence: omit them to leave a setting unchanged.
+""",
+    "quilt_bluetooth_control.proto": """// quilt_bluetooth_control.proto
+// BLE direct-control messages — serialized over a Bluetooth GATT service (not gRPC), added in
+// app 1.0.34. The app's installer tooling reads live climate/damper state from a Dial and writes
+// setpoint/mode/fan/power commands over Bluetooth with no cloud. Reconstructed from the app and
+// not yet verified against physical hardware; the `quilt.bluetooth.v1` package name is
+// reconstructed and never appears on the wire. Fields marked `optional` have explicit presence.
+// This package carries the message definitions only; it does not implement a BLE transport.
 """,
 }
 

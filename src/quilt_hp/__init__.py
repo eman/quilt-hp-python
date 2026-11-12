@@ -1,11 +1,13 @@
 """quilt_hp — Async Python client for Quilt mini-split HVAC systems."""
 
 from quilt_hp.auth import OtpCallback
+from quilt_hp.bluetooth import BluetoothControlClient, discover_dials
 from quilt_hp.client import QuiltClient
 from quilt_hp.const import Environment
 from quilt_hp.exceptions import (
     QuiltActionError,
     QuiltAuthError,
+    QuiltBluetoothError,
     QuiltConnectionError,
     QuiltError,
     QuiltNotFoundError,
@@ -27,6 +29,7 @@ from quilt_hp.tokens import (
 __version__ = "0.6.0"
 
 __all__ = [
+    "BluetoothControlClient",
     "CachedTokens",
     "Environment",
     "LegacyTokenStore",
@@ -34,6 +37,7 @@ __all__ = [
     "OtpCallback",
     "QuiltActionError",
     "QuiltAuthError",
+    "QuiltBluetoothError",
     "QuiltClient",
     "QuiltConnectionError",
     "QuiltError",
@@ -47,4 +51,5 @@ __all__ = [
     "TokenRefreshPolicy",
     "TokenRefreshReason",
     "TokenStore",
+    "discover_dials",
 ]

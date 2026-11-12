@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import re
 from datetime import UTC, datetime
 from types import SimpleNamespace
 from unittest.mock import patch
@@ -319,4 +320,8 @@ def test_output_mode_validation_is_explicit() -> None:
         result = runner.invoke(cli_main.app, ["info", "--output", "yaml"])
 
     assert result.exit_code != 0
-    assert "'yaml' is not one of 'summary', 'json'" in result.output
+    # Rich wraps the error in a fixed-width box, so long messages (newer typer
+    # prefixes "Value error, ") break mid-phrase. Compare the unwrapped text.
+    plain = re.sub(r"\x1b\[[0-9;]*m", "", result.output)
+    text = re.sub(r"[\s│╭╮╰╯─]+", " ", plain)
+    assert "'yaml' is not one of 'summary', 'json'" in text

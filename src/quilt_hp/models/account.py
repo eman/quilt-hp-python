@@ -104,6 +104,8 @@ class PartnerDetails:
     organization_id: str
     organization_name: str
     tier: str | None = None
+    parent_organization_id: str | None = None
+    """The parent organisation, for a partner that is a sub-organisation of another."""
 
     @classmethod
     def from_proto(cls, proto: object) -> PartnerDetails | None:
@@ -114,6 +116,7 @@ class PartnerDetails:
             organization_id=p.partner_organization_id,
             organization_name=p.partner_organization_name,
             tier=p.partner_tier or None,
+            parent_organization_id=p.parent_partner_organization_id or None,
         )
 
 

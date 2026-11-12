@@ -34,6 +34,9 @@ cli = [
     "rich>=13.0",
     "textual>=0.80",
 ]
+ble = [
+    "bleak>=0.22",
+]
 dev = [
     "ruff>=0.11",
     "mypy>=1.15",
@@ -126,6 +129,10 @@ ignore_missing_imports = true
 
 [[tool.mypy.overrides]]
 module = "boto3.*"
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = "bleak.*"
 ignore_missing_imports = true
 
 [[tool.mypy.overrides]]

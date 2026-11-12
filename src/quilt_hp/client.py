@@ -1062,6 +1062,19 @@ class QuiltClient:
         sid = await self._resolve_system_id(system_id)
         return await self._require_account().list_certified_partners(sid)
 
+    async def list_partner_organizations_for_address(
+        self, postal_code: str, country_code: str
+    ) -> list[PartnerProfile]:
+        """Certified installer partners serving a postal code, without needing a system.
+
+        The address-based counterpart of :meth:`list_certified_partners`, used during
+        onboarding before a system exists. ``country_code`` is an ISO 3166-1 code such as
+        ``"US"``.
+        """
+        return await self._require_account().list_partner_organizations_for_address(
+            postal_code, country_code
+        )
+
     async def list_user_tasks(self, system_id: str | None = None) -> list[UserTask]:
         """Tasks the app would prompt about for the system, such as data-sharing consent."""
         sid = await self._resolve_system_id(system_id)

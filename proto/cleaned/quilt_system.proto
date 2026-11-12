@@ -9,8 +9,6 @@ package core.protos.system;
 
 import "google/protobuf/empty.proto";
 import "quilt_hds.proto";
-
-option java_package = "com.quilt.proto.system";
 option swift_prefix = "Quilt";
 
 // Shape decoded live from GetSystem/ListSystems (2026-10-05). The names of fields 2 and 3 are
