@@ -8,7 +8,6 @@ from datetime import UTC, datetime
 from types import SimpleNamespace
 from unittest.mock import patch
 
-import click
 from typer.testing import CliRunner
 
 from quilt_hp.cli import main as cli_main
@@ -321,7 +320,8 @@ def test_output_mode_validation_is_explicit() -> None:
         result = runner.invoke(cli_main.app, ["info", "--output", "yaml"])
 
     assert result.exit_code != 0
-    # Rich wraps the error in a fixed-width box, so long messages (click >= 8.5
+    # Rich wraps the error in a fixed-width box, so long messages (newer typer
     # prefixes "Value error, ") break mid-phrase. Compare the unwrapped text.
-    text = re.sub(r"[\s│╭╮╰╯─]+", " ", click.unstyle(result.output))
+    plain = re.sub(r"\x1b\[[0-9;]*m", "", result.output)
+    text = re.sub(r"[\s│╭╮╰╯─]+", " ", plain)
     assert "'yaml' is not one of 'summary', 'json'" in text
